@@ -74,6 +74,12 @@ jobs:
           PGPASSWORD: ci_app_password
         run: bash db/tests/negative_checks.sh
 
+      - name: POS checkout verification — idempotency and isolation (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/pos_checkout_verification.sql
+
       - name: Admin checks — atomic rollback and FK cascade (as postgres)
         env:
           PGUSER: postgres
