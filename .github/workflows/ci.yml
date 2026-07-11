@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    # This job name is the required status check on main — renaming it
+    # silently disables branch protection until the rule is updated.
+    name: Database CI
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mosaiz_mundo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mosaiz_mundo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATABASE: mosaiz_mundo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mirrors the local role split: postgres owns objects and runs
+      # migrations; mosaiz_app_user is the RLS-constrained application role.
+      - name: Create application role
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE mosaiz_app_user LOGIN PASSWORD 'ci_app_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;"
+
+      - name: Apply all migrations in order (as postgres)
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          set -e
+          for f in db/migrations/*.sql; do
+            echo "==> applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: RLS verification (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/rls_verification.sql
+
+      - name: Negative checks — statements that MUST be rejected
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: bash db/tests/negative_checks.sh
+
+      - name: Admin checks — atomic rollback and FK cascade (as postgres)
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/admin_checks.sql
