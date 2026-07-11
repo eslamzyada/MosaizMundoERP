@@ -1,0 +1,2 @@
+# Contains local database credentials — never commit
+.mcp.json
