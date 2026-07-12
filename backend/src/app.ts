@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import { authMiddleware } from './middleware/auth';
 import posRoutes from './routes/pos.routes';
+import inventoryRoutes from './routes/inventory.routes';
 import webhookRoutes from './routes/webhook.routes';
 
 // The configured Express app, separated from the listener in server.ts so that
@@ -52,6 +53,10 @@ app.get(
 // POS & Checkout API. The router applies the auth middleware itself, so every
 // handler runs inside an authenticated, RLS-bound transaction.
 app.use('/api/pos', posRoutes);
+
+// Inventory & Warehouse API. Same auth pattern — the router applies the JWT
+// middleware, so every handler runs RLS-bound.
+app.use('/api/inventory', inventoryRoutes);
 
 // Supabase identity webhooks. Guarded by HMAC signature (webhookAuth), NOT the
 // JWT middleware — Supabase calls these, not a logged-in user.
