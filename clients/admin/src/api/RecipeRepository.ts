@@ -1,8 +1,10 @@
-import type { Recipe } from '../types';
+import type { Recipe, RawInventoryItem } from '../types';
 
 // Data-access boundary for the Bill of Materials context. Components depend on
 // this interface only, so MockRecipeRepository can later be swapped for an
 // HttpRecipeRepository without any UI changes.
 export interface RecipeRepository {
   getRecipes(): Promise<Recipe[]>;
+  /** The catalog of raw ingredients available to add to a recipe. */
+  getIngredients(): Promise<RawInventoryItem[]>;
 }

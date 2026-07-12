@@ -52,10 +52,15 @@ export interface Order {
 
 // ---- Bill of Materials (recipes) -------------------------------------------
 
+/** How a raw ingredient is sourced. */
+export type IngredientCategory = 'purchased' | 'intermediate';
+
 export interface RawInventoryItem {
   id: string;
   name: string;
   unit_of_measure: string;
+  // 'purchased' = bought as-is (مشتريات); 'intermediate' = made in-house (وسيط).
+  category?: IngredientCategory;
 }
 
 /** One ingredient line of a recipe: how much of a raw item it consumes. */

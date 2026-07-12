@@ -1,25 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import Button from '../components/Button';
+import AddIngredientModal from '../components/AddIngredientModal';
 import { MockRecipeRepository } from '../api/MockRecipeRepository';
 import type { RecipeRepository } from '../api/RecipeRepository';
-import type { Recipe } from '../types';
+import type { IngredientCategory, RawInventoryItem, Recipe, RecipeLine } from '../types';
 
 const repository: RecipeRepository = new MockRecipeRepository();
 
 export default function Recipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [ingredients, setIngredients] = useState<RawInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
-    repository.getRecipes().then((data) => {
-      if (!active) return;
-      setRecipes(data);
-      setSelectedId(data[0]?.sellable_item.id ?? null);
-      setLoading(false);
-    });
+    Promise.all([repository.getRecipes(), repository.getIngredients()]).then(
+      ([recipeData, ingredientData]) => {
+        if (!active) return;
+        setRecipes(recipeData);
+        setIngredients(ingredientData);
+        setSelectedId(recipeData[0]?.sellable_item.id ?? null);
+        setLoading(false);
+      },
+    );
     return () => {
       active = false;
     };
@@ -29,6 +35,18 @@ export default function Recipes() {
     () => recipes.find((r) => r.sellable_item.id === selectedId) ?? null,
     [recipes, selectedId],
   );
+
+  // Append the new line to the currently selected recipe (local state only —
+  // resets on refresh, which is expected for the mock).
+  function handleAddLine(line: RecipeLine) {
+    setRecipes((prev) =>
+      prev.map((r) =>
+        r.sellable_item.id === selectedId
+          ? { ...r, recipe_lines: [...r.recipe_lines, line] }
+          : r,
+      ),
+    );
+  }
 
   return (
     <div className="p-8">
@@ -120,12 +138,13 @@ export default function Recipes() {
                       <Th>المكوّن</Th>
                       <Th>الكمية</Th>
                       <Th>وحدة القياس</Th>
+                      <Th>النوع</Th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-sand-border/70">
-                    {selected.recipe_lines.map((line) => (
+                    {selected.recipe_lines.map((line, idx) => (
                       <tr
-                        key={line.raw_item.id}
+                        key={`${line.raw_item.id}-${idx}`}
                         className="transition-colors hover:bg-surface-sand/60"
                       >
                         <td className="px-6 py-4 font-semibold text-surface-dark">
@@ -137,6 +156,9 @@ export default function Recipes() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-slate-500">{line.raw_item.unit_of_measure}</td>
+                        <td className="px-6 py-4">
+                          <CategoryChip category={line.raw_item.category} />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -144,7 +166,7 @@ export default function Recipes() {
               </div>
 
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-surface-sand-border px-6 py-4">
-                <Button variant="secondary" type="button">
+                <Button variant="secondary" type="button" onClick={() => setModalOpen(true)}>
                   إضافة مكوّن
                 </Button>
                 <Button variant="primary" type="button">
@@ -155,7 +177,31 @@ export default function Recipes() {
           )}
         </section>
       </div>
+
+      <AddIngredientModal
+        open={modalOpen}
+        ingredients={ingredients}
+        onClose={() => setModalOpen(false)}
+        onAdd={handleAddLine}
+      />
     </div>
+  );
+}
+
+function CategoryChip({ category }: { category?: IngredientCategory }) {
+  if (category === 'intermediate') {
+    return <Chip className="bg-twilight-100 text-twilight-700">وسيط</Chip>;
+  }
+  return <Chip className="bg-amber-100 text-amber-800">مشتريات</Chip>;
+}
+
+function Chip({ children, className }: { children: ReactNode; className: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${className}`}
+    >
+      {children}
+    </span>
   );
 }
 
