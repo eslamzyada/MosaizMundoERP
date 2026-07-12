@@ -29,93 +29,131 @@ export default function Inventory() {
   return (
     <div className="p-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Inventory Deficits</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-surface-dark">نواقص المخزون</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Ingredients sold beyond recorded stock, awaiting reconciliation.
+          مكوّنات تم بيعها بما يتجاوز المخزون المُسجّل، بانتظار التسوية.
         </p>
       </header>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Open Deficits" value={loading ? '—' : String(deficits.length)} />
         <StatCard
-          label="Total Units Short"
-          value={loading ? '—' : totalMissing.toLocaleString()}
+          label="نواقص مفتوحة"
+          value={loading ? '—' : deficits.length.toLocaleString('en-US')}
+          accent="twilight"
         />
         <StatCard
-          label="Ingredients Affected"
-          value={loading ? '—' : String(ingredientsAffected)}
+          label="إجمالي الوحدات الناقصة"
+          value={loading ? '—' : totalMissing.toLocaleString('en-US')}
+          accent="destructive"
+        />
+        <StatCard
+          label="المكوّنات المتأثرة"
+          value={loading ? '—' : ingredientsAffected.toLocaleString('en-US')}
+          accent="amber"
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <Th>Ingredient</Th>
-              <Th>Unit</Th>
-              <Th className="text-right">Missing Qty</Th>
-              <Th>Recorded</Th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
+      <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+            <thead className="bg-surface-sand-alt/60">
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
-                  Loading deficits…
-                </td>
+                <Th>المكوّن</Th>
+                <Th>الوحدة</Th>
+                <Th>الكمية الناقصة</Th>
+                <Th>الحالة</Th>
+                <Th>تاريخ التسجيل</Th>
               </tr>
-            ) : deficits.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
-                  No deficits. Inventory is fully reconciled.
-                </td>
-              </tr>
-            ) : (
-              deficits.map((d) => (
-                <tr key={d.id} className="transition-colors hover:bg-slate-50">
-                  <td className="px-6 py-4 font-medium text-slate-900">
-                    {d.raw_inventory_items.name}
+            </thead>
+            <tbody className="divide-y divide-surface-sand-border/70">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400">
+                    جارٍ تحميل النواقص…
                   </td>
-                  <td className="px-6 py-4 text-slate-500">
-                    {d.raw_inventory_items.unit_of_measure}
-                  </td>
-                  <td className="px-6 py-4 text-right font-semibold tabular-nums text-rose-600">
-                    {d.missing_quantity.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">{formatDate(d.recorded_at)}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : deficits.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400">
+                    لا توجد نواقص. المخزون مُسوّى بالكامل.
+                  </td>
+                </tr>
+              ) : (
+                deficits.map((d) => (
+                  <tr key={d.id} className="transition-colors hover:bg-surface-sand/60">
+                    <td className="px-6 py-4 font-semibold text-surface-dark">
+                      {d.raw_inventory_items.name}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">
+                      {d.raw_inventory_items.unit_of_measure}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-numerals font-semibold text-destructive-strong">
+                        {d.missing_quantity.toLocaleString('en-US')}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge>عجز</Badge>
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">
+                      <span className="font-numerals">{formatDate(d.recorded_at)}</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+const ACCENT_BAR: Record<string, string> = {
+  twilight: 'bg-twilight-500',
+  destructive: 'bg-destructive',
+  amber: 'bg-amber-500',
+};
+
+function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: keyof typeof ACCENT_BAR;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{value}</div>
+    <div className="relative overflow-hidden rounded-2xl border border-surface-sand-border bg-white p-5 shadow-sm">
+      <span className={`absolute inset-y-0 end-0 w-1 ${ACCENT_BAR[accent]}`} aria-hidden />
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="mt-2 font-numerals text-3xl font-bold text-surface-dark">{value}</div>
     </div>
   );
 }
 
-function Th({ children, className = '' }: { children: ReactNode; className?: string }) {
+/** Destructive status chip for a deficit row. */
+function Badge({ children }: { children: ReactNode }) {
   return (
-    <th
-      className={`px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 ${className}`}
-    >
+    <span className="inline-flex items-center rounded-full bg-destructive-soft px-2.5 py-0.5 text-xs font-bold text-destructive-strong">
+      {children}
+    </span>
+  );
+}
+
+function Th({ children }: { children: ReactNode }) {
+  return (
+    <th className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500">
       {children}
     </th>
   );
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString('en-GB', {
     year: 'numeric',
     month: 'short',
-    day: 'numeric',
+    day: '2-digit',
   });
 }
