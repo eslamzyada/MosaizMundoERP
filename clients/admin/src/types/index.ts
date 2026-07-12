@@ -49,3 +49,24 @@ export interface Order {
   updated_at: string;
   order_items: OrderItem[];
 }
+
+// ---- Bill of Materials (recipes) -------------------------------------------
+
+export interface RawInventoryItem {
+  id: string;
+  name: string;
+  unit_of_measure: string;
+}
+
+/** One ingredient line of a recipe: how much of a raw item it consumes. */
+export interface RecipeLine {
+  raw_item: RawInventoryItem;
+  quantity_required: number;
+}
+
+/** A sellable item and the raw ingredients it is built from. */
+export interface Recipe {
+  sellable_item: SellableItem;
+  recipe_lines: RecipeLine[];
+  total_cost: number;
+}
