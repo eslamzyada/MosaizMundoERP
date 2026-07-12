@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import { authMiddleware } from './middleware/auth';
+import posRoutes from './routes/pos.routes';
 import { prisma } from './prisma';
 
 const app = express();
@@ -38,6 +39,10 @@ app.get(
     }
   },
 );
+
+// POS & Checkout API. The router applies the auth middleware itself, so every
+// handler runs inside an authenticated, RLS-bound transaction.
+app.use('/api/pos', posRoutes);
 
 // Centralized error handler.
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
