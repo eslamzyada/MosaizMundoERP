@@ -39,11 +39,15 @@ export interface OrderItem {
   updated_at: string;
 }
 
+// The backend currently emits 'completed' | 'voided'; 'refunded' is a
+// forward-looking status the admin UI already renders.
+export type OrderStatus = 'completed' | 'voided' | 'refunded';
+
 export interface Order {
   id: string;
   organization_id: string;
   client_offline_id: string;
-  status: 'completed' | 'voided';
+  status: OrderStatus;
   total_amount: number;
   created_at: string;
   updated_at: string;
