@@ -86,6 +86,12 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/inventory_fifo_verification.sql
 
+      - name: BOM integration verification — checkout draws down raw stock (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/bom_integration_verification.sql
+
       - name: Admin checks — atomic rollback and FK cascade (as postgres)
         env:
           PGUSER: postgres
