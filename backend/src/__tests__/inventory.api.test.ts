@@ -53,6 +53,7 @@ afterAll(async () => {
   for (const org of [orgId, orgBId]) {
     await admin.$executeRaw`DELETE FROM public.inventory_batches WHERE organization_id = ${org}::uuid`;
     await admin.$executeRaw`DELETE FROM public.inventory_deficits WHERE organization_id = ${org}::uuid`;
+    await admin.$executeRaw`DELETE FROM public.stocktakes WHERE organization_id = ${org}::uuid`; // cascades stocktake_items
     await admin.$executeRaw`DELETE FROM public.raw_inventory_items WHERE organization_id = ${org}::uuid`;
     await admin.$executeRaw`DELETE FROM public.organization_memberships WHERE organization_id = ${org}::uuid`;
   }
@@ -75,6 +76,9 @@ describe('Inventory API', () => {
     );
     expect(mine).toBeDefined();
     expect(mine.raw_inventory_items.name).toBe('Flour');
+    // Decimal serialization fix: missing_quantity is a JSON number.
+    expect(typeof mine.missing_quantity).toBe('number');
+    expect(mine.missing_quantity).toBe(5);
     // RLS-scoped: nothing from Tenant B is visible.
     expect(
       res.body.every((d: { organization_id: string }) => d.organization_id === orgId),
@@ -89,8 +93,11 @@ describe('Inventory API', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.organization_id).toBe(orgId);
-    expect(Number(res.body.quantity_received)).toBe(25);
-    expect(Number(res.body.quantity_remaining)).toBe(25);
+    // Decimal serialization fix: quantities come back as JSON numbers.
+    expect(typeof res.body.quantity_received).toBe('number');
+    expect(res.body.quantity_received).toBe(25);
+    expect(typeof res.body.quantity_remaining).toBe('number');
+    expect(res.body.quantity_remaining).toBe(25);
   });
 
   test('POST /api/inventory/receive into another tenant is blocked (404)', async () => {
@@ -102,6 +109,33 @@ describe('Inventory API', () => {
       .send({ raw_item_id: rawItemBId, quantity_received: 10, cost_at_purchase: 1.0 });
 
     expect(res.status).toBe(404);
+  });
+
+  test('POST /api/inventory/stocktakes/:id/post reconciles a draft (200 + deficit)', async () => {
+    // Seed a draft stocktake with a -2 variance on the Flour raw item.
+    const stocktakeId = randomUUID();
+    await admin.$executeRaw`INSERT INTO public.stocktakes (id, organization_id, status) VALUES (${stocktakeId}::uuid, ${orgId}::uuid, 'draft')`;
+    await admin.$executeRaw`INSERT INTO public.stocktake_items (stocktake_id, organization_id, raw_item_id, expected_quantity, counted_quantity) VALUES (${stocktakeId}::uuid, ${orgId}::uuid, ${rawItemId}::uuid, 10, 8)`;
+
+    const res = await request(app)
+      .post(`/api/inventory/stocktakes/${stocktakeId}/post`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+
+    const status = await admin.$queryRaw<Array<{ status: string }>>`
+      SELECT status FROM public.stocktakes WHERE id = ${stocktakeId}::uuid`;
+    expect(status[0].status).toBe('posted');
+
+    const deficit = await admin.$queryRaw<Array<{ missing_quantity: unknown }>>`
+      SELECT missing_quantity FROM public.inventory_deficits
+      WHERE raw_item_id = ${rawItemId}::uuid AND missing_quantity = 2`;
+    expect(deficit.length).toBeGreaterThanOrEqual(1);
+
+    // Posting an already-posted stocktake is rejected (400).
+    const again = await request(app)
+      .post(`/api/inventory/stocktakes/${stocktakeId}/post`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(again.status).toBe(400);
   });
 
   test('unauthenticated request is rejected with 401', async () => {

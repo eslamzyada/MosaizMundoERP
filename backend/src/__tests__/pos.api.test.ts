@@ -102,6 +102,34 @@ describe('POS API', () => {
     );
   });
 
+  test('GET /api/pos/orders returns orders with nested items and numeric Decimals', async () => {
+    // Seed a known order + line item (superuser bypasses RLS).
+    const orderId = randomUUID();
+    await admin.$executeRaw`INSERT INTO public.orders (id, organization_id, client_offline_id, status, total_amount) VALUES (${orderId}::uuid, ${orgId}::uuid, ${randomUUID()}::uuid, 'completed', 42.50)`;
+    await admin.$executeRaw`INSERT INTO public.order_items (order_id, organization_id, sellable_item_id, quantity, unit_price) VALUES (${orderId}::uuid, ${orgId}::uuid, ${itemId}::uuid, 3, 14.00)`;
+
+    const res = await request(app)
+      .get('/api/pos/orders')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+
+    const order = res.body.find((o: { id: string }) => o.id === orderId);
+    expect(order).toBeDefined();
+
+    // Decimal serialization fix: total_amount / unit_price are JSON numbers.
+    expect(typeof order.total_amount).toBe('number');
+    expect(order.total_amount).toBe(42.5);
+
+    expect(Array.isArray(order.order_items)).toBe(true);
+    const line = order.order_items[0];
+    expect(typeof line.unit_price).toBe('number');
+    expect(line.unit_price).toBe(14);
+    expect(typeof line.quantity).toBe('number');
+    expect(line.quantity).toBe(3);
+  });
+
   test('an unauthenticated request is rejected with 401', async () => {
     const res = await request(app).get('/api/pos/menu');
     expect(res.status).toBe(401);

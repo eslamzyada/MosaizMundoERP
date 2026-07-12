@@ -1,9 +1,28 @@
 import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
+import { Prisma } from '@prisma/client';
 import { authMiddleware } from './middleware/auth';
 import posRoutes from './routes/pos.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import webhookRoutes from './routes/webhook.routes';
+
+// Recursively convert Prisma Decimal values to plain JS numbers. Prisma
+// serializes Decimal as a string by default; the API contract is standard JSON
+// numbers. Dates are left intact (res.json renders them as ISO strings).
+function convertDecimals(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (Prisma.Decimal.isDecimal(value)) return (value as Prisma.Decimal).toNumber();
+  if (value instanceof Date) return value;
+  if (Array.isArray(value)) return value.map(convertDecimals);
+  if (typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = convertDecimals(v);
+    }
+    return out;
+  }
+  return value;
+}
 
 // The configured Express app, separated from the listener in server.ts so that
 // tests (supertest) can drive it without binding a port.
@@ -20,6 +39,17 @@ app.use(
     },
   }),
 );
+
+// Serialize Prisma Decimal fields as JSON numbers across every endpoint. This
+// interceptor (rather than a prisma.$extends result extension) keeps the
+// RLS-critical req.tx transaction client's type untouched — a $extends client
+// entangles the interactive-transaction type used throughout the auth
+// middleware.
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  const originalJson = res.json.bind(res);
+  res.json = ((body: unknown) => originalJson(convertDecimals(body))) as typeof res.json;
+  next();
+});
 
 // Liveness check — no auth, no database.
 app.get('/health', (_req: Request, res: Response) => {
