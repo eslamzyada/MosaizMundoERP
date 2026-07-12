@@ -4,6 +4,7 @@ const navItems = [
   { to: '/', label: 'لوحة التحكم', end: true },
   { to: '/orders', label: 'الطلبات', end: false },
   { to: '/inventory', label: 'المخزون', end: false },
+  { to: '/recipes', label: 'الوصفات', end: false },
 ];
 
 export default function Layout() {
