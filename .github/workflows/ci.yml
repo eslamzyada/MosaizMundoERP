@@ -104,6 +104,33 @@ jobs:
           PGPASSWORD: postgres
         run: psql -v ON_ERROR_STOP=1 -f db/tests/admin_checks.sql
 
+      # ---- API integration tests against the migrated container DB ----------
+      # The app connects as the RLS-constrained mosaiz_app_user; the test
+      # harness seeds/tears down via the postgres superuser (ADMIN_DATABASE_URL).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Build backend
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://mosaiz_app_user:ci_app_password@localhost:5432/mosaiz_mundo"
+        run: npm run build
+
+      - name: API integration tests (Jest + supertest)
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://mosaiz_app_user:ci_app_password@localhost:5432/mosaiz_mundo"
+          ADMIN_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mosaiz_mundo"
+          SUPABASE_JWT_SECRET: "ci-test-jwt-secret-at-least-32-characters-long"
+        run: npm test
+
   backend:
     # Compiles the API gateway. Prisma Client is generated from the committed,
     # introspected schema.prisma — no database is needed at build time, so a
