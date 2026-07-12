@@ -134,4 +134,49 @@ BEGIN
 END;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- 4. Cart coalescing (0007): three SEPARATE lines of the same item, with zero
+--    stock, must produce exactly ONE deduction — i.e. a single deficit row of
+--    3, not three rows of 1. This is the observable signature of coalescing.
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_org  uuid := (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo');
+    v_raw  uuid := 'c0a1e5ce-0001-4001-8001-000000000001';
+    v_sell uuid := 'c0a1e5ce-0002-4002-8002-000000000002';
+    v_line jsonb;
+    v_rows    integer;
+    v_missing numeric;
+BEGIN
+    INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure)
+    VALUES (v_raw, v_org, 'Coalesce Cheese', 'grams');   -- no batch: zero stock
+    INSERT INTO public.sellable_items (id, organization_id, name, sku)
+    VALUES (v_sell, v_org, 'Coalesce Item', 'COAL-1');
+    INSERT INTO public.bill_of_materials
+        (organization_id, sellable_item_id, raw_item_id, quantity_required)
+    VALUES (v_org, v_sell, v_raw, 1);
+
+    -- Three distinct cart lines for the same sellable (cashier tapped x3).
+    v_line := jsonb_build_object('sellable_item_id', v_sell, 'quantity', 1, 'unit_price', 4.00);
+    CALL app.process_pos_checkout(jsonb_build_object(
+        'organization_id',   v_org,
+        'client_offline_id', 'c0a1e5ce-0003-4003-8003-000000000003',
+        'total_amount',      12.00,
+        'items', jsonb_build_array(v_line, v_line, v_line)
+    ));
+
+    SELECT count(*), COALESCE(max(missing_quantity), 0)
+    INTO v_rows, v_missing
+    FROM public.inventory_deficits
+    WHERE raw_item_id = v_raw AND organization_id = v_org;
+
+    IF v_rows <> 1 THEN
+        RAISE EXCEPTION 'coalescing breach: expected 1 deficit row, got % (lines not coalesced)', v_rows;
+    END IF;
+    IF v_missing <> 3 THEN
+        RAISE EXCEPTION 'coalescing breach: expected a single deficit of 3, got %', v_missing;
+    END IF;
+END;
+$$;
+
 SELECT 'bom_integration_verification: all assertions passed' AS result;

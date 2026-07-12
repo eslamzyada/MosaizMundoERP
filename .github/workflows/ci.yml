@@ -92,6 +92,12 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/bom_integration_verification.sql
 
+      - name: Stocktake reconciliation verification — variance and locks (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/stocktake_concurrency_verification.sql
+
       - name: Admin checks — atomic rollback and FK cascade (as postgres)
         env:
           PGUSER: postgres
