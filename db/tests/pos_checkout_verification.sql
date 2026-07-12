@@ -14,6 +14,14 @@ CREATE TEMP TABLE ctx AS
 SELECT (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo') AS org_id,
        '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f'::uuid                         AS coid;
 
+-- Catalog prerequisite (added with migration 0005): order_items.sellable_item_id
+-- now has an FK to sellable_items, so the items referenced below must exist
+-- first. Seed them in the caller's org (RLS WITH CHECK passes for the owner).
+INSERT INTO public.sellable_items (id, organization_id, name, sku)
+SELECT 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'::uuid, org_id, 'CI Item A', 'ITEM-A1' FROM ctx
+UNION ALL
+SELECT 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2'::uuid, org_id, 'CI Item B', 'ITEM-B2' FROM ctx;
+
 -- 1. First checkout: must create 1 order with 2 line items.
 DO $$
 DECLARE
