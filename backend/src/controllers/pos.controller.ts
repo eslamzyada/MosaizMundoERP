@@ -52,7 +52,21 @@ export async function processCheckout(req: Request, res: Response): Promise<void
       checkoutPayload,
     )}::jsonb)`;
 
-    res.status(200).json({ status: 'ok', message: 'Checkout processed' });
+    // The procedure INSERTs ... ON CONFLICT DO NOTHING, so it cannot return the
+    // id directly. Read it back by the idempotency key — inside the same tx, so
+    // this sees the just-inserted (or pre-existing, on retry) row under RLS.
+    const { organization_id, client_offline_id } = checkoutPayload as {
+      organization_id?: string;
+      client_offline_id?: string;
+    };
+    const order = await req.tx.orders.findFirst({
+      where: { organization_id, client_offline_id },
+      select: { id: true },
+    });
+
+    res
+      .status(200)
+      .json({ status: 'ok', message: 'Checkout processed', order_id: order?.id ?? null });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[pos.checkout] failed:', err);
@@ -66,6 +80,31 @@ export async function processCheckout(req: Request, res: Response): Promise<void
       return;
     }
 
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
+ * GET /api/pos/menu
+ *
+ * Returns the caller's catalog. Because the query runs on req.tx (bound to the
+ * RLS session), sellable_items.findMany automatically returns ONLY the items
+ * for the caller's organization(s) — no explicit organization_id filter.
+ */
+export async function getMenu(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  try {
+    const items = await req.tx.sellable_items.findMany({
+      orderBy: { name: 'asc' },
+    });
+    res.status(200).json(items);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[pos.menu] failed:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
