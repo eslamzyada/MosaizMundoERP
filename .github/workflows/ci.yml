@@ -129,6 +129,7 @@ jobs:
           DATABASE_URL: "postgresql://mosaiz_app_user:ci_app_password@localhost:5432/mosaiz_mundo"
           ADMIN_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mosaiz_mundo"
           SUPABASE_JWT_SECRET: "ci-test-jwt-secret-at-least-32-characters-long"
+          SUPABASE_WEBHOOK_SECRET: "ci-test-webhook-secret-at-least-32-chars-long"
         run: npm test
 
   backend:
