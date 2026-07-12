@@ -84,6 +84,15 @@ export async function authMiddleware(
     return;
   }
 
+  // The handler's response is buffered and only flushed to the client AFTER the
+  // transaction commits, so a client that reads its own write on a subsequent
+  // request always sees committed data (no read-after-write race). All of
+  // res.json/res.send funnel through res.end, so intercepting res.end alone
+  // captures the terminal write regardless of how the handler responds.
+  const realEnd = res.end.bind(res);
+  let endArgs: unknown[] = [];
+  let captured = false;
+
   try {
     await prisma.$transaction(
       async (tx) => {
@@ -96,18 +105,39 @@ export async function authMiddleware(
         req.tx = tx;
         req.userId = userId;
 
-        // Keep the transaction open until the response is fully sent, so the
-        // handler's queries on req.tx run under the bound identity. The tx
-        // commits when this promise resolves.
-        await new Promise<void>((resolve) => {
-          res.once('finish', resolve);
-          res.once('close', resolve);
-          next();
+        // Resolve (→ commit) as soon as the handler finishes writing, but hold
+        // the actual flush until after the transaction has committed.
+        await new Promise<void>((resolve, reject) => {
+          res.end = ((...args: unknown[]) => {
+            if (!captured) {
+              captured = true;
+              endArgs = args;
+            }
+            resolve();
+            return res;
+          }) as typeof res.end;
+
+          // Client hung up before the handler responded: stop waiting.
+          res.once('close', () => resolve());
+
+          try {
+            next();
+          } catch (err) {
+            reject(err);
+          }
         });
       },
       { timeout: 15_000 },
     );
+
+    // Committed. Restore the real end and flush the buffered response.
+    res.end = realEnd;
+    if (captured && !res.writableEnded) {
+      (realEnd as (...args: unknown[]) => unknown)(...endArgs);
+    }
   } catch (err) {
+    // Rolled back. Restore res.end so the error handler can actually send.
+    res.end = realEnd;
     next(err as Error);
   }
 }
