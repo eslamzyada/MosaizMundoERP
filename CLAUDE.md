@@ -42,3 +42,20 @@ or policy behavior without executing it.
   or recreate it in git): `postgres_app` (app role) and `postgres_admin`
   (superuser, for DDL).
 - `psql` is not on PATH: use `C:\Program Files\PostgreSQL\18\bin\psql.exe`.
+
+## API Gateway (`backend/`)
+
+- Node + Express + TypeScript + Prisma. The DB schema is owned by the SQL
+  migrations, NEVER by Prisma Migrate. Prisma is introspection + query only:
+  after applying a new migration, re-run `npm run db:pull` to refresh
+  `prisma/schema.prisma`, then `npm run build`.
+- The API connects as `mosaiz_app_user` (never `postgres`), so every query is
+  under RLS. `.env` holds `DATABASE_URL` and is gitignored (`.env.example` is
+  the template).
+- RLS contract: the auth middleware runs each handler inside ONE Prisma
+  interactive transaction that first binds the identity with
+  `set_config('app.current_user_id', $1, true)` — NOT `SET LOCAL ... = $1`,
+  which is a syntax error (SET rejects bind parameters). Handlers must query
+  via `req.tx`, not the global client, or RLS sees no user.
+- CI job "Backend Build" runs `npm install` + `npm run build` (which runs
+  `prisma generate` from the committed schema, no DB needed).
