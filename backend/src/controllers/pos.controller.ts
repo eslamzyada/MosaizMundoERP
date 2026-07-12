@@ -85,6 +85,31 @@ export async function processCheckout(req: Request, res: Response): Promise<void
 }
 
 /**
+ * GET /api/pos/orders
+ *
+ * Returns the caller's order history (RLS-scoped via req.tx), newest first,
+ * with each order's line items nested under order_items.
+ */
+export async function getOrders(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  try {
+    const orders = await req.tx.orders.findMany({
+      include: { order_items: true },
+      orderBy: { created_at: 'desc' },
+    });
+    res.status(200).json(orders);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[pos.orders] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
  * GET /api/pos/menu
  *
  * Returns the caller's catalog. Because the query runs on req.tx (bound to the

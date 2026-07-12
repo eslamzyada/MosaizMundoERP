@@ -123,3 +123,40 @@ export async function receiveStock(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+/**
+ * POST /api/inventory/stocktakes/:id/post
+ *
+ * Posts a draft stocktake through the app.post_stocktake procedure, which takes
+ * the per-item advisory locks and reconciles variances into deficits / true-up
+ * lots. Runs on req.tx so RLS scopes the stocktake to the caller's org (a
+ * foreign or non-draft stocktake is rejected in the database -> 400).
+ */
+export async function postStocktake(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  const id = req.params.id;
+  if (typeof id !== 'string' || !UUID_RE.test(id)) {
+    res.status(400).json({ error: 'A valid stocktake id (uuid) is required' });
+    return;
+  }
+
+  try {
+    await req.tx.$executeRaw`CALL app.post_stocktake(${id}::uuid)`;
+    res.status(200).json({ status: 'ok', stocktake_id: id, message: 'Stocktake posted' });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[inventory.postStocktake] failed:', err);
+    // Not-found, not-draft, and RLS rejections all surface as database errors —
+    // they are caller errors, so map them to 400.
+    const pgCode = postgresErrorCode(err);
+    if (pgCode) {
+      res.status(400).json({ error: 'Could not post stocktake', code: pgCode });
+      return;
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
