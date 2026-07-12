@@ -1,0 +1,9 @@
+# Dependencies & build output
+node_modules/
+dist/
+
+# Environment — contains local DB credentials, never commit
+.env
+
+# Prisma generated client (regenerated from schema.prisma on build)
+prisma/generated/
