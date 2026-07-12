@@ -161,3 +161,28 @@ jobs:
 
       - name: Build (prisma generate + tsc)
         run: npm run build
+
+  admin-frontend:
+    # Compiles the React admin dashboard (Vite + TypeScript). Mock-first, so no
+    # database or backend is needed — a plain type-check + production build.
+    name: Admin Frontend Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: clients/admin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: clients/admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build (tsc + vite build)
+        run: npm run build
