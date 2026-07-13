@@ -1,24 +1,32 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Badge from '../components/ui/Badge';
-import { MockOrderRepository } from '../api/MockOrderRepository';
+import { HttpOrderRepository } from '../api/HttpOrderRepository';
 import type { OrderRepository } from '../api/OrderRepository';
 import { ORDER_STATUS_META } from '../lib/orderStatus';
 import type { Order } from '../types';
 
-const repository: OrderRepository = new MockOrderRepository();
+const repository: OrderRepository = new HttpOrderRepository();
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    repository.getOrders().then((data) => {
-      if (!active) return;
-      setOrders(data);
-      setLoading(false);
-    });
+    repository
+      .getOrders()
+      .then((data) => {
+        if (!active) return;
+        setOrders(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setError(true);
+        setLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -44,7 +52,13 @@ export default function Orders() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-sand-border/70">
-              {loading ? (
+              {error ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-14 text-center text-destructive-strong">
+                    تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+                  </td>
+                </tr>
+              ) : loading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-14 text-center text-slate-400">
                     جارٍ تحميل الطلبات…
