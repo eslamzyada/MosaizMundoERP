@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import Button from '../components/Button';
+import Badge from '../components/ui/Badge';
 import AddIngredientModal from '../components/AddIngredientModal';
 import { MockRecipeRepository } from '../api/MockRecipeRepository';
 import type { RecipeRepository } from '../api/RecipeRepository';
@@ -190,19 +191,9 @@ export default function Recipes() {
 
 function CategoryChip({ category }: { category?: IngredientCategory }) {
   if (category === 'intermediate') {
-    return <Chip className="bg-twilight-100 text-twilight-700">وسيط</Chip>;
+    return <Badge variant="twilight">وسيط</Badge>;
   }
-  return <Chip className="bg-amber-100 text-amber-800">مشتريات</Chip>;
-}
-
-function Chip({ children, className }: { children: ReactNode; className: string }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${className}`}
-    >
-      {children}
-    </span>
-  );
+  return <Badge variant="amber">مشتريات</Badge>;
 }
 
 function Th({ children }: { children: ReactNode }) {

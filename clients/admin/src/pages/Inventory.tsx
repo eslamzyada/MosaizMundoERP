@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import Badge from '../components/ui/Badge';
 import { MockInventoryRepository } from '../api/MockInventoryRepository';
 import type { InventoryRepository } from '../api/InventoryRepository';
 import type { InventoryDeficit } from '../types';
@@ -93,7 +94,7 @@ export default function Inventory() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <Badge>عجز</Badge>
+                      <Badge variant="destructive">عجز</Badge>
                     </td>
                     <td className="px-6 py-4 text-slate-500">
                       <span className="font-numerals">{formatDate(d.recorded_at)}</span>
@@ -130,15 +131,6 @@ function StatCard({
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</div>
       <div className="mt-2 font-numerals text-3xl font-bold text-surface-dark">{value}</div>
     </div>
-  );
-}
-
-/** Destructive status chip for a deficit row. */
-function Badge({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full bg-destructive-soft px-2.5 py-0.5 text-xs font-bold text-destructive-strong">
-      {children}
-    </span>
   );
 }
 
