@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.local
 .DS_Store
+
+# Local env (may hold Supabase keys); keep the template.
+.env
+.env.*
+!.env.example
