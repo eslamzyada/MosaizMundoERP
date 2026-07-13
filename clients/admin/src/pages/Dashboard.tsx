@@ -2,29 +2,34 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import MetricWidget from '../components/MetricWidget';
 import Badge from '../components/ui/Badge';
-import { MockOrderRepository } from '../api/MockOrderRepository';
-import { MockInventoryRepository } from '../api/MockInventoryRepository';
+import { HttpOrderRepository } from '../api/HttpOrderRepository';
+import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
 import { ORDER_STATUS_META } from '../lib/orderStatus';
 import type { InventoryDeficit, Order } from '../types';
 
-const orderRepository = new MockOrderRepository();
-const inventoryRepository = new MockInventoryRepository();
+const orderRepository = new HttpOrderRepository();
+const inventoryRepository = new HttpInventoryRepository();
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [deficits, setDeficits] = useState<InventoryDeficit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all([orderRepository.getOrders(), inventoryRepository.getDeficits()]).then(
-      ([orderData, deficitData]) => {
+    Promise.all([orderRepository.getOrders(), inventoryRepository.getDeficits()])
+      .then(([orderData, deficitData]) => {
         if (!active) return;
         setOrders(orderData);
         setDeficits(deficitData);
         setLoading(false);
-      },
-    );
+      })
+      .catch(() => {
+        if (!active) return;
+        setError(true);
+        setLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -59,21 +64,21 @@ export default function Dashboard() {
           })}
           suffix="ج.م"
           accent="sunset"
-          loading={loading}
+          loading={loading || error}
           icon={<TrendingUpIcon />}
         />
         <MetricWidget
           label="عدد الطلبات"
           value={completed.length.toLocaleString('en-US')}
           accent="twilight"
-          loading={loading}
+          loading={loading || error}
           icon={<BagIcon />}
         />
         <MetricWidget
           label="نواقص المخزون"
           value={deficits.length.toLocaleString('en-US')}
           accent="amber"
-          loading={loading}
+          loading={loading || error}
           icon={<AlertIcon />}
         />
       </div>
@@ -91,7 +96,13 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-sand-border/70">
-                {loading ? (
+                {error ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-10 text-center text-destructive-strong">
+                      تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+                    </td>
+                  </tr>
+                ) : loading ? (
                   <tr>
                     <td colSpan={3} className="px-6 py-10 text-center text-slate-400">
                       جارٍ التحميل…

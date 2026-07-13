@@ -1,24 +1,32 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Badge from '../components/ui/Badge';
-import { MockInventoryRepository } from '../api/MockInventoryRepository';
+import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
 import type { InventoryRepository } from '../api/InventoryRepository';
 import type { InventoryDeficit } from '../types';
 
-// Depend on the interface, not the concrete class — swap for an HTTP repo later.
-const repository: InventoryRepository = new MockInventoryRepository();
+// Depend on the interface, not the concrete class.
+const repository: InventoryRepository = new HttpInventoryRepository();
 
 export default function Inventory() {
   const [deficits, setDeficits] = useState<InventoryDeficit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    repository.getDeficits().then((data) => {
-      if (!active) return;
-      setDeficits(data);
-      setLoading(false);
-    });
+    repository
+      .getDeficits()
+      .then((data) => {
+        if (!active) return;
+        setDeficits(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setError(true);
+        setLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -39,17 +47,17 @@ export default function Inventory() {
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           label="نواقص مفتوحة"
-          value={loading ? '—' : deficits.length.toLocaleString('en-US')}
+          value={loading || error ? '—' : deficits.length.toLocaleString('en-US')}
           accent="twilight"
         />
         <StatCard
           label="إجمالي الوحدات الناقصة"
-          value={loading ? '—' : totalMissing.toLocaleString('en-US')}
+          value={loading || error ? '—' : totalMissing.toLocaleString('en-US')}
           accent="destructive"
         />
         <StatCard
           label="المكوّنات المتأثرة"
-          value={loading ? '—' : ingredientsAffected.toLocaleString('en-US')}
+          value={loading || error ? '—' : ingredientsAffected.toLocaleString('en-US')}
           accent="amber"
         />
       </div>
@@ -67,7 +75,13 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-sand-border/70">
-              {loading ? (
+              {error ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-14 text-center text-destructive-strong">
+                    تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+                  </td>
+                </tr>
+              ) : loading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-14 text-center text-slate-400">
                     جارٍ تحميل النواقص…
