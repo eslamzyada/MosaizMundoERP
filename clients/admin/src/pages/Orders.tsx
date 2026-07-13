@@ -1,18 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Badge from '../components/ui/Badge';
-import type { BadgeVariant } from '../components/ui/Badge';
 import { MockOrderRepository } from '../api/MockOrderRepository';
 import type { OrderRepository } from '../api/OrderRepository';
-import type { Order, OrderStatus } from '../types';
+import { ORDER_STATUS_META } from '../lib/orderStatus';
+import type { Order } from '../types';
 
 const repository: OrderRepository = new MockOrderRepository();
-
-const STATUS_META: Record<OrderStatus, { label: string; variant: BadgeVariant }> = {
-  completed: { label: 'مكتمل', variant: 'success' },
-  refunded: { label: 'مسترجع', variant: 'destructive' },
-  voided: { label: 'ملغى', variant: 'destructive' },
-};
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -64,7 +58,7 @@ export default function Orders() {
                 </tr>
               ) : (
                 orders.map((o) => {
-                  const meta = STATUS_META[o.status];
+                  const meta = ORDER_STATUS_META[o.status];
                   const itemCount = o.order_items.reduce((sum, it) => sum + it.quantity, 0);
                   return (
                     <tr key={o.id} className="transition-colors hover:bg-surface-sand/60">
