@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
-import { getDeficits, postStocktake, receiveStock } from '../controllers/inventory.controller';
+import {
+  getDeficits,
+  getRawItems,
+  postStocktake,
+  receiveStock,
+} from '../controllers/inventory.controller';
 
 // Inventory & Warehouse routes. authMiddleware is applied to the whole router,
 // so every handler runs inside an authenticated, RLS-bound transaction and must
@@ -10,6 +15,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/deficits', getDeficits);
+router.get('/items', getRawItems);
 router.post('/receive', receiveStock);
 router.post('/stocktakes/:id/post', postStocktake);
 

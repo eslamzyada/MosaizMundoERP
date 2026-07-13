@@ -1,4 +1,4 @@
-import type { RecipeRepository } from './RecipeRepository';
+import type { AddRecipeLinePayload, RecipeRepository } from './RecipeRepository';
 import type { Recipe, RawInventoryItem, SellableItem } from '../types';
 
 const ORG = 'org-00000000-0000-4000-8000-000000000001';
@@ -88,6 +88,17 @@ export class MockRecipeRepository implements RecipeRepository {
   getIngredients(): Promise<RawInventoryItem[]> {
     return new Promise((resolve) => {
       setTimeout(() => resolve(MOCK_INGREDIENTS), 200);
+    });
+  }
+
+  addIngredient(sellableItemId: string, payload: AddRecipeLinePayload): Promise<void> {
+    const recipe = MOCK_RECIPES.find((r) => r.sellable_item.id === sellableItemId);
+    const raw = ING.get(payload.raw_item_id);
+    if (recipe && raw) {
+      recipe.recipe_lines.push({ raw_item: raw, quantity_required: payload.quantity_required });
+    }
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(), 150);
     });
   }
 }

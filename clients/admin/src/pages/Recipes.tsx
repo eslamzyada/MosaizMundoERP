@@ -3,30 +3,35 @@ import type { ReactNode } from 'react';
 import Button from '../components/Button';
 import Badge from '../components/ui/Badge';
 import AddIngredientModal from '../components/AddIngredientModal';
-import { MockRecipeRepository } from '../api/MockRecipeRepository';
+import { HttpRecipeRepository } from '../api/HttpRecipeRepository';
 import type { RecipeRepository } from '../api/RecipeRepository';
 import type { IngredientCategory, RawInventoryItem, Recipe, RecipeLine } from '../types';
 
-const repository: RecipeRepository = new MockRecipeRepository();
+const repository: RecipeRepository = new HttpRecipeRepository();
 
 export default function Recipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [ingredients, setIngredients] = useState<RawInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all([repository.getRecipes(), repository.getIngredients()]).then(
-      ([recipeData, ingredientData]) => {
+    Promise.all([repository.getRecipes(), repository.getIngredients()])
+      .then(([recipeData, ingredientData]) => {
         if (!active) return;
         setRecipes(recipeData);
         setIngredients(ingredientData);
         setSelectedId(recipeData[0]?.sellable_item.id ?? null);
         setLoading(false);
-      },
-    );
+      })
+      .catch(() => {
+        if (!active) return;
+        setError(true);
+        setLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -37,16 +42,16 @@ export default function Recipes() {
     [recipes, selectedId],
   );
 
-  // Append the new line to the currently selected recipe (local state only —
-  // resets on refresh, which is expected for the mock).
-  function handleAddLine(line: RecipeLine) {
-    setRecipes((prev) =>
-      prev.map((r) =>
-        r.sellable_item.id === selectedId
-          ? { ...r, recipe_lines: [...r.recipe_lines, line] }
-          : r,
-      ),
-    );
+  // Persist the new line to the backend, then re-fetch so the table reflects
+  // the committed state (RLS-scoped).
+  async function handleAddLine(line: RecipeLine) {
+    if (!selectedId) return;
+    await repository.addIngredient(selectedId, {
+      raw_item_id: line.raw_item.id,
+      quantity_required: line.quantity_required,
+    });
+    const data = await repository.getRecipes();
+    setRecipes(data);
   }
 
   return (
@@ -65,7 +70,11 @@ export default function Recipes() {
             <div className="border-b border-surface-sand-border px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
               القائمة
             </div>
-            {loading ? (
+            {error ? (
+              <div className="px-4 py-10 text-center text-sm text-destructive-strong">
+                تعذّر تحميل البيانات.
+              </div>
+            ) : loading ? (
               <div className="px-4 py-10 text-center text-sm text-slate-400">جارٍ التحميل…</div>
             ) : (
               <ul className="p-2">
@@ -102,7 +111,11 @@ export default function Recipes() {
 
         {/* Detail: the selected recipe's Bill of Materials */}
         <section className="min-w-0 flex-1">
-          {loading || !selected ? (
+          {error ? (
+            <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-destructive-strong">
+              تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+            </div>
+          ) : loading || !selected ? (
             <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-slate-400">
               {loading ? 'جارٍ تحميل الوصفة…' : 'اختر صنفًا من القائمة.'}
             </div>
