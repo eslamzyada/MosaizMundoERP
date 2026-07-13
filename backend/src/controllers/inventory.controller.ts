@@ -45,6 +45,30 @@ export async function getDeficits(req: Request, res: Response): Promise<void> {
 }
 
 /**
+ * GET /api/inventory/items
+ *
+ * The raw ingredient catalog for the caller's organization (RLS-scoped via
+ * req.tx). Powers the recipe editor's "add ingredient" picker.
+ */
+export async function getRawItems(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  try {
+    const items = await req.tx.raw_inventory_items.findMany({
+      orderBy: { name: 'asc' },
+    });
+    res.status(200).json(items);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[inventory.items] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
  * POST /api/inventory/receive
  *
  * Records a new FIFO stock lot. The organization is derived from the raw item

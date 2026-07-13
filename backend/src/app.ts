@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { authMiddleware } from './middleware/auth';
 import posRoutes from './routes/pos.routes';
 import inventoryRoutes from './routes/inventory.routes';
+import recipeRoutes from './routes/recipe.routes';
 import webhookRoutes from './routes/webhook.routes';
 
 // Recursively convert Prisma Decimal values to plain JS numbers. Prisma
@@ -87,6 +88,9 @@ app.use('/api/pos', posRoutes);
 // Inventory & Warehouse API. Same auth pattern — the router applies the JWT
 // middleware, so every handler runs RLS-bound.
 app.use('/api/inventory', inventoryRoutes);
+
+// Recipes (Bill of Materials) API. Same auth pattern.
+app.use('/api/recipes', recipeRoutes);
 
 // Supabase identity webhooks. Guarded by HMAC signature (webhookAuth), NOT the
 // JWT middleware — Supabase calls these, not a logged-in user.
