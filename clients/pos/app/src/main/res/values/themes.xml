@@ -1,0 +1,6 @@
+<resources>
+    <!-- Base activity theme. The actual dark POS colors are applied by the
+         Compose MosaizPosTheme; this platform theme just provides a dark,
+         action-bar-less window without needing the Material Components lib. -->
+    <style name="Theme.MosaizPos" parent="android:Theme.Material.NoActionBar" />
+</resources>
