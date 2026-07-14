@@ -22,6 +22,40 @@ SELECT 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'::uuid, org_id, 'CI Item A', 'ITEM-
 UNION ALL
 SELECT 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2'::uuid, org_id, 'CI Item B', 'ITEM-B2' FROM ctx;
 
+-- Price column (migration 0008): defaults to 0.00, is settable, and rejects
+-- negative values (CHECK).
+DO $$
+DECLARE
+    v_default numeric;
+    v_updated numeric;
+    v_rejected boolean := false;
+BEGIN
+    SELECT price INTO v_default FROM public.sellable_items
+    WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+    IF v_default <> 0.00 THEN
+        RAISE EXCEPTION 'sellable_items.price should default to 0.00, got %', v_default;
+    END IF;
+
+    UPDATE public.sellable_items SET price = 24.50
+    WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+    SELECT price INTO v_updated FROM public.sellable_items
+    WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+    IF v_updated <> 24.50 THEN
+        RAISE EXCEPTION 'sellable_items.price update failed, got %', v_updated;
+    END IF;
+
+    BEGIN
+        UPDATE public.sellable_items SET price = -1
+        WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+    EXCEPTION WHEN check_violation THEN
+        v_rejected := true;
+    END;
+    IF NOT v_rejected THEN
+        RAISE EXCEPTION 'negative price must be rejected by the CHECK constraint';
+    END IF;
+END;
+$$;
+
 -- 1. First checkout: must create 1 order with 2 line items.
 DO $$
 DECLARE

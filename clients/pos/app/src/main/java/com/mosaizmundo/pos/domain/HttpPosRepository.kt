@@ -23,12 +23,12 @@ class HttpPosRepository(baseUrl: String = DEFAULT_BASE_URL) : PosRepository {
 
     override suspend fun getMenu(): List<SellableItem> =
         api.getRecipes().map { recipe ->
-            // sellable_items carries no price/image in the schema yet, so those
-            // are placeholders for now.
+            // Real price now comes from the backend (migration 0008); image is
+            // still a placeholder until the schema carries one.
             SellableItem(
                 id = recipe.id,
                 nameAr = recipe.name,
-                price = 0.0,
+                price = recipe.price,
                 imagePlaceholder = "🍽️",
             )
         }

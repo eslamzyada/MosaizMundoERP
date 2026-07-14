@@ -8,4 +8,5 @@ package com.mosaizmundo.pos.api
 data class RecipeResponse(
     val id: String,
     val name: String,
+    val price: Double,
 )
