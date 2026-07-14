@@ -21,7 +21,7 @@ class SyncOrdersWorker(
 
     override suspend fun doWork(): Result {
         val dao = PosDatabase.getInstance(applicationContext).offlineOrderDao()
-        val api = PosApiProvider.create()
+        val api = PosApiProvider.create(applicationContext)
         val gson = Gson()
 
         val pending = dao.getPendingOrders()

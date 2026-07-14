@@ -29,7 +29,7 @@ class HttpPosRepository(
     private val context: Context,
 ) : PosRepository {
 
-    private val api: PosApiService = PosApiProvider.create()
+    private val api: PosApiService = PosApiProvider.create(context)
     private val gson = Gson()
 
     override suspend fun getMenu(): List<SellableItem> =

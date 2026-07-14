@@ -14,6 +14,10 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
+
+        // Placeholders — provide the real project values via a build override.
+        buildConfigField("String", "SUPABASE_URL", "\"https://your-project.supabase.co\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"your-supabase-anon-key\"")
     }
 
     buildTypes {
@@ -37,6 +41,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -68,6 +73,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
