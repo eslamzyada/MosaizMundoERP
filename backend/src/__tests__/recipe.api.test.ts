@@ -69,6 +69,9 @@ describe('Recipes API', () => {
     expect(burger.bill_of_materials[0].raw_inventory_items.name).toBe('Patty');
     // Decimal serialized as a number.
     expect(typeof burger.bill_of_materials[0].quantity_required).toBe('number');
+    // Price column (migration 0008) surfaces as a JSON number, defaulting to 0.
+    expect(typeof burger.price).toBe('number');
+    expect(burger.price).toBe(0);
   });
 
   test('POST /api/recipes/:id/lines adds a line (201) and appears on next GET', async () => {
