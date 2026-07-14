@@ -9,11 +9,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.mosaizmundo.pos.data.local.PosDatabase
 import com.mosaizmundo.pos.domain.HttpPosRepository
 import com.mosaizmundo.pos.ui.screens.MenuScreen
 import com.mosaizmundo.pos.ui.theme.MosaizPosTheme
@@ -30,7 +32,11 @@ class MainActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.background,
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        val repository = remember { HttpPosRepository() }
+                        val appContext = LocalContext.current.applicationContext
+                        val repository = remember {
+                            val dao = PosDatabase.getInstance(appContext).offlineOrderDao()
+                            HttpPosRepository(dao, appContext)
+                        }
                         val viewModel: PosViewModel = viewModel(
                             factory = viewModelFactory {
                                 initializer { PosViewModel(repository) }
