@@ -1,30 +1,39 @@
 package com.mosaizmundo.pos.domain
 
+import android.content.Context
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.google.gson.Gson
 import com.mosaizmundo.pos.api.CheckoutItemPayload
 import com.mosaizmundo.pos.api.CheckoutPayload
+import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.api.PosApiService
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import com.mosaizmundo.pos.data.local.OfflineOrderDao
+import com.mosaizmundo.pos.data.local.OfflineOrderEntity
+import com.mosaizmundo.pos.workers.SyncOrdersWorker
+import retrofit2.HttpException
 import java.io.IOException
 import java.util.UUID
 
 /**
- * Live implementation of PosRepository (Retrofit + Gson). The menu comes from
- * GET /api/recipes; checkout POSTs to /api/pos/checkout with a freshly generated
- * client_offline_id, so a dropped-then-retried request is idempotent server-side.
+ * Live implementation of PosRepository (Retrofit + Gson) with an offline-first
+ * checkout: if the network is down, the order is persisted to Room and a
+ * WorkManager sync is scheduled, and the checkout still "succeeds" for the
+ * cashier. Every checkout uses a fresh client_offline_id, so the idempotent
+ * backend never double-books on retry.
  */
-class HttpPosRepository(baseUrl: String = DEFAULT_BASE_URL) : PosRepository {
+class HttpPosRepository(
+    private val dao: OfflineOrderDao,
+    private val context: Context,
+) : PosRepository {
 
-    private val api: PosApiService = Retrofit.Builder()
-        .baseUrl(baseUrl)
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-        .create(PosApiService::class.java)
+    private val api: PosApiService = PosApiProvider.create()
+    private val gson = Gson()
 
     override suspend fun getMenu(): List<SellableItem> =
         api.getRecipes().map { recipe ->
-            // Real price now comes from the backend (migration 0008); image is
-            // still a placeholder until the schema carries one.
             SellableItem(
                 id = recipe.id,
                 nameAr = recipe.name,
@@ -46,16 +55,41 @@ class HttpPosRepository(baseUrl: String = DEFAULT_BASE_URL) : PosRepository {
                 )
             },
         )
-        val response = api.checkout(payload)
+
+        val response = try {
+            api.checkout(payload)
+        } catch (e: IOException) {
+            // Network failure: queue the order locally and schedule a sync. Do
+            // NOT rethrow — from the cashier's view, the sale is done.
+            queueOffline(payload)
+            return
+        }
+
         if (!response.isSuccessful) {
-            throw IOException("Checkout failed with HTTP ${response.code()}")
+            // The server was reachable but rejected the request — a real error
+            // that should surface (the ViewModel will not clear the cart).
+            throw HttpException(response)
         }
     }
 
-    companion object {
-        // 10.0.2.2 is the host machine as seen from the Android emulator.
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:3000/"
+    private suspend fun queueOffline(payload: CheckoutPayload) {
+        dao.insertOrder(
+            OfflineOrderEntity(
+                clientOfflineId = payload.client_offline_id,
+                payloadJson = gson.toJson(payload),
+            ),
+        )
+        val request = OneTimeWorkRequestBuilder<SyncOrdersWorker>()
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build(),
+            )
+            .build()
+        WorkManager.getInstance(context).enqueue(request)
+    }
 
+    companion object {
         // TODO: source from the authenticated session once POS auth lands. The
         // backend also needs a valid bearer token; that is a later phase.
         private const val ORGANIZATION_ID = "00000000-0000-4000-8000-000000000000"
