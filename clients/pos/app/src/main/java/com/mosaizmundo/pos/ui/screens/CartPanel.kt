@@ -28,7 +28,12 @@ import com.mosaizmundo.pos.domain.OrderState
 import java.util.Locale
 
 @Composable
-fun CartPanel(cart: OrderState, onClear: () -> Unit, modifier: Modifier = Modifier) {
+fun CartPanel(
+    cart: OrderState,
+    onClear: () -> Unit,
+    onCheckout: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Row(
@@ -93,7 +98,7 @@ fun CartPanel(cart: OrderState, onClear: () -> Unit, modifier: Modifier = Modifi
             }
             Spacer(Modifier.height(12.dp))
             Button(
-                onClick = { /* Checkout wiring lands in a later phase. */ },
+                onClick = onCheckout,
                 enabled = cart.items.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
             ) {

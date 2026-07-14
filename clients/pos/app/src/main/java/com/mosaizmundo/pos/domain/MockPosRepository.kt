@@ -15,4 +15,8 @@ class MockPosRepository : PosRepository {
             SellableItem("s6", "كولا", 15.0, "🥤"),
         )
     }
+
+    override suspend fun submitOrder(orderState: OrderState) {
+        delay(300) // pretend to submit; a no-op for the mock
+    }
 }
