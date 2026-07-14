@@ -1,22 +1,30 @@
 package com.mosaizmundo.pos.ui.viewmodel
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.api.SupabaseApiProvider
 import com.mosaizmundo.pos.api.SupabaseAuthPayload
 import com.mosaizmundo.pos.data.local.TokenManager
 import kotlinx.coroutines.launch
 
 /**
- * Drives the login form. On success it persists the access token via
- * TokenManager; MainActivity observes the token and swaps to the menu.
+ * Drives the login form. On success it persists the access token, then resolves
+ * the user's organization via GET /api/me (authenticated by the just-saved
+ * token) and stores it too. MainActivity observes the token and swaps to the
+ * menu. If org resolution fails, the token is cleared so login stays atomic.
  */
-class AuthViewModel(private val tokenManager: TokenManager) : ViewModel() {
+class AuthViewModel(
+    private val tokenManager: TokenManager,
+    context: Context,
+) : ViewModel() {
 
     private val authApi = SupabaseApiProvider.create()
+    private val posApi = PosApiProvider.create(context)
 
     var isLoading by mutableStateOf(false)
         private set
@@ -32,8 +40,15 @@ class AuthViewModel(private val tokenManager: TokenManager) : ViewModel() {
                     payload = SupabaseAuthPayload(email.trim(), password),
                 )
                 tokenManager.saveToken(response.access_token)
+
+                // Token is stored, so the OkHttp interceptor now authenticates
+                // this call. Resolve and persist the caller's organization.
+                val me = posApi.getMe()
+                tokenManager.saveOrganizationId(me.organization_id)
             } catch (e: Exception) {
-                errorMessage = "تعذّر تسجيل الدخول. تحقّق من البريد وكلمة المرور."
+                errorMessage = "تعذّر تسجيل الدخول. تحقّق من البيانات وحاول مجددًا."
+                // Keep login atomic — do not leave a token without an org.
+                tokenManager.clearToken()
             } finally {
                 isLoading = false
             }
