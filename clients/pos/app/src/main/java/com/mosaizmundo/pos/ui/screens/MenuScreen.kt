@@ -2,7 +2,9 @@ package com.mosaizmundo.pos.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,23 +18,45 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mosaizmundo.pos.domain.PosRepository
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mosaizmundo.pos.domain.SellableItem
+import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 import java.util.Locale
 
 @Composable
-fun MenuScreen(repository: PosRepository) {
-    val items by produceState(initialValue = emptyList<SellableItem>(), repository) {
-        value = repository.getMenu()
-    }
+fun MenuScreen(viewModel: PosViewModel = viewModel()) {
+    val menu by viewModel.menuState.collectAsState()
+    val cart by viewModel.cartState.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    // Under a forced RTL layout direction, the first child sits at the start
+    // (the right): the menu (65%), then the cart (35%) on the left.
+    Row(modifier = Modifier.fillMaxSize()) {
+        MenuGrid(
+            items = menu,
+            onItemClick = viewModel::addToCart,
+            modifier = Modifier.weight(0.65f).fillMaxHeight(),
+        )
+        CartPanel(
+            cart = cart,
+            onClear = viewModel::clearCart,
+            modifier = Modifier.weight(0.35f).fillMaxHeight(),
+        )
+    }
+}
+
+@Composable
+private fun MenuGrid(
+    items: List<SellableItem>,
+    onItemClick: (SellableItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.padding(16.dp)) {
         Text(
             text = "القائمة",
             color = MaterialTheme.colorScheme.onBackground,
@@ -40,8 +64,6 @@ fun MenuScreen(repository: PosRepository) {
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(16.dp))
-        // Adaptive columns + logical arrangement — lays out RTL automatically
-        // under an RTL layout direction (forced in MainActivity).
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 168.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -49,15 +71,16 @@ fun MenuScreen(repository: PosRepository) {
             modifier = Modifier.fillMaxSize(),
         ) {
             items(items, key = { it.id }) { item ->
-                MenuItemCard(item)
+                MenuItemCard(item = item, onClick = { onItemClick(item) })
             }
         }
     }
 }
 
 @Composable
-private fun MenuItemCard(item: SellableItem) {
+private fun MenuItemCard(item: SellableItem, onClick: () -> Unit) {
     Card(
+        onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth().height(168.dp),
