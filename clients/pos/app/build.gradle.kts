@@ -1,8 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
 }
+
+// Local, gitignored overrides (Supabase keys + backend URL) live in
+// clients/pos/local.properties. Any missing key falls back to a safe default so
+// the build still compiles without the file (e.g. on CI, where it doesn't exist).
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+// A value may be written with or without surrounding quotes in local.properties;
+// strip a matched pair (and trim) so we never emit doubled quotes into BuildConfig.
+fun localConfig(key: String, default: String): String =
+    (localProperties.getProperty(key) ?: default).trim().removeSurrounding("\"")
 
 android {
     namespace = "com.mosaizmundo.pos"
@@ -15,9 +29,19 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Placeholders — provide the real project values via a build override.
-        buildConfigField("String", "SUPABASE_URL", "\"https://your-project.supabase.co\"")
-        buildConfigField("String", "SUPABASE_ANON_KEY", "\"your-supabase-anon-key\"")
+        // Provided via clients/pos/local.properties (gitignored). The fallbacks
+        // keep CI compiling without that file. 10.0.2.2 is the emulator's alias
+        // for the host loopback; override BACKEND_BASE_URL for a LAN IP or tunnel.
+        val supabaseUrl = localConfig("SUPABASE_URL", "https://your-project.supabase.co")
+        val supabaseAnonKey = localConfig("SUPABASE_ANON_KEY", "your-supabase-anon-key")
+        val backendBaseUrl = localConfig("BACKEND_BASE_URL", "http://10.0.2.2:3000/")
+
+        // Build-time confirmation that local.properties was actually read.
+        println("[MosaizPOS build] BACKEND_BASE_URL resolved to: $backendBaseUrl")
+
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
     }
 
     buildTypes {

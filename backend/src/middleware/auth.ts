@@ -24,10 +24,14 @@ const UUID_RE =
  * Authenticates the request against Supabase Auth (the external IdP), then
  * binds the verified identity to the database session so RLS enforces tenancy.
  *
- * The token is a Supabase-issued JWT (HS256, signed with the project's JWT
- * secret). We verify the signature and expiry, pin the algorithm to HS256 so a
- * forged token cannot downgrade to `none` or a different scheme, and take the
- * `sub` claim (the user's UUID) as the identity.
+ * The token is a Supabase-issued JWT. Modern Supabase projects sign access
+ * tokens with an asymmetric ES256 key (published at the project's JWKS URL);
+ * legacy projects — and our Jest suites — use an HS256 shared secret. We
+ * dispatch on the token's declared algorithm, but each path is pinned to its
+ * own algorithm AND its own key (SUPABASE_JWT_PUBLIC_KEY for ES256,
+ * SUPABASE_JWT_SECRET for HS256), so the classic algorithm-confusion downgrade
+ * (verifying an HS256 token against the public key as if it were a secret) is
+ * impossible, as is `none`. The `sub` claim (the user's UUID) is the identity.
  *
  * The verified UUID is then bound for the lifetime of ONE Prisma interactive
  * transaction via `set_config('app.current_user_id', $1, true)` (the
@@ -41,16 +45,22 @@ export async function authMiddleware(
   next: NextFunction,
 ): Promise<void> {
   const secret = process.env.SUPABASE_JWT_SECRET;
-  if (!secret) {
+  // PEM stored in .env with \n escapes — expand them back into real newlines.
+  const publicKey = process.env.SUPABASE_JWT_PUBLIC_KEY?.replace(/\\n/g, '\n');
+  if (!secret && !publicKey) {
     // Fail closed on misconfiguration — never fall through to an open state.
     // eslint-disable-next-line no-console
-    console.error('SUPABASE_JWT_SECRET is not set; refusing to authenticate');
+    console.error(
+      'Neither SUPABASE_JWT_PUBLIC_KEY nor SUPABASE_JWT_SECRET is set; refusing to authenticate',
+    );
     res.status(500).json({ error: 'Authentication is not configured' });
     return;
   }
 
   const authHeader = req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // eslint-disable-next-line no-console
+    console.warn('[auth] rejected: no Authorization: Bearer header on', req.method, req.path);
     res
       .status(401)
       .json({ error: 'Missing or malformed Authorization: Bearer <token> header' });
@@ -63,17 +73,39 @@ export async function authMiddleware(
     return;
   }
 
+  // Dispatch on the token's DECLARED algorithm, but verify each with its own
+  // pinned algorithm + key material. The declared alg only selects between two
+  // independently sound verifiers; it can never weaken either one.
+  const declaredAlg = jwt.decode(token, { complete: true })?.header.alg;
+
   let payload: jwt.JwtPayload;
   try {
-    const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+    let decoded: string | jwt.JwtPayload;
+    if (declaredAlg === 'ES256' && publicKey) {
+      decoded = jwt.verify(token, publicKey, { algorithms: ['ES256'] });
+    } else if (declaredAlg === 'HS256' && secret) {
+      decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn(`[auth] rejected: unsupported/unconfigured token alg "${declaredAlg}"`);
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
     // A string payload means the JWT had a non-JSON body — reject it.
     if (typeof decoded === 'string') {
       res.status(401).json({ error: 'Invalid token payload' });
       return;
     }
     payload = decoded;
-  } catch {
+  } catch (err) {
     // Covers expired tokens, bad signatures, wrong algorithm, malformed JWTs.
+    // Log the verifier's exact reason (never the token) — this is the line to
+    // watch when a client mysteriously 401s.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[auth] JWT verification failed (alg=${declaredAlg}):`,
+      err instanceof Error ? err.message : err,
+    );
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }
