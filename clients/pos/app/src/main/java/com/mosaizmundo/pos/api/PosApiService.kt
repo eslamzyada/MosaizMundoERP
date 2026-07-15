@@ -6,6 +6,10 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 
 interface PosApiService {
+    // The authenticated user's organization (used to fill the checkout payload).
+    @GET("api/me")
+    suspend fun getMe(): UserMetadata
+
     // The POS catalog is the set of sellable items exposed by the recipes read.
     @GET("api/recipes")
     suspend fun getRecipes(): List<RecipeResponse>

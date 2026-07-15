@@ -12,7 +12,9 @@ import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.api.PosApiService
 import com.mosaizmundo.pos.data.local.OfflineOrderDao
 import com.mosaizmundo.pos.data.local.OfflineOrderEntity
+import com.mosaizmundo.pos.data.local.TokenManager
 import com.mosaizmundo.pos.workers.SyncOrdersWorker
+import kotlinx.coroutines.flow.first
 import retrofit2.HttpException
 import java.io.IOException
 import java.util.UUID
@@ -30,6 +32,7 @@ class HttpPosRepository(
 ) : PosRepository {
 
     private val api: PosApiService = PosApiProvider.create(context)
+    private val sessionManager = TokenManager(context)
     private val gson = Gson()
 
     override suspend fun getMenu(): List<SellableItem> =
@@ -43,8 +46,12 @@ class HttpPosRepository(
         }
 
     override suspend fun submitOrder(orderState: OrderState) {
+        // The real organization resolved at login (GET /api/me). Falls back to
+        // the placeholder only if the session somehow has no org yet.
+        val organizationId = sessionManager.getOrganizationId().first() ?: FALLBACK_ORGANIZATION_ID
+
         val payload = CheckoutPayload(
-            organization_id = ORGANIZATION_ID,
+            organization_id = organizationId,
             client_offline_id = UUID.randomUUID().toString(),
             total_amount = orderState.totalAmount,
             items = orderState.items.map { line ->
@@ -90,8 +97,8 @@ class HttpPosRepository(
     }
 
     companion object {
-        // TODO: source from the authenticated session once POS auth lands. The
-        // backend also needs a valid bearer token; that is a later phase.
-        private const val ORGANIZATION_ID = "00000000-0000-4000-8000-000000000000"
+        // Only used if the session has no resolved org (should not happen after
+        // a successful login, which stores it via GET /api/me).
+        private const val FALLBACK_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000000"
     }
 }

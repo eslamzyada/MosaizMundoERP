@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
                             token == null -> {
                                 val authViewModel: AuthViewModel = viewModel(
                                     factory = viewModelFactory {
-                                        initializer { AuthViewModel(tokenManager) }
+                                        initializer { AuthViewModel(tokenManager, appContext) }
                                     },
                                 )
                                 LoginScreen(authViewModel)

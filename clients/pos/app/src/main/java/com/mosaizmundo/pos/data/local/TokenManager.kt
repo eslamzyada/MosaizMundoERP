@@ -22,11 +22,23 @@ class TokenManager(private val context: Context) {
         context.authDataStore.edit { prefs -> prefs[ACCESS_TOKEN] = token }
     }
 
+    fun getOrganizationId(): Flow<String?> =
+        context.authDataStore.data.map { prefs -> prefs[ORGANIZATION_ID] }
+
+    suspend fun saveOrganizationId(organizationId: String) {
+        context.authDataStore.edit { prefs -> prefs[ORGANIZATION_ID] = organizationId }
+    }
+
+    /** Clears the whole session (token + organization) — e.g. on logout or a failed login. */
     suspend fun clearToken() {
-        context.authDataStore.edit { prefs -> prefs.remove(ACCESS_TOKEN) }
+        context.authDataStore.edit { prefs ->
+            prefs.remove(ACCESS_TOKEN)
+            prefs.remove(ORGANIZATION_ID)
+        }
     }
 
     companion object {
         private val ACCESS_TOKEN = stringPreferencesKey("access_token")
+        private val ORGANIZATION_ID = stringPreferencesKey("organization_id")
     }
 }
