@@ -11,8 +11,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/** The screen currently shown in the authenticated POS flow. */
+enum class PosDestination { MENU, CART, CHECKOUT }
+
+/** Lifecycle of a checkout submission, observed by the CheckoutScreen. */
+enum class CheckoutStatus { IDLE, SUBMITTING, SUCCESS, ERROR }
+
 /**
- * Holds the menu and current-order (cart) state as StateFlows for Compose. The
+ * Holds the menu, the current-order (cart) state, the in-flow navigation
+ * destination, and the checkout status — all as StateFlows so Compose recomposes
+ * and the state survives configuration changes (it lives in the ViewModel). The
  * repository is injected (MainActivity supplies an HttpPosRepository); pair with
  * a ViewModelProvider.Factory since there is no no-arg constructor.
  */
@@ -26,6 +34,12 @@ class PosViewModel(
     private val _cartState = MutableStateFlow(OrderState())
     val cartState: StateFlow<OrderState> = _cartState.asStateFlow()
 
+    private val _destination = MutableStateFlow(PosDestination.MENU)
+    val destination: StateFlow<PosDestination> = _destination.asStateFlow()
+
+    private val _checkoutStatus = MutableStateFlow(CheckoutStatus.IDLE)
+    val checkoutStatus: StateFlow<CheckoutStatus> = _checkoutStatus.asStateFlow()
+
     init {
         viewModelScope.launch {
             try {
@@ -37,39 +51,85 @@ class PosViewModel(
         }
     }
 
+    // --- Navigation ---------------------------------------------------------
+
+    fun openCart() { _destination.value = PosDestination.CART }
+
+    fun openCheckout() { _destination.value = PosDestination.CHECKOUT }
+
+    fun backToMenu() { _destination.value = PosDestination.MENU }
+
+    fun backToCart() { _destination.value = PosDestination.CART }
+
+    // --- Cart editing -------------------------------------------------------
+
     /** Adds one of [item] to the cart (incrementing if already present). */
     fun addToCart(item: SellableItem) {
         val current = _cartState.value.items
-        val alreadyInCart = current.any { it.sellableItem.id == item.id }
-
-        val updatedItems = if (alreadyInCart) {
+        val updated = if (current.any { it.sellableItem.id == item.id }) {
             current.map { line ->
                 if (line.sellableItem.id == item.id) line.copy(quantity = line.quantity + 1) else line
             }
         } else {
             current + CartItem(sellableItem = item, quantity = 1)
         }
-
-        _cartState.value = OrderState(
-            items = updatedItems,
-            totalAmount = updatedItems.sumOf { it.sellableItem.price * it.quantity },
-        )
+        _cartState.value = recompute(updated)
     }
 
-    /** Submits the current order; clears the cart on success. */
-    fun checkout() {
-        viewModelScope.launch {
-            try {
-                repository.submitOrder(_cartState.value)
-                clearCart()
-            } catch (_: Exception) {
-                // TODO: surface a failure toast/state to the cashier in a later phase.
+    /** Removes one of [item]; drops the line entirely when it hits zero. */
+    fun decrement(item: SellableItem) {
+        val updated = _cartState.value.items
+            .map { line ->
+                if (line.sellableItem.id == item.id) line.copy(quantity = line.quantity - 1) else line
             }
-        }
+            .filter { it.quantity > 0 }
+        _cartState.value = recompute(updated)
+    }
+
+    /** Removes [item]'s line from the cart regardless of quantity. */
+    fun removeLine(item: SellableItem) {
+        val updated = _cartState.value.items.filterNot { it.sellableItem.id == item.id }
+        _cartState.value = recompute(updated)
     }
 
     /** Empties the cart. */
     fun clearCart() {
         _cartState.value = OrderState()
     }
+
+    // --- Checkout -----------------------------------------------------------
+
+    /**
+     * Submits the current order and reports progress via [checkoutStatus]. On
+     * success the cart is cleared; the CheckoutScreen shows the terminal state
+     * and lets the cashier start a new order.
+     */
+    fun checkout() {
+        if (_cartState.value.items.isEmpty() || _checkoutStatus.value == CheckoutStatus.SUBMITTING) {
+            return
+        }
+        viewModelScope.launch {
+            _checkoutStatus.value = CheckoutStatus.SUBMITTING
+            try {
+                repository.submitOrder(_cartState.value)
+                _checkoutStatus.value = CheckoutStatus.SUCCESS
+                clearCart()
+            } catch (_: Exception) {
+                // The repository queues offline on IOException, so reaching here
+                // means a real server rejection — surface it to the cashier.
+                _checkoutStatus.value = CheckoutStatus.ERROR
+            }
+        }
+    }
+
+    /** Resets checkout state to idle (e.g. when leaving the CheckoutScreen). */
+    fun resetCheckoutStatus() {
+        _checkoutStatus.value = CheckoutStatus.IDLE
+    }
+
+    private fun recompute(items: List<CartItem>): OrderState =
+        OrderState(
+            items = items,
+            totalAmount = items.sumOf { it.sellableItem.price * it.quantity },
+        )
 }
