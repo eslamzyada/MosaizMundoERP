@@ -28,8 +28,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mosaizmundo.pos.data.local.PosDatabase
 import com.mosaizmundo.pos.data.local.TokenManager
 import com.mosaizmundo.pos.domain.HttpPosRepository
+import com.mosaizmundo.pos.ui.PosApp
 import com.mosaizmundo.pos.ui.screens.LoginScreen
-import com.mosaizmundo.pos.ui.screens.MenuScreen
 import com.mosaizmundo.pos.ui.theme.MosaizPosTheme
 import com.mosaizmundo.pos.ui.viewmodel.AuthViewModel
 import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                                         initializer { PosViewModel(repository) }
                                     },
                                 )
-                                MenuScreen(posViewModel)
+                                PosApp(posViewModel)
                             }
                         }
                     }

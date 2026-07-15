@@ -102,7 +102,7 @@ fun CartPanel(
                 enabled = cart.items.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
             ) {
-                Text("إتمام الدفع", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("المتابعة للدفع", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

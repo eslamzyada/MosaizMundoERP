@@ -29,12 +29,13 @@ import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 import java.util.Locale
 
 @Composable
-fun MenuScreen(viewModel: PosViewModel) {
+fun MenuScreen(viewModel: PosViewModel, onProceed: () -> Unit) {
     val menu by viewModel.menuState.collectAsState()
     val cart by viewModel.cartState.collectAsState()
 
     // Under a forced RTL layout direction, the first child sits at the start
-    // (the right): the menu (65%), then the cart (35%) on the left.
+    // (the right): the menu (65%), then the cart (35%) on the left. The cart
+    // panel's action advances to the dedicated Cart screen (onProceed).
     Row(modifier = Modifier.fillMaxSize()) {
         MenuGrid(
             items = menu,
@@ -44,7 +45,7 @@ fun MenuScreen(viewModel: PosViewModel) {
         CartPanel(
             cart = cart,
             onClear = viewModel::clearCart,
-            onCheckout = viewModel::checkout,
+            onCheckout = onProceed,
             modifier = Modifier.weight(0.35f).fillMaxHeight(),
         )
     }
