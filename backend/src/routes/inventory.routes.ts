@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
+import { ADMIN_ROLES, requireRole } from '../middleware/requireRole';
 import {
   getDeficits,
   getRawItems,
@@ -15,10 +16,14 @@ const router = Router();
 
 router.use(authMiddleware);
 
+// Reads stay open to every member — an accountant must see stock and deficits.
 router.get('/deficits', getDeficits);
 router.get('/items', getRawItems);
 router.get('/stock', getStock);
-router.post('/receive', receiveStock);
-router.post('/stocktakes/:id/post', postStocktake);
+
+// Writes are administrative. The database enforces this regardless (0010);
+// requireRole just turns the rejection into an honest 403.
+router.post('/receive', requireRole(...ADMIN_ROLES), receiveStock);
+router.post('/stocktakes/:id/post', requireRole(...ADMIN_ROLES), postStocktake);
 
 export default router;
