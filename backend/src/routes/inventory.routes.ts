@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth';
 import {
   getDeficits,
   getRawItems,
+  getStock,
   postStocktake,
   receiveStock,
 } from '../controllers/inventory.controller';
@@ -16,6 +17,7 @@ router.use(authMiddleware);
 
 router.get('/deficits', getDeficits);
 router.get('/items', getRawItems);
+router.get('/stock', getStock);
 router.post('/receive', receiveStock);
 router.post('/stocktakes/:id/post', postStocktake);
 

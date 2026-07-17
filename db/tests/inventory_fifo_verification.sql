@@ -151,4 +151,47 @@ BEGIN
 END;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- 5. Reorder threshold (0009). Defaults to 0 (alert disabled) for rows created
+--    before/without it, accepts a positive minimum, and — proving the INSERT
+--    path itself is open to the app role, so the negative_checks rejection of a
+--    negative threshold can only be the CHECK — accepts an explicit 0.
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_org       uuid := (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo');
+    v_raw       uuid := 'f00d0001-0001-4001-8001-000000000001';
+    v_default   numeric;
+    v_updated   numeric;
+    v_explicit  numeric;
+BEGIN
+    -- The Tomatoes row from section 1 was inserted without the column.
+    SELECT reorder_threshold INTO v_default
+    FROM public.raw_inventory_items WHERE id = v_raw;
+    IF v_default IS DISTINCT FROM 0 THEN
+        RAISE EXCEPTION 'reorder_threshold must backfill to 0, got %', v_default;
+    END IF;
+
+    UPDATE public.raw_inventory_items
+    SET reorder_threshold = 25.500
+    WHERE id = v_raw;
+
+    SELECT reorder_threshold INTO v_updated
+    FROM public.raw_inventory_items WHERE id = v_raw;
+    IF v_updated IS DISTINCT FROM 25.500 THEN
+        RAISE EXCEPTION 'reorder_threshold must accept a positive minimum, got %', v_updated;
+    END IF;
+
+    INSERT INTO public.raw_inventory_items
+        (id, organization_id, name, unit_of_measure, reorder_threshold)
+    VALUES ('f00d0002-0002-4002-8002-000000000002', v_org, 'Salt', 'grams', 0);
+
+    SELECT reorder_threshold INTO v_explicit
+    FROM public.raw_inventory_items WHERE id = 'f00d0002-0002-4002-8002-000000000002';
+    IF v_explicit IS DISTINCT FROM 0 THEN
+        RAISE EXCEPTION 'an explicit zero threshold must be accepted, got %', v_explicit;
+    END IF;
+END;
+$$;
+
 SELECT 'inventory_fifo_verification: all assertions passed' AS result;
