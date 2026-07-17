@@ -27,13 +27,21 @@ const UUID_RE =
 /**
  * POST /api/webhooks/supabase
  *
- * Handles a Supabase "new auth user" event: provisions a local tenant (user +
- * organization + owner membership) for the newly-signed-up identity.
+ * Handles a Supabase "new auth user" event. Two outcomes, and the order matters:
  *
- * This is a system-level provisioning action, so it goes through
- * app.provision_new_tenant — a SECURITY DEFINER procedure that crosses the RLS
- * boundary. mosaiz_app_user holds EXECUTE on it, so the standard global prisma
- * client (no per-request tx, since there is no logged-in user here) can call it.
+ *   1. INVITED (0011) — an owner already invited this email, so the identity
+ *      joins THAT organization with the invited role.
+ *   2. Otherwise — a brand new tenant (user + organization + owner membership).
+ *
+ * Invitations must be checked FIRST. Provisioning always creates a new org with
+ * the signer-up as its owner, so a staff member would otherwise be handed their
+ * own empty restaurant — and since GET /api/me resolves the EARLIEST membership,
+ * adding them to the real org afterwards would still land them in the junk one.
+ *
+ * Both paths are system-level actions that cross the RLS boundary, so they go
+ * through SECURITY DEFINER procedures. mosaiz_app_user holds EXECUTE on them,
+ * so the global prisma client (no per-request tx — nobody is logged in here)
+ * can call them.
  */
 export async function handleSupabaseUserSignup(req: Request, res: Response): Promise<void> {
   const record = (req.body as { record?: { id?: unknown; email?: unknown } })?.record;
@@ -53,6 +61,15 @@ export async function handleSupabaseUserSignup(req: Request, res: Response): Pro
   const planTier = 'basic';
 
   try {
+    // Invited? Then join that org — and do NOT mint a new tenant.
+    const accepted = await prisma.$queryRaw<Array<{ accepted: boolean }>>`
+      SELECT app.accept_invitation(${id}::uuid, ${email}) AS accepted`;
+
+    if (accepted[0]?.accepted) {
+      res.status(200).json({ status: 'ok', message: 'Invitation accepted', user_id: id });
+      return;
+    }
+
     await prisma.$executeRaw`CALL app.provision_new_tenant(${id}::uuid, ${email}, ${orgName}, ${orgSlug}, ${planTier})`;
     res.status(200).json({ status: 'ok', message: 'Tenant provisioned', user_id: id });
   } catch (err) {
