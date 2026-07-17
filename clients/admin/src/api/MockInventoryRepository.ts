@@ -1,5 +1,5 @@
 import type { InventoryRepository } from './InventoryRepository';
-import type { InventoryDeficit } from '../types';
+import type { InventoryDeficit, InventoryStock, ReceiveStockPayload } from '../types';
 
 // Mock-first: hardcoded, realistic data. No network calls anywhere in the app.
 const MOCK_DEFICITS: InventoryDeficit[] = [
@@ -57,11 +57,84 @@ const MOCK_DEFICITS: InventoryDeficit[] = [
   },
 ];
 
+// Mixed states on purpose so every dashboard badge is exercised: healthy, low,
+// out of stock, expiring soon, and a non-perishable (null expiry).
+const MOCK_STOCK: InventoryStock[] = [
+  {
+    id: 'raw-0000-0000-4000-8000-000000000001',
+    name: 'Beef Patty',
+    unit_of_measure: 'pieces',
+    reorder_threshold: 20,
+    on_hand: 15,
+    open_batches: 1,
+    earliest_expiry: '2026-07-24T00:00:00.000Z',
+    stock_value: 45,
+  },
+  {
+    id: 'raw-0000-0000-4000-8000-000000000002',
+    name: 'Mozzarella',
+    unit_of_measure: 'grams',
+    reorder_threshold: 1000,
+    on_hand: 2500,
+    open_batches: 2,
+    earliest_expiry: '2026-07-27T00:00:00.000Z',
+    stock_value: 500,
+  },
+  {
+    id: 'raw-0000-0000-4000-8000-000000000003',
+    name: 'Lentils',
+    unit_of_measure: 'grams',
+    reorder_threshold: 1000,
+    on_hand: 0,
+    open_batches: 0,
+    earliest_expiry: null,
+    stock_value: 0,
+  },
+  {
+    id: 'raw-0000-0000-4000-8000-000000000004',
+    name: 'Mango',
+    unit_of_measure: 'grams',
+    reorder_threshold: 1500,
+    on_hand: 800,
+    open_batches: 1,
+    earliest_expiry: '2026-07-19T00:00:00.000Z',
+    stock_value: 64,
+  },
+  {
+    id: 'raw-0000-0000-4000-8000-000000000005',
+    name: 'Water Bottle',
+    unit_of_measure: 'pieces',
+    reorder_threshold: 24,
+    on_hand: 120,
+    open_batches: 1,
+    earliest_expiry: null,
+    stock_value: 420,
+  },
+];
+
 export class MockInventoryRepository implements InventoryRepository {
   getDeficits(): Promise<InventoryDeficit[]> {
     // A short delay simulates network latency so loading states are exercised.
     return new Promise((resolve) => {
       setTimeout(() => resolve(MOCK_DEFICITS), 400);
+    });
+  }
+
+  getStock(): Promise<InventoryStock[]> {
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(MOCK_STOCK), 400);
+    });
+  }
+
+  receiveStock(payload: ReceiveStockPayload): Promise<void> {
+    const row = MOCK_STOCK.find((s) => s.id === payload.raw_item_id);
+    if (row) {
+      row.on_hand += payload.quantity_received;
+      row.open_batches += 1;
+      row.stock_value += payload.quantity_received * payload.cost_at_purchase;
+    }
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(), 150);
     });
   }
 }

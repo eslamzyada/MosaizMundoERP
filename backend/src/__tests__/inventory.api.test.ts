@@ -143,3 +143,82 @@ describe('Inventory API', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('GET /api/inventory/stock', () => {
+  // A dedicated ingredient, so these aggregate assertions are immune to what
+  // the receive/stocktake tests above do to the Flour item.
+  const oilId = randomUUID();
+
+  beforeAll(async () => {
+    await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure, reorder_threshold) VALUES (${oilId}::uuid, ${orgId}::uuid, ${'Olive Oil'}, ${'ml'}, 500)`;
+    // Two open lots and one fully drained lot. The drained lot is the trap: it
+    // has the soonest expiry, so it must be excluded from BOTH the totals and
+    // the earliest-expiry calculation.
+    await admin.$executeRaw`
+      INSERT INTO public.inventory_batches
+        (organization_id, raw_item_id, quantity_received, quantity_remaining, cost_at_purchase, expiry_date)
+      VALUES
+        (${orgId}::uuid, ${oilId}::uuid, 100, 100, 2.00, now() + interval '30 days'),
+        (${orgId}::uuid, ${oilId}::uuid, 100,  40, 3.00, now() + interval '5 days'),
+        (${orgId}::uuid, ${oilId}::uuid,  50,   0, 1.00, now() + interval '1 day')`;
+  });
+
+  test('aggregates open lots per ingredient and ignores drained ones', async () => {
+    const res = await request(app)
+      .get('/api/inventory/stock')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const row = res.body.find((r: { id: string }) => r.id === oilId);
+    expect(row).toBeDefined();
+    expect(row.name).toBe('Olive Oil');
+    expect(row.unit_of_measure).toBe('ml');
+
+    // 100 + 40 — the drained lot contributes nothing.
+    expect(typeof row.on_hand).toBe('number');
+    expect(row.on_hand).toBe(140);
+    expect(row.open_batches).toBe(2);
+    // Value follows remaining quantity at each lot's own cost: 100*2 + 40*3.
+    expect(row.stock_value).toBe(320);
+    expect(row.reorder_threshold).toBe(500);
+
+    // Soonest expiry among OPEN lots is the 5-day one — NOT the drained 1-day lot.
+    const expiry = new Date(row.earliest_expiry).getTime();
+    const day = 24 * 60 * 60 * 1000;
+    expect(expiry).toBeGreaterThan(Date.now() + 4 * day);
+    expect(expiry).toBeLessThan(Date.now() + 6 * day);
+  });
+
+  test('an ingredient with no open lots still appears, at zero', async () => {
+    const emptyId = randomUUID();
+    await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${emptyId}::uuid, ${orgId}::uuid, ${'Zaatar'}, ${'grams'})`;
+
+    const res = await request(app)
+      .get('/api/inventory/stock')
+      .set('Authorization', `Bearer ${token}`);
+
+    const row = res.body.find((r: { id: string }) => r.id === emptyId);
+    expect(row).toBeDefined();
+    expect(row.on_hand).toBe(0);
+    expect(row.open_batches).toBe(0);
+    expect(row.stock_value).toBe(0);
+    expect(row.earliest_expiry).toBeNull();
+    // Backfilled default from migration 0009.
+    expect(row.reorder_threshold).toBe(0);
+  });
+
+  test('is RLS-scoped: another tenant\'s ingredient never appears', async () => {
+    const res = await request(app)
+      .get('/api/inventory/stock')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.some((r: { id: string }) => r.id === rawItemBId)).toBe(false);
+    expect(res.body.some((r: { name: string }) => r.name === 'Sugar')).toBe(false);
+  });
+
+  test('unauthenticated request is rejected with 401', async () => {
+    const res = await request(app).get('/api/inventory/stock');
+    expect(res.status).toBe(401);
+  });
+});

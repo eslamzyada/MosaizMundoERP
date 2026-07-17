@@ -139,6 +139,7 @@ model raw_inventory_items {
   unit_of_measure    String
   created_at         DateTime             @default(now()) @db.Timestamptz(6)
   updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  reorder_threshold  Decimal              @default(0) @db.Decimal(10, 3)
   bill_of_materials  bill_of_materials[]
   inventory_batches  inventory_batches[]
   inventory_deficits inventory_deficits[]

@@ -28,6 +28,32 @@ export interface InventoryDeficit {
   raw_inventory_items: RawInventoryItemRef;
 }
 
+/**
+ * Aggregated stock on hand for one raw ingredient (GET /api/inventory/stock).
+ * Only OPEN lots (quantity_remaining > 0) contribute, so `earliest_expiry` is
+ * the soonest expiry of stock you can actually still sell. An ingredient with
+ * no open lots is still returned, at zero.
+ */
+export interface InventoryStock {
+  id: string;
+  name: string;
+  unit_of_measure: string;
+  /** Minimum on hand before the item is flagged. 0 disables the alert. */
+  reorder_threshold: number;
+  on_hand: number;
+  open_batches: number;
+  earliest_expiry: string | null;
+  stock_value: number;
+}
+
+/** Payload for recording a new FIFO stock lot (POST /api/inventory/receive). */
+export interface ReceiveStockPayload {
+  raw_item_id: string;
+  quantity_received: number;
+  cost_at_purchase: number;
+  expiry_date?: string | null;
+}
+
 export interface OrderItem {
   id: string;
   order_id: string;

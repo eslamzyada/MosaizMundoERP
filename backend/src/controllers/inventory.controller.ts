@@ -69,6 +69,57 @@ export async function getRawItems(req: Request, res: Response): Promise<void> {
 }
 
 /**
+ * GET /api/inventory/stock
+ *
+ * Stock on hand per raw ingredient — the aggregate of every open FIFO lot, plus
+ * the reorder threshold to compare it against, the soonest expiry among open
+ * lots, and the value still sitting on the shelf. This is the question the
+ * inventory dashboard exists to answer ("what do I actually have?").
+ *
+ * Aggregated in SQL rather than in JS: the batch table is the hot one and this
+ * avoids shipping every lot to the client. Runs on req.tx, so RLS scopes BOTH
+ * sides of the join — the composite (raw_item_id, organization_id) join makes a
+ * cross-tenant match impossible even before RLS weighs in.
+ *
+ * Items with no open lots still appear (LEFT JOIN -> on_hand 0), which is
+ * exactly the row an operator most needs to see.
+ */
+export async function getStock(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  try {
+    // COUNT is cast to int: res.json cannot serialize the BigInt that a bare
+    // count() would return (Decimals are handled by the app-level interceptor).
+    const stock = await req.tx.$queryRaw`
+      SELECT
+          ri.id,
+          ri.name,
+          ri.unit_of_measure,
+          ri.reorder_threshold,
+          COALESCE(SUM(b.quantity_remaining), 0)                      AS on_hand,
+          COUNT(b.id)::int                                            AS open_batches,
+          MIN(b.expiry_date)                                          AS earliest_expiry,
+          COALESCE(SUM(b.quantity_remaining * b.cost_at_purchase), 0) AS stock_value
+      FROM public.raw_inventory_items ri
+      LEFT JOIN public.inventory_batches b
+             ON b.raw_item_id       = ri.id
+            AND b.organization_id   = ri.organization_id
+            AND b.quantity_remaining > 0
+      GROUP BY ri.id, ri.name, ri.unit_of_measure, ri.reorder_threshold
+      ORDER BY ri.name ASC
+    `;
+    res.status(200).json(stock);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[inventory.stock] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
  * POST /api/inventory/receive
  *
  * Records a new FIFO stock lot. The organization is derived from the raw item
