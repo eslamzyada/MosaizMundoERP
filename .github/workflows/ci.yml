@@ -104,6 +104,22 @@ jobs:
           PGPASSWORD: postgres
         run: psql -v ON_ERROR_STOP=1 -f db/tests/admin_checks.sql
 
+      # RBAC runs last: admin_checks asserts memberships are fully scrubbed
+      # (count = 0), so this fixture must not exist before it. The fixture needs
+      # the superuser because organization_memberships is deny-by-default for
+      # the app role — it cannot seed a cashier for itself.
+      - name: RBAC fixture — seed one member per role (as postgres)
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/rbac_fixture.sql
+
+      - name: RBAC verification — role-gated writes (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/rbac_verification.sql
+
       # ---- API integration tests against the migrated container DB ----------
       # The app connects as the RLS-constrained mosaiz_app_user; the test
       # harness seeds/tears down via the postgres superuser (ADMIN_DATABASE_URL).

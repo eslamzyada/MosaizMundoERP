@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
+import { ADMIN_ROLES, requireRole } from '../middleware/requireRole';
 import { addRecipeLine, getRecipes } from '../controllers/recipe.controller';
 
 // Recipe (Bill of Materials) routes. authMiddleware is applied to the whole
@@ -10,6 +11,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/', getRecipes);
-router.post('/:id/lines', addRecipeLine);
+// A recipe drives food cost — editing it is administrative (enforced by 0010).
+router.post('/:id/lines', requireRole(...ADMIN_ROLES), addRecipeLine);
 
 export default router;
