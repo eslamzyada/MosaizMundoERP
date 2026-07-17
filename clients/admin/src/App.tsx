@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard';
 import Orders from './pages/Orders';
 import Inventory from './pages/Inventory';
 import Recipes from './pages/Recipes';
+import Members from './pages/Members';
+import { SessionProvider } from './session/SessionProvider';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -40,17 +42,22 @@ export default function App() {
     return <Login />;
   }
 
+  // SessionProvider sits inside the auth gate: it resolves GET /api/me once for
+  // the whole app, so every page knows the caller's role without refetching it.
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="orders" element={<Orders />} />
-          <Route path="inventory" element={<Inventory />} />
-          <Route path="recipes" element={<Recipes />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <SessionProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="orders" element={<Orders />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="recipes" element={<Recipes />} />
+            <Route path="members" element={<Members />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </SessionProvider>
   );
 }

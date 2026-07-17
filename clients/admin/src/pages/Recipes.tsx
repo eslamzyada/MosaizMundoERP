@@ -5,11 +5,15 @@ import Badge from '../components/ui/Badge';
 import AddIngredientModal from '../components/AddIngredientModal';
 import { HttpRecipeRepository } from '../api/HttpRecipeRepository';
 import type { RecipeRepository } from '../api/RecipeRepository';
+import { useSession } from '../session/SessionProvider';
 import type { IngredientCategory, RawInventoryItem, Recipe, RecipeLine } from '../types';
 
 const repository: RecipeRepository = new HttpRecipeRepository();
 
 export default function Recipes() {
+  const { can } = useSession();
+  const mayEdit = can('administer');
+
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [ingredients, setIngredients] = useState<RawInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,14 +183,22 @@ export default function Recipes() {
                 </table>
               </div>
 
-              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-surface-sand-border px-6 py-4">
-                <Button variant="secondary" type="button" onClick={() => setModalOpen(true)}>
-                  إضافة مكوّن
-                </Button>
-                <Button variant="primary" type="button">
-                  حفظ الوصفة
-                </Button>
-              </div>
+              {/* Editing a recipe drives food cost, so it is administrative
+                  (0010). A read-only role sees the recipe but no edit actions. */}
+              {mayEdit ? (
+                <div className="flex flex-wrap items-center justify-end gap-3 border-t border-surface-sand-border px-6 py-4">
+                  <Button variant="secondary" type="button" onClick={() => setModalOpen(true)}>
+                    إضافة مكوّن
+                  </Button>
+                  <Button variant="primary" type="button">
+                    حفظ الوصفة
+                  </Button>
+                </div>
+              ) : (
+                <p className="border-t border-surface-sand-border px-6 py-4 text-xs text-slate-500">
+                  عرض فقط — تعديل الوصفات متاح للمالك والمديرين.
+                </p>
+              )}
             </div>
           )}
         </section>
