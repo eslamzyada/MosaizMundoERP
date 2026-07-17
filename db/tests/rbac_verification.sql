@@ -205,4 +205,190 @@ BEGIN
 END;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- 8. PRIVILEGE ESCALATION (0011). Before 0011, organization_memberships carried
+--    only a permissive FOR ALL policy, so this UPDATE succeeded and every gate
+--    above evaporated. RLS filters the row out rather than raising, so the
+--    assertion is on the effect, not on an exception.
+-- ----------------------------------------------------------------------------
+SET app.current_user_id = 'a11c0003-0000-4000-8000-000000000003';
+
+DO $$
+DECLARE
+    v_role text;
+BEGIN
+    BEGIN
+        UPDATE public.organization_memberships
+        SET role = 'owner'
+        WHERE user_id = 'a11c0003-0000-4000-8000-000000000003';
+    EXCEPTION WHEN insufficient_privilege THEN
+        NULL;   -- either outcome is fine; the row must simply not change
+    END;
+
+    SELECT role INTO v_role FROM public.organization_memberships
+    WHERE user_id = 'a11c0003-0000-4000-8000-000000000003';
+
+    IF v_role <> 'cashier' THEN
+        RAISE EXCEPTION 'SECURITY HOLE: a cashier promoted themselves to %', v_role;
+    END IF;
+END;
+$$;
+
+-- A cashier cannot smuggle in a membership either.
+DO $$
+DECLARE
+    v_count int;
+BEGIN
+    BEGIN
+        INSERT INTO public.organization_memberships (organization_id, user_id, role)
+        VALUES ('a11c0000-0000-4000-8000-000000000000',
+                'a11c0003-0000-4000-8000-000000000003', 'owner');
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+    SELECT count(*) INTO v_count FROM public.organization_memberships
+    WHERE user_id = 'a11c0003-0000-4000-8000-000000000003';
+    IF v_count <> 1 THEN
+        RAISE EXCEPTION 'SECURITY HOLE: a cashier granted themselves a second membership';
+    END IF;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- 9. Member management is owner-only.
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    rejected boolean := false;
+BEGIN
+    BEGIN
+        CALL app.invite_org_member('a11c0000-0000-4000-8000-000000000000',
+                                   'sneaky@ci.test', 'owner');
+    EXCEPTION WHEN insufficient_privilege THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'SECURITY HOLE: a cashier invited a member';
+    END IF;
+END;
+$$;
+
+-- A branch_manager runs daily ops but is not the privilege boundary.
+SET app.current_user_id = 'a11c0002-0000-4000-8000-000000000002';
+
+DO $$
+DECLARE
+    rejected boolean := false;
+BEGIN
+    BEGIN
+        CALL app.set_member_role('a11c0000-0000-4000-8000-000000000000',
+                                 'a11c0003-0000-4000-8000-000000000003', 'owner');
+    EXCEPTION WHEN insufficient_privilege THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'SECURITY HOLE: a branch_manager re-roled a member';
+    END IF;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- 10. Owner CAN manage members — with guard rails.
+-- ----------------------------------------------------------------------------
+SET app.current_user_id = 'a11c0001-0000-4000-8000-000000000001';
+
+DO $$
+DECLARE
+    v_role     text;
+    rejected   boolean;
+BEGIN
+    -- Promote the cashier to accountant.
+    CALL app.set_member_role('a11c0000-0000-4000-8000-000000000000',
+                             'a11c0003-0000-4000-8000-000000000003', 'accountant');
+    SELECT role INTO v_role FROM public.organization_memberships
+    WHERE user_id = 'a11c0003-0000-4000-8000-000000000003';
+    IF v_role <> 'accountant' THEN
+        RAISE EXCEPTION 'owner must be able to re-role a member (got %)', v_role;
+    END IF;
+    -- Put it back so later assertions/fixtures stay meaningful.
+    CALL app.set_member_role('a11c0000-0000-4000-8000-000000000000',
+                             'a11c0003-0000-4000-8000-000000000003', 'cashier');
+
+    -- No self-service, even for an owner.
+    rejected := false;
+    BEGIN
+        CALL app.set_member_role('a11c0000-0000-4000-8000-000000000000',
+                                 'a11c0001-0000-4000-8000-000000000001', 'staff');
+    EXCEPTION WHEN insufficient_privilege THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'an owner must not be able to change their own role';
+    END IF;
+
+    -- Lockout guard: this org has exactly one owner.
+    rejected := false;
+    BEGIN
+        CALL app.set_member_active('a11c0000-0000-4000-8000-000000000000',
+                                   'a11c0001-0000-4000-8000-000000000001', false);
+    EXCEPTION WHEN insufficient_privilege THEN
+        rejected := true;   -- blocked as "cannot deactivate yourself"
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'an owner must not be able to deactivate themselves';
+    END IF;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- 11. Invitation round trip: an invited identity joins THIS org rather than
+--     being provisioned a new one (the junk-org problem 0011 exists to fix).
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_joined  boolean;
+    v_org     uuid;
+    v_role    text;
+    v_orgs    int;
+    v_new_usr uuid := 'a11c0005-0000-4000-8000-000000000005';
+BEGIN
+    CALL app.invite_org_member('a11c0000-0000-4000-8000-000000000000',
+                               'NewHire@CI.test', 'cashier');   -- mixed case on purpose
+
+    -- Signup arrives (the webhook calls this before provisioning).
+    SELECT app.accept_invitation(v_new_usr, 'newhire@ci.test') INTO v_joined;
+    IF NOT v_joined THEN
+        RAISE EXCEPTION 'invitation must be accepted (email match is case-insensitive)';
+    END IF;
+
+    SELECT organization_id, role INTO v_org, v_role
+    FROM public.organization_memberships WHERE user_id = v_new_usr;
+
+    IF v_org <> 'a11c0000-0000-4000-8000-000000000000' THEN
+        RAISE EXCEPTION 'invitee joined the wrong organization (%)', v_org;
+    END IF;
+    IF v_role <> 'cashier' THEN
+        RAISE EXCEPTION 'invitee must land on the invited role, got %', v_role;
+    END IF;
+
+    SELECT count(*) INTO v_orgs FROM public.organization_memberships WHERE user_id = v_new_usr;
+    IF v_orgs <> 1 THEN
+        RAISE EXCEPTION 'invitee must hold exactly one membership, got %', v_orgs;
+    END IF;
+
+    -- Consumed: a replayed signup must not join twice.
+    SELECT app.accept_invitation(v_new_usr, 'newhire@ci.test') INTO v_joined;
+    IF v_joined THEN
+        RAISE EXCEPTION 'an accepted invitation must not be reusable';
+    END IF;
+
+    -- An uninvited signup falls through to normal provisioning.
+    SELECT app.accept_invitation('a11c0006-0000-4000-8000-000000000006', 'stranger@ci.test')
+    INTO v_joined;
+    IF v_joined THEN
+        RAISE EXCEPTION 'a stranger must not be joined to an org';
+    END IF;
+END;
+$$;
+
 SELECT 'rbac_verification: all assertions passed' AS result;
