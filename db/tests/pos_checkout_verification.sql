@@ -56,24 +56,53 @@ BEGIN
 END;
 $$;
 
--- 1. First checkout: must create 1 order with 2 line items.
+-- Item B gets a catalog price too — deliberately different from every price the
+-- payloads below will claim, so the server-authoritative override (0012) is
+-- proven for both lines. (Item A was set to 24.50 above.)
+UPDATE public.sellable_items SET price = 6.00
+WHERE id = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2';
+
+-- 1. First checkout — F-01 regression guard. The payload LIES about every price
+--    (unit_price 10.00 / 5.50, total 25.50). The server must ignore all of it
+--    and price from the catalog: A=24.50, B=6.00  ->  total 55.00.
 DO $$
 DECLARE
     v_org uuid;
     v_coid uuid;
+    v_total   numeric;
+    v_price_a numeric;
+    v_price_b numeric;
 BEGIN
     SELECT org_id, coid INTO v_org, v_coid FROM ctx;
     CALL app.process_pos_checkout(jsonb_build_object(
         'organization_id',   v_org,
         'client_offline_id', v_coid,
-        'total_amount',      25.50,
+        'total_amount',      25.50,                                   -- ignored
         'items', jsonb_build_array(
             jsonb_build_object('sellable_item_id', 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1',
-                               'quantity', 2, 'unit_price', 10.00),
+                               'quantity', 2, 'unit_price', 10.00),   -- ignored
             jsonb_build_object('sellable_item_id', 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2',
-                               'quantity', 1, 'unit_price', 5.50)
+                               'quantity', 1, 'unit_price', 5.50)     -- ignored
         )
     ));
+
+    SELECT total_amount INTO v_total FROM public.orders
+    WHERE organization_id = v_org AND client_offline_id = v_coid;
+    IF v_total <> 55.00 THEN
+        RAISE EXCEPTION 'F-01: total must be the server-computed 55.00, got % (trusted the client?)', v_total;
+    END IF;
+
+    SELECT oi.unit_price INTO v_price_a
+    FROM public.order_items oi JOIN public.orders o ON o.id = oi.order_id
+    WHERE o.client_offline_id = v_coid
+      AND oi.sellable_item_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+    SELECT oi.unit_price INTO v_price_b
+    FROM public.order_items oi JOIN public.orders o ON o.id = oi.order_id
+    WHERE o.client_offline_id = v_coid
+      AND oi.sellable_item_id = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2';
+    IF v_price_a <> 24.50 OR v_price_b <> 6.00 THEN
+        RAISE EXCEPTION 'F-01: unit_price must come from the catalog, got A=% B=%', v_price_a, v_price_b;
+    END IF;
 END;
 $$;
 
@@ -118,8 +147,9 @@ BEGIN
     IF n_items <> 2 THEN
         RAISE EXCEPTION 'idempotency breach: expected exactly 2 items, found % (doubled?)', n_items;
     END IF;
+    -- The FIRST computed total (55.00) survives the retries untouched.
     IF (SELECT total_amount FROM public.orders
-        WHERE organization_id = v_org AND client_offline_id = v_coid) <> 25.50 THEN
+        WHERE organization_id = v_org AND client_offline_id = v_coid) <> 55.00 THEN
         RAISE EXCEPTION 'order total_amount was not preserved across retries';
     END IF;
 END;
@@ -196,14 +226,42 @@ BEGIN
             )
         ));
     EXCEPTION WHEN OTHERS THEN
-        IF SQLSTATE = '42501' THEN
-            rejected := true;
-        ELSE
-            RAISE;
-        END IF;
+        -- Correctly rejected either way: the stranger cannot see the org's
+        -- items (P0001 "not available in this organization", 0012) and the RLS
+        -- WITH CHECK on orders would block the insert too (42501). Both are the
+        -- security property; assert the rejection, not the mechanism.
+        rejected := true;
     END;
     IF NOT rejected THEN
-        RAISE EXCEPTION 'cross-org checkout must be rejected by RLS (SECURITY INVOKER contract)';
+        RAISE EXCEPTION 'cross-org checkout must be rejected (SECURITY INVOKER contract)';
+    END IF;
+END;
+$$;
+
+-- 6. Server-authoritative hardening (0012): a line referencing an item that is
+--    not in the caller's org is rejected up front, never silently dropped.
+SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+DO $$
+DECLARE
+    v_org uuid;
+    rejected boolean := false;
+BEGIN
+    SELECT org_id INTO v_org FROM ctx;
+    BEGIN
+        CALL app.process_pos_checkout(jsonb_build_object(
+            'organization_id',   v_org,
+            'client_offline_id', gen_random_uuid(),
+            'items', jsonb_build_array(
+                jsonb_build_object('sellable_item_id', gen_random_uuid(),
+                                   'quantity', 1)
+            )
+        ));
+    EXCEPTION WHEN raise_exception THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'checkout referencing an unknown item must be rejected';
     END IF;
 END;
 $$;
