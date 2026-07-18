@@ -39,7 +39,7 @@ beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userId}::uuid, ${`jest-${userId}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Jest Org'}, ${slug}, 'basic')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${userId}::uuid, 'owner')`;
-  await admin.$executeRaw`INSERT INTO public.sellable_items (id, organization_id, name, sku) VALUES (${itemId}::uuid, ${orgId}::uuid, ${'Jest Burger'}, ${'JEST-1'})`;
+  await admin.$executeRaw`INSERT INTO public.sellable_items (id, organization_id, name, sku, price) VALUES (${itemId}::uuid, ${orgId}::uuid, ${'Jest Burger'}, ${'JEST-1'}, 12.50)`;
 
   // Tenant B: a different owner/org that Tenant A is NOT a member of.
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`jest-b-${userBId}@dev.local`})`;
@@ -85,21 +85,30 @@ describe('POS API', () => {
     ).toBe(true);
   });
 
-  test('POST /api/pos/checkout returns 200 and an order_id', async () => {
+  test('POST /api/pos/checkout ignores client-supplied prices (F-01) and returns an order_id', async () => {
+    const coid = randomUUID();
     const res = await request(app)
       .post('/api/pos/checkout')
       .set('Authorization', `Bearer ${token}`)
       .send({
         organization_id: orgId,
-        client_offline_id: randomUUID(),
-        total_amount: 12.5,
-        items: [{ sellable_item_id: itemId, quantity: 1, unit_price: 12.5 }],
+        client_offline_id: coid,
+        total_amount: 0.01, // a lie
+        items: [{ sellable_item_id: itemId, quantity: 2, unit_price: 0.01 }], // a lie
       });
 
     expect(res.status).toBe(200);
     expect(res.body.order_id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
+
+    // The database priced from the catalog (12.50 x 2 = 25.00), not the payload.
+    const rows = await admin.$queryRaw<Array<{ total_amount: unknown; unit_price: unknown }>>`
+      SELECT o.total_amount, oi.unit_price
+      FROM public.orders o JOIN public.order_items oi ON oi.order_id = o.id
+      WHERE o.client_offline_id = ${coid}::uuid`;
+    expect(Number(rows[0].total_amount)).toBe(25);
+    expect(Number(rows[0].unit_price)).toBe(12.5);
   });
 
   test('GET /api/pos/orders returns orders with nested items and numeric Decimals', async () => {
@@ -147,9 +156,11 @@ describe('POS API', () => {
     expect(res.status).toBe(401);
   });
 
-  test('a cross-tenant checkout is rejected by RLS (400 / 42501)', async () => {
-    // Authenticated as Tenant A, but the payload names Tenant B's org. The
-    // orders INSERT fails the user_belongs_to_org WITH CHECK in the database.
+  test('a cross-tenant checkout is rejected and writes nothing', async () => {
+    // Authenticated as Tenant A, but the payload names Tenant B's org. Tenant
+    // B's catalog isn't visible to A, so 0012 rejects the line as unavailable
+    // before any write; the orders WITH CHECK would also block it. Either way
+    // the checkout is refused (400) and nothing lands in Tenant B.
     const res = await request(app)
       .post('/api/pos/checkout')
       .set('Authorization', `Bearer ${token}`)
@@ -160,6 +171,9 @@ describe('POS API', () => {
         items: [{ sellable_item_id: itemId, quantity: 1, unit_price: 5.0 }],
       });
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe('42501');
+
+    const leaked = await admin.$queryRaw<Array<{ n: bigint }>>`
+      SELECT count(*) AS n FROM public.orders WHERE organization_id = ${orgBId}::uuid`;
+    expect(Number(leaked[0].n)).toBe(0);
   });
 });
