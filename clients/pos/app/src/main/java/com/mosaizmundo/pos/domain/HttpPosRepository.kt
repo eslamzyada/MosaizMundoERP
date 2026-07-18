@@ -2,10 +2,12 @@ package com.mosaizmundo.pos.domain
 
 import android.content.Context
 import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
 import com.mosaizmundo.pos.api.CheckoutItemPayload
 import com.mosaizmundo.pos.api.CheckoutPayload
 import com.mosaizmundo.pos.api.PosApiProvider
@@ -34,6 +36,8 @@ class HttpPosRepository(
     private val api: PosApiService = PosApiProvider.create(context)
     private val sessionManager = TokenManager(context)
     private val gson = Gson()
+
+    override fun failedOrderCount(): Flow<Int> = dao.failedCount()
 
     override suspend fun getMenu(): List<SellableItem> =
         api.getRecipes().map { recipe ->
@@ -93,10 +97,20 @@ class HttpPosRepository(
                     .build(),
             )
             .build()
-        WorkManager.getInstance(context).enqueue(request)
+        // Unique work: a single named sync chain drains the WHOLE pending queue,
+        // so a burst of offline checkouts can't spawn a swarm of workers all
+        // re-POSTing the same orders (analysis F-10). APPEND_OR_REPLACE still
+        // guarantees a freshly-queued order triggers a drain.
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            SYNC_WORK_NAME,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            request,
+        )
     }
 
     companion object {
+        private const val SYNC_WORK_NAME = "offline-order-sync"
+
         // Only used if the session has no resolved org (should not happen after
         // a successful login, which stores it via GET /api/me).
         private const val FALLBACK_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000000"

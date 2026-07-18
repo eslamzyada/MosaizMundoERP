@@ -1,5 +1,6 @@
 package com.mosaizmundo.pos.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,21 +33,47 @@ import java.util.Locale
 fun MenuScreen(viewModel: PosViewModel, onProceed: () -> Unit) {
     val menu by viewModel.menuState.collectAsState()
     val cart by viewModel.cartState.collectAsState()
+    val failedCount by viewModel.failedOrderCount.collectAsState()
 
-    // Under a forced RTL layout direction, the first child sits at the start
-    // (the right): the menu (65%), then the cart (35%) on the left. The cart
-    // panel's action advances to the dedicated Cart screen (onProceed).
-    Row(modifier = Modifier.fillMaxSize()) {
-        MenuGrid(
-            items = menu,
-            onItemClick = viewModel::addToCart,
-            modifier = Modifier.weight(0.65f).fillMaxHeight(),
-        )
-        CartPanel(
-            cart = cart,
-            onClear = viewModel::clearCart,
-            onCheckout = onProceed,
-            modifier = Modifier.weight(0.35f).fillMaxHeight(),
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Alert the cashier when a queued sale was permanently rejected by the
+        // server — those orders are held, not lost, and need attention (F-03).
+        if (failedCount > 0) {
+            FailedSyncBanner(count = failedCount)
+        }
+
+        // Under a forced RTL layout direction, the first child sits at the start
+        // (the right): the menu (65%), then the cart (35%) on the left. The cart
+        // panel's action advances to the dedicated Cart screen (onProceed).
+        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            MenuGrid(
+                items = menu,
+                onItemClick = viewModel::addToCart,
+                modifier = Modifier.weight(0.65f).fillMaxHeight(),
+            )
+            CartPanel(
+                cart = cart,
+                onClear = viewModel::clearCart,
+                onCheckout = onProceed,
+                modifier = Modifier.weight(0.35f).fillMaxHeight(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FailedSyncBanner(count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = "⚠️  $count طلب لم تتم مزامنته مع الخادم — يرجى المراجعة",
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
