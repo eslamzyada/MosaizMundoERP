@@ -19,6 +19,13 @@ declare global {
  * x-supabase-signature header. This is the ONLY auth on the webhook route — it
  * must NOT sit behind the JWT middleware, since Supabase, not a logged-in user,
  * calls it.
+ *
+ * Replay (analysis F-11): the signed payload carries no timestamp or nonce, so
+ * a captured valid delivery could in principle be replayed. The residual risk is
+ * neutralized by handler idempotency — app.accept_invitation consumes the invite
+ * and provisioning is unique-constrained, so a replay is a no-op. A signed-
+ * timestamp freshness window is the upgrade path if Supabase's payload gains one;
+ * a nonce store is deliberately avoided as disproportionate here.
  */
 export function webhookAuth(req: Request, res: Response, next: NextFunction): void {
   const secret = process.env.SUPABASE_WEBHOOK_SECRET;

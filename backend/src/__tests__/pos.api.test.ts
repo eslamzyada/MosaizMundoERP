@@ -139,6 +139,29 @@ describe('POS API', () => {
     expect(line.quantity).toBe(3);
   });
 
+  test('GET /api/pos/orders paginates with limit & offset (F-04)', async () => {
+    // Seed a handful of orders (superuser) so there is more than one page.
+    for (let i = 0; i < 5; i += 1) {
+      await admin.$executeRaw`INSERT INTO public.orders (organization_id, client_offline_id, total_amount) VALUES (${orgId}::uuid, ${randomUUID()}::uuid, ${i + 1})`;
+    }
+
+    const page1 = await request(app)
+      .get('/api/pos/orders?limit=3')
+      .set('Authorization', `Bearer ${token}`);
+    expect(page1.status).toBe(200);
+    expect(page1.body).toHaveLength(3);
+
+    const page2 = await request(app)
+      .get('/api/pos/orders?limit=3&offset=3')
+      .set('Authorization', `Bearer ${token}`);
+    expect(page2.status).toBe(200);
+    expect(page2.body.length).toBeGreaterThan(0);
+
+    // Distinct pages: no id appears on both.
+    const firstIds = new Set(page1.body.map((o: { id: string }) => o.id));
+    expect(page2.body.some((o: { id: string }) => firstIds.has(o.id))).toBe(false);
+  });
+
   test('an unauthenticated request is rejected with 401', async () => {
     const res = await request(app).get('/api/pos/menu');
     expect(res.status).toBe(401);

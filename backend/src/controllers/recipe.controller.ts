@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { SAFETY_CAP } from '../lib/pagination';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,6 +37,7 @@ export async function getRecipes(req: Request, res: Response): Promise<void> {
         },
       },
       orderBy: { name: 'asc' },
+      take: SAFETY_CAP,
     });
     res.status(200).json(recipes);
   } catch (err) {

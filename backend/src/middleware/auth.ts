@@ -20,6 +20,10 @@ declare global {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Thrown when the client disconnects before the handler responds, so the
+// transaction ROLLS BACK rather than committing partial work (analysis F-05).
+class ClientAbortError extends Error {}
+
 /**
  * Authenticates the request against Supabase Auth (the external IdP), then
  * binds the verified identity to the database session so RLS enforces tenancy.
@@ -128,9 +132,16 @@ export async function authMiddleware(
   try {
     await prisma.$transaction(
       async (tx) => {
-        // Bind the RLS identity for the lifetime of THIS transaction only.
+        // In ONE round-trip, bind the RLS identity for the lifetime of THIS
+        // transaction AND bound its runtime (analysis F-02): statement_timeout
+        // kills a runaway query, idle_in_transaction_session_timeout kills a
+        // stuck or abandoned transaction — so a slow handler can never pin its
+        // pooled connection open indefinitely and starve the pool. set_config
+        // with is_local = true is the bind-parameter-safe SET LOCAL.
         await tx.$executeRawUnsafe(
-          "SELECT set_config('app.current_user_id', $1, true)",
+          `SELECT set_config('app.current_user_id', $1, true),
+                  set_config('statement_timeout', '15s', true),
+                  set_config('idle_in_transaction_session_timeout', '15s', true)`,
           userId,
         );
 
@@ -149,8 +160,11 @@ export async function authMiddleware(
             return res;
           }) as typeof res.end;
 
-          // Client hung up before the handler responded: stop waiting.
-          res.once('close', () => resolve());
+          // Client hung up before the handler responded: roll back (F-05).
+          // Committing here would persist whatever partial work had run.
+          res.once('close', () => {
+            if (!captured) reject(new ClientAbortError());
+          });
 
           try {
             next();
@@ -159,7 +173,10 @@ export async function authMiddleware(
           }
         });
       },
-      { timeout: 15_000 },
+      // maxWait bounds how long a request queues for a pooled connection before
+      // failing fast; timeout is the ceiling on the whole transaction and sits
+      // ABOVE the 15s PG timeouts so those fire first with a precise error.
+      { maxWait: 5_000, timeout: 20_000 },
     );
 
     // Committed. Restore the real end and flush the buffered response.
@@ -168,8 +185,11 @@ export async function authMiddleware(
       (realEnd as (...args: unknown[]) => unknown)(...endArgs);
     }
   } catch (err) {
-    // Rolled back. Restore res.end so the error handler can actually send.
+    // Restore res.end so the error handler can actually send.
     res.end = realEnd;
+    // Client already gone (F-05): the transaction rolled back and there is no
+    // socket to answer — nothing more to do.
+    if (err instanceof ClientAbortError) return;
     next(err as Error);
   }
 }
