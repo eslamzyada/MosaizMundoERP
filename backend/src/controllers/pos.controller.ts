@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { parsePage, SAFETY_CAP } from '../lib/pagination';
 
 // Pulls the PostgreSQL SQLSTATE out of a Prisma raw-query error, when present.
 // A raw CALL that the database rejects surfaces as a PrismaClientKnownRequestError
@@ -85,10 +86,12 @@ export async function processCheckout(req: Request, res: Response): Promise<void
 }
 
 /**
- * GET /api/pos/orders
+ * GET /api/pos/orders?limit=&offset=
  *
  * Returns the caller's order history (RLS-scoped via req.tx), newest first,
- * with each order's line items nested under order_items.
+ * with each order's line items nested. Paginated (analysis F-04): order history
+ * grows without bound, so a bare findMany would eventually return the entire
+ * table — and hold its connection for the whole scan.
  */
 export async function getOrders(req: Request, res: Response): Promise<void> {
   if (!req.tx) {
@@ -97,9 +100,12 @@ export async function getOrders(req: Request, res: Response): Promise<void> {
   }
 
   try {
+    const { take, skip } = parsePage(req, { defaultLimit: 100, maxLimit: 200 });
     const orders = await req.tx.orders.findMany({
       include: { order_items: true },
       orderBy: { created_at: 'desc' },
+      take,
+      skip,
     });
     res.status(200).json(orders);
   } catch (err) {
@@ -125,6 +131,7 @@ export async function getMenu(req: Request, res: Response): Promise<void> {
   try {
     const items = await req.tx.sellable_items.findMany({
       orderBy: { name: 'asc' },
+      take: SAFETY_CAP,
     });
     res.status(200).json(items);
   } catch (err) {

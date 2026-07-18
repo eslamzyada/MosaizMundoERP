@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { SAFETY_CAP } from '../lib/pagination';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,6 +86,7 @@ export async function listMembers(req: Request, res: Response): Promise<void> {
     const members = await req.tx.organization_memberships.findMany({
       include: { users: { select: { id: true, email: true } } },
       orderBy: [{ is_active: 'desc' }, { created_at: 'asc' }],
+      take: SAFETY_CAP,
     });
 
     res.status(200).json(
@@ -118,6 +120,7 @@ export async function listInvitations(req: Request, res: Response): Promise<void
       where: { accepted_at: null, expires_at: { gt: new Date() } },
       orderBy: { created_at: 'desc' },
       select: { id: true, email: true, role: true, created_at: true, expires_at: true },
+      take: SAFETY_CAP,
     });
     res.status(200).json(invitations);
   } catch (err) {

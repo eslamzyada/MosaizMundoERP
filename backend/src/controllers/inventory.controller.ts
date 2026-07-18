@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { parsePage, SAFETY_CAP } from '../lib/pagination';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,6 +29,7 @@ export async function getDeficits(req: Request, res: Response): Promise<void> {
   }
 
   try {
+    const { take, skip } = parsePage(req, { defaultLimit: 100, maxLimit: 200 });
     const deficits = await req.tx.inventory_deficits.findMany({
       include: {
         raw_inventory_items: {
@@ -35,6 +37,8 @@ export async function getDeficits(req: Request, res: Response): Promise<void> {
         },
       },
       orderBy: { recorded_at: 'desc' },
+      take,
+      skip,
     });
     res.status(200).json(deficits);
   } catch (err) {
@@ -59,6 +63,7 @@ export async function getRawItems(req: Request, res: Response): Promise<void> {
   try {
     const items = await req.tx.raw_inventory_items.findMany({
       orderBy: { name: 'asc' },
+      take: SAFETY_CAP,
     });
     res.status(200).json(items);
   } catch (err) {
@@ -110,6 +115,7 @@ export async function getStock(req: Request, res: Response): Promise<void> {
             AND b.quantity_remaining > 0
       GROUP BY ri.id, ri.name, ri.unit_of_measure, ri.reorder_threshold
       ORDER BY ri.name ASC
+      LIMIT ${SAFETY_CAP}
     `;
     res.status(200).json(stock);
   } catch (err) {

@@ -1,7 +1,8 @@
 import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { Prisma } from '@prisma/client';
-import { authMiddleware } from './middleware/auth';
 import posRoutes from './routes/pos.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import recipeRoutes from './routes/recipe.routes';
@@ -31,7 +32,47 @@ function convertDecimals(value: unknown): unknown {
 // tests (supertest) can drive it without binding a port.
 export const app = express();
 
-app.use(cors());
+// Behind a reverse proxy, set TRUST_PROXY=1 so req.ip (and the rate limiter)
+// reflect the real client. Off by default so a direct deployment cannot be
+// tricked into trusting a spoofed X-Forwarded-For (analysis F-06).
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
+}
+
+// Security headers (F-06): CSP off by default (this is a JSON API, not an HTML
+// origin) but nosniff, frameguard, no x-powered-by, HSTS, etc. are all on.
+app.use(helmet());
+
+// CORS allow-list (F-07). Browser origins must be explicitly listed via
+// CORS_ORIGINS (comma-separated). A request with NO Origin — the Android POS,
+// curl, and the server-to-server Supabase webhook — is allowed, because CORS is
+// a browser-enforced control and those callers are not browsers; their real
+// gate is the JWT / HMAC signature. A disallowed browser origin simply receives
+// no Access-Control-Allow-Origin header, so the browser blocks the read.
+const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin(origin, cb) {
+      cb(null, !origin || allowedOrigins.includes(origin));
+    },
+  }),
+);
+
+// Rate limit (F-06): a generous per-IP backstop against request floods, not a
+// tight throttle on normal use. Skipped under test so the suite is deterministic.
+app.use(
+  rateLimit({
+    windowMs: 60_000,
+    limit: Number(process.env.RATE_LIMIT_MAX) || 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
+  }),
+);
+
 // Capture the raw request bytes so the webhook middleware can verify the HMAC
 // signature over exactly what Supabase signed (a re-serialized object would not
 // byte-match).
@@ -59,29 +100,8 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'mosaiz-mundo-api' });
 });
 
-// Proves the RLS-honoring middleware end to end: the query runs on req.tx,
-// inside the transaction that bound app.current_user_id, so RLS returns only
-// the caller's own users row (or nothing, if the token maps to no visible user).
-app.get(
-  '/test-auth',
-  authMiddleware,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const user = await req.tx!.users.findUnique({
-        where: { id: req.userId! },
-      });
-
-      if (!user) {
-        res.status(404).json({ error: 'No user visible for this identity' });
-        return;
-      }
-
-      res.json({ authenticatedUser: user });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
+// (Removed the /test-auth debug endpoint — analysis F-08. The authenticated
+// routes below exercise the same RLS-bound path in production use.)
 
 // POS & Checkout API. The router applies the auth middleware itself, so every
 // handler runs inside an authenticated, RLS-bound transaction.
