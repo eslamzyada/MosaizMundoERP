@@ -113,9 +113,10 @@ export interface OrderItem {
   updated_at: string;
 }
 
-// The backend currently emits 'completed' | 'voided'; 'refunded' is a
-// forward-looking status the admin UI already renders.
-export type OrderStatus = 'completed' | 'voided' | 'refunded';
+// Mirrors the database CHECK (orders_status_check): 'completed' | 'voided'.
+// 'refunded' was rendered by the UI but the DB rejects it (analysis F-12) — a
+// refund flow must add the status via migration before the type can grow.
+export type OrderStatus = 'completed' | 'voided';
 
 export interface Order {
   id: string;
