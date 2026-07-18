@@ -11,6 +11,29 @@ export interface SellableItem {
   updated_at: string;
 }
 
+/** A menu item as returned by /api/catalog/items — includes the (server-authoritative) price. */
+export interface CatalogItem {
+  id: string;
+  organization_id: string;
+  name: string;
+  sku: string | null;
+  price: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateItemPayload {
+  name: string;
+  price: number;
+  sku?: string | null;
+}
+
+export interface UpdateItemPayload {
+  name?: string;
+  price?: number;
+  sku?: string | null;
+}
+
 /** The nested ingredient shape returned with each deficit (selected fields). */
 export interface RawInventoryItemRef {
   id: string;

@@ -4,6 +4,7 @@ import { ROLE_LABELS, useSession } from '../session/SessionProvider';
 
 const navItems = [
   { to: '/', label: 'لوحة التحكم', end: true },
+  { to: '/menu', label: 'القائمة', end: false },
   { to: '/orders', label: 'الطلبات', end: false },
   { to: '/inventory', label: 'المخزون', end: false },
   { to: '/recipes', label: 'الوصفات', end: false },

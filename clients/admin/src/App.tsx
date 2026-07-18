@@ -9,6 +9,7 @@ import Orders from './pages/Orders';
 import Inventory from './pages/Inventory';
 import Recipes from './pages/Recipes';
 import Members from './pages/Members';
+import Menu from './pages/Menu';
 import { SessionProvider } from './session/SessionProvider';
 
 export default function App() {
@@ -50,6 +51,7 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
+            <Route path="menu" element={<Menu />} />
             <Route path="orders" element={<Orders />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="recipes" element={<Recipes />} />
