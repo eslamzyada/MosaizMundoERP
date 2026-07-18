@@ -54,6 +54,54 @@ export interface ReceiveStockPayload {
   expiry_date?: string | null;
 }
 
+// ---- Identity & membership ---------------------------------------------------
+
+/** Mirrors organization_memberships.role's CHECK constraint. */
+export type Role =
+  | 'owner'
+  | 'regional_manager'
+  | 'branch_manager'
+  | 'accountant'
+  | 'cashier'
+  | 'staff';
+
+export const ROLES: Role[] = [
+  'owner',
+  'regional_manager',
+  'branch_manager',
+  'accountant',
+  'cashier',
+  'staff',
+];
+
+/** GET /api/me — who the caller is, and what they may do. */
+export interface Me {
+  user_id: string;
+  organization_id: string;
+  role: Role;
+}
+
+/** GET /api/members — one row of the team roster. */
+export interface Member {
+  user_id: string;
+  organization_id: string;
+  email: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+  /** The server flags the caller's own row: they may not re-role or deactivate it. */
+  is_self: boolean;
+}
+
+/** GET /api/members/invitations — a pending (unaccepted, unexpired) invitation. */
+export interface Invitation {
+  id: string;
+  email: string;
+  role: Role;
+  created_at: string;
+  expires_at: string;
+}
+
 export interface OrderItem {
   id: string;
   order_id: string;

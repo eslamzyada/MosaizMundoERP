@@ -6,6 +6,7 @@ import Button from '../components/Button';
 import ReceiveStockModal from '../components/ReceiveStockModal';
 import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
 import type { InventoryRepository } from '../api/InventoryRepository';
+import { useSession } from '../session/SessionProvider';
 import type { InventoryDeficit, InventoryStock, ReceiveStockPayload } from '../types';
 
 // Depend on the interface, not the concrete class.
@@ -52,6 +53,11 @@ const money = (n: number) =>
   n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function Inventory() {
+  // Receiving stock is administrative (0010). Rendering the button for a cashier
+  // would only walk them into a 403.
+  const { can } = useSession();
+  const mayReceive = can('administer');
+
   const [stock, setStock] = useState<InventoryStock[]>([]);
   const [deficits, setDeficits] = useState<InventoryDeficit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,10 +65,26 @@ export default function Inventory() {
   const [modalOpen, setModalOpen] = useState(false);
   const [preselected, setPreselected] = useState<string | undefined>(undefined);
 
+  // One round trip for both tables rather than a waterfall.
   const load = useCallback(
     () => Promise.all([repository.getStock(), repository.getDeficits()]),
     [],
   );
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setError(false);
+    load()
+      .then(([stockData, deficitData]) => {
+        setStock(stockData);
+        setDeficits(deficitData);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError(true);
+        setLoading(false);
+      });
+  }, [load]);
 
   useEffect(() => {
     let active = true;
@@ -114,10 +136,23 @@ export default function Inventory() {
             المتوفر من كل مكوّن، محسوبًا من لوطات الشراء المفتوحة، مع تنبيهات النقص والصلاحية.
           </p>
         </div>
-        <Button variant="primary" onClick={() => openReceive(undefined)} disabled={busy}>
-          استلام مخزون
-        </Button>
+        {mayReceive && (
+          <Button variant="primary" onClick={() => openReceive(undefined)} disabled={busy}>
+            استلام مخزون
+          </Button>
+        )}
       </header>
+
+      {/* Announce load state without moving focus. */}
+      <div aria-live="polite" className="sr-only">
+        {loading ? 'جارٍ تحميل المخزون' : error ? 'تعذّر تحميل المخزون' : `${stock.length} مكوّن`}
+      </div>
+
+      {!mayReceive && !busy && (
+        <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-xs text-slate-500">
+          عرض فقط — استلام المخزون متاح للمالك والمديرين.
+        </p>
+      )}
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -164,8 +199,13 @@ export default function Inventory() {
               <tbody className="divide-y divide-surface-sand-border/70">
                 {error ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-14 text-center text-destructive-strong">
-                      تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+                    <td colSpan={8} className="px-6 py-12 text-center">
+                      <p className="mb-3 text-destructive-strong">
+                        تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+                      </p>
+                      <Button variant="secondary" onClick={refresh}>
+                        إعادة المحاولة
+                      </Button>
                     </td>
                   </tr>
                 ) : loading ? (
@@ -211,13 +251,16 @@ export default function Inventory() {
                           <span className="ms-1 text-xs text-slate-400">ج.م</span>
                         </td>
                         <td className="px-6 py-4 text-end">
-                          <button
-                            type="button"
-                            onClick={() => openReceive(s.id)}
-                            className="rounded-lg px-2.5 py-1 text-xs font-bold text-twilight-700 transition-colors hover:bg-twilight-100"
-                          >
-                            استلام
-                          </button>
+                          {mayReceive && (
+                            <button
+                              type="button"
+                              onClick={() => openReceive(s.id)}
+                              aria-label={`استلام مخزون: ${s.name}`}
+                              className="rounded-lg px-2.5 py-1 text-xs font-bold text-twilight-700 transition-colors hover:bg-twilight-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                            >
+                              استلام
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -327,7 +370,10 @@ function StatCard({
 
 function Th({ children }: { children: ReactNode }) {
   return (
-    <th className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500">
+    <th
+      scope="col"
+      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500"
+    >
       {children}
     </th>
   );

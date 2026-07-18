@@ -1,14 +1,18 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { ROLE_LABELS, useSession } from '../session/SessionProvider';
 
 const navItems = [
   { to: '/', label: 'لوحة التحكم', end: true },
   { to: '/orders', label: 'الطلبات', end: false },
   { to: '/inventory', label: 'المخزون', end: false },
   { to: '/recipes', label: 'الوصفات', end: false },
+  // The roster is readable by every member; only the actions inside are gated.
+  { to: '/members', label: 'الفريق', end: false },
 ];
 
 export default function Layout() {
+  const { me } = useSession();
   // Signing out clears the session; App's onAuthStateChange listener then
   // swaps the whole app back to the Login screen.
   async function handleLogout() {
@@ -28,7 +32,7 @@ export default function Layout() {
           </span>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-5">
+        <nav className="flex-1 space-y-1 px-3 py-5" aria-label="التنقّل الرئيسي">
           <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
             الإدارة الخلفية
           </p>
@@ -52,10 +56,20 @@ export default function Layout() {
         </nav>
 
         <div className="border-t border-surface-dark-border p-3">
+          {/* Who am I signed in as, and with what authority — otherwise a
+              missing button just looks like a bug. */}
+          {me && (
+            <div className="mb-2 rounded-lg bg-white/5 px-3 py-2">
+              <p className="truncate text-xs font-medium text-slate-300" title={me.user_id}>
+                {ROLE_LABELS[me.role]}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">دورك الحالي</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
