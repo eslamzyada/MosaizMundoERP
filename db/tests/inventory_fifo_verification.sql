@@ -194,4 +194,42 @@ BEGIN
 END;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- 6. Deficit running total (0013). Section 3 left f00d0001 with a deficit of 91
+--    (and zero stock). A further shortfall must ACCUMULATE onto that total in a
+--    SINGLE row, not create a second row — the fix for unbounded ledger growth.
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_org      uuid := (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo');
+    v_raw      uuid := 'f00d0001-0001-4001-8001-000000000001';
+    v_rows     integer;
+    v_deficit  numeric;
+BEGIN
+    -- Still zero stock, so all 9 become deficit; upserts onto the running 91.
+    CALL app.process_inventory_deduction(v_raw, v_org, 9);
+
+    SELECT count(*), max(missing_quantity)
+      INTO v_rows, v_deficit
+    FROM public.inventory_deficits
+    WHERE raw_item_id = v_raw AND organization_id = v_org;
+
+    IF v_rows <> 1 THEN
+        RAISE EXCEPTION 'deficit rollup: expected exactly 1 row per item, got % (not accumulated?)', v_rows;
+    END IF;
+    IF v_deficit IS DISTINCT FROM 100 THEN
+        RAISE EXCEPTION 'deficit rollup: 91 + 9 must accumulate to 100, got %', v_deficit;
+    END IF;
+
+    -- And a direct duplicate INSERT is now rejected by the unique constraint.
+    BEGIN
+        INSERT INTO public.inventory_deficits (organization_id, raw_item_id, missing_quantity)
+        VALUES (v_org, v_raw, 1);
+        RAISE EXCEPTION 'a second deficit row per (org, item) must be rejected';
+    EXCEPTION WHEN unique_violation THEN
+        NULL;  -- expected
+    END;
+END;
+$$;
+
 SELECT 'inventory_fifo_verification: all assertions passed' AS result;
