@@ -126,10 +126,13 @@ describe('Inventory API', () => {
       SELECT status FROM public.stocktakes WHERE id = ${stocktakeId}::uuid`;
     expect(status[0].status).toBe('posted');
 
+    // Rollup (0013): the stocktake's -2 shortfall accumulates onto the deficit
+    // of 5 seeded in beforeAll into a SINGLE row (7), never a second row.
     const deficit = await admin.$queryRaw<Array<{ missing_quantity: unknown }>>`
       SELECT missing_quantity FROM public.inventory_deficits
-      WHERE raw_item_id = ${rawItemId}::uuid AND missing_quantity = 2`;
-    expect(deficit.length).toBeGreaterThanOrEqual(1);
+      WHERE raw_item_id = ${rawItemId}::uuid AND organization_id = ${orgId}::uuid`;
+    expect(deficit).toHaveLength(1);
+    expect(Number(deficit[0].missing_quantity)).toBe(7);
 
     // Posting an already-posted stocktake is rejected (400).
     const again = await request(app)
