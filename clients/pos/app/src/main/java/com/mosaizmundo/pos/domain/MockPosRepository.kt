@@ -1,6 +1,8 @@
 package com.mosaizmundo.pos.domain
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /** Mock-first: hardcoded, realistic Arabic menu. No network calls. */
 class MockPosRepository : PosRepository {
@@ -19,4 +21,6 @@ class MockPosRepository : PosRepository {
     override suspend fun submitOrder(orderState: OrderState) {
         delay(300) // pretend to submit; a no-op for the mock
     }
+
+    override fun failedOrderCount(): Flow<Int> = flowOf(0)
 }

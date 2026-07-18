@@ -37,14 +37,23 @@ class SyncOrdersWorker(
                 continue
             }
 
-            if (response.isSuccessful || response.code() in 400..499) {
-                // 2xx: submitted (idempotent backend also returns 2xx on a
-                // re-delivered order). 4xx: a permanently bad request — stop
-                // retrying it rather than loop forever.
-                dao.markOrderSynced(order.clientOfflineId)
-            } else {
-                // 5xx: transient server error, retry later.
-                retryNeeded = true
+            when {
+                response.isSuccessful -> {
+                    // Submitted (the idempotent backend also returns 2xx on a
+                    // re-delivered order). Done: remove it so the queue stays
+                    // bounded (F-09).
+                    dao.deleteOrder(order.clientOfflineId)
+                }
+                response.code() in 400..499 -> {
+                    // Permanently rejected (bad payload, a role changed while
+                    // offline, a deleted item). Do NOT discard the sale — mark it
+                    // FAILED so it stops retrying yet stays visible (F-03).
+                    dao.markOrderFailed(order.clientOfflineId)
+                }
+                else -> {
+                    // 5xx: transient server error, retry later.
+                    retryNeeded = true
+                }
             }
         }
 

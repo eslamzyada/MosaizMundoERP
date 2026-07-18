@@ -7,8 +7,10 @@ import com.mosaizmundo.pos.domain.OrderState
 import com.mosaizmundo.pos.domain.PosRepository
 import com.mosaizmundo.pos.domain.SellableItem
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** The screen currently shown in the authenticated POS flow. */
@@ -39,6 +41,14 @@ class PosViewModel(
 
     private val _checkoutStatus = MutableStateFlow(CheckoutStatus.IDLE)
     val checkoutStatus: StateFlow<CheckoutStatus> = _checkoutStatus.asStateFlow()
+
+    /**
+     * How many queued offline sales the server permanently rejected. Surfaced so
+     * the cashier is alerted rather than losing a sale silently (analysis F-03).
+     */
+    val failedOrderCount: StateFlow<Int> =
+        repository.failedOrderCount()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     init {
         viewModelScope.launch {
