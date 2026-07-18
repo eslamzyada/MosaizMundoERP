@@ -20,3 +20,19 @@ apiClient.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
+// If the backend rejects the token as unauthenticated (401 — expired or
+// revoked, distinct from a 403 role denial), end the local session so the app
+// returns to sign-in instead of silently failing every subsequent request
+// (analysis F-13). signOut() fires onAuthStateChange, which swaps the app back
+// to the Login screen. The original error still propagates so the caller's own
+// error handling runs.
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      await supabase.auth.signOut();
+    }
+    return Promise.reject(error);
+  },
+);
