@@ -1,4 +1,10 @@
-import type { InventoryDeficit, InventoryStock, ReceiveStockPayload } from '../types';
+import type {
+  CreateIngredientPayload,
+  InventoryDeficit,
+  InventoryStock,
+  ReceiveStockPayload,
+  UpdateIngredientPayload,
+} from '../types';
 
 // The data-access boundary for the Inventory context. The UI depends only on
 // this interface, so a MockInventoryRepository can be swapped for an
@@ -12,4 +18,10 @@ export interface InventoryRepository {
 
   /** Records a new FIFO stock lot against an existing ingredient. */
   receiveStock(payload: ReceiveStockPayload): Promise<void>;
+
+  /** Creates a raw ingredient. Admin-only (server-enforced). */
+  createIngredient(payload: CreateIngredientPayload): Promise<void>;
+
+  /** Renames / re-units / re-thresholds an ingredient. Admin-only. */
+  updateIngredient(id: string, payload: UpdateIngredientPayload): Promise<void>;
 }

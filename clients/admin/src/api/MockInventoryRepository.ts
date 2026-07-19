@@ -1,5 +1,11 @@
 import type { InventoryRepository } from './InventoryRepository';
-import type { InventoryDeficit, InventoryStock, ReceiveStockPayload } from '../types';
+import type {
+  CreateIngredientPayload,
+  InventoryDeficit,
+  InventoryStock,
+  ReceiveStockPayload,
+  UpdateIngredientPayload,
+} from '../types';
 
 // Mock-first: hardcoded, realistic data. No network calls anywhere in the app.
 const MOCK_DEFICITS: InventoryDeficit[] = [
@@ -136,5 +142,29 @@ export class MockInventoryRepository implements InventoryRepository {
     return new Promise((resolve) => {
       setTimeout(() => resolve(), 150);
     });
+  }
+
+  createIngredient(payload: CreateIngredientPayload): Promise<void> {
+    MOCK_STOCK.push({
+      id: `mock-${Date.now()}`,
+      name: payload.name,
+      unit_of_measure: payload.unit_of_measure,
+      reorder_threshold: payload.reorder_threshold ?? 0,
+      on_hand: 0,
+      open_batches: 0,
+      earliest_expiry: null,
+      stock_value: 0,
+    });
+    return new Promise((resolve) => setTimeout(() => resolve(), 150));
+  }
+
+  updateIngredient(id: string, payload: UpdateIngredientPayload): Promise<void> {
+    const row = MOCK_STOCK.find((s) => s.id === id);
+    if (row) {
+      if (payload.name !== undefined) row.name = payload.name;
+      if (payload.unit_of_measure !== undefined) row.unit_of_measure = payload.unit_of_measure;
+      if (payload.reorder_threshold !== undefined) row.reorder_threshold = payload.reorder_threshold;
+    }
+    return new Promise((resolve) => setTimeout(() => resolve(), 150));
   }
 }

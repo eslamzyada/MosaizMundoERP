@@ -4,6 +4,7 @@ import Badge from '../components/ui/Badge';
 import type { BadgeVariant } from '../components/ui/Badge';
 import Button from '../components/Button';
 import ReceiveStockModal from '../components/ReceiveStockModal';
+import IngredientModal from '../components/IngredientModal';
 import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
 import type { InventoryRepository } from '../api/InventoryRepository';
 import { useSession } from '../session/SessionProvider';
@@ -64,6 +65,8 @@ export default function Inventory() {
   const [error, setError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [preselected, setPreselected] = useState<string | undefined>(undefined);
+  const [ingredientModalOpen, setIngredientModalOpen] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<InventoryStock | null>(null);
 
   // One round trip for both tables rather than a waterfall.
   const load = useCallback(
@@ -118,6 +121,32 @@ export default function Inventory() {
     setModalOpen(true);
   }
 
+  // Creating/editing an ingredient re-fetches so the stock table reflects it.
+  async function handleSaveIngredient(payload: {
+    name: string;
+    unit_of_measure: string;
+    reorder_threshold: number;
+  }) {
+    if (editingIngredient) {
+      await repository.updateIngredient(editingIngredient.id, payload);
+    } else {
+      await repository.createIngredient(payload);
+    }
+    const [stockData, deficitData] = await load();
+    setStock(stockData);
+    setDeficits(deficitData);
+  }
+
+  function openCreateIngredient() {
+    setEditingIngredient(null);
+    setIngredientModalOpen(true);
+  }
+
+  function openEditIngredient(s: InventoryStock) {
+    setEditingIngredient(s);
+    setIngredientModalOpen(true);
+  }
+
   const stockValue = useMemo(() => stock.reduce((s, i) => s + i.stock_value, 0), [stock]);
   const needsAttention = useMemo(
     () => stock.filter((i) => ['low', 'out'].includes(statusOf(i))).length,
@@ -137,9 +166,14 @@ export default function Inventory() {
           </p>
         </div>
         {mayReceive && (
-          <Button variant="primary" onClick={() => openReceive(undefined)} disabled={busy}>
-            استلام مخزون
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="secondary" onClick={openCreateIngredient} disabled={busy}>
+              إضافة مكوّن
+            </Button>
+            <Button variant="primary" onClick={() => openReceive(undefined)} disabled={busy}>
+              استلام مخزون
+            </Button>
+          </div>
         )}
       </header>
 
@@ -150,7 +184,7 @@ export default function Inventory() {
 
       {!mayReceive && !busy && (
         <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-xs text-slate-500">
-          عرض فقط — استلام المخزون متاح للمالك والمديرين.
+          عرض فقط — إدارة المخزون والمكوّنات متاحة للمالك والمديرين.
         </p>
       )}
 
@@ -252,14 +286,24 @@ export default function Inventory() {
                         </td>
                         <td className="px-6 py-4 text-end">
                           {mayReceive && (
-                            <button
-                              type="button"
-                              onClick={() => openReceive(s.id)}
-                              aria-label={`استلام مخزون: ${s.name}`}
-                              className="rounded-lg px-2.5 py-1 text-xs font-bold text-twilight-700 transition-colors hover:bg-twilight-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
-                            >
-                              استلام
-                            </button>
+                            <div className="flex justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditIngredient(s)}
+                                aria-label={`تعديل المكوّن: ${s.name}`}
+                                className="rounded-lg px-2.5 py-1 text-xs font-bold text-slate-500 transition-colors hover:bg-black/5 hover:text-surface-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                              >
+                                تعديل
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openReceive(s.id)}
+                                aria-label={`استلام مخزون: ${s.name}`}
+                                className="rounded-lg px-2.5 py-1 text-xs font-bold text-twilight-700 transition-colors hover:bg-twilight-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                              >
+                                استلام
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -334,6 +378,13 @@ export default function Inventory() {
         initialItemId={preselected}
         onClose={() => setModalOpen(false)}
         onReceive={handleReceive}
+      />
+
+      <IngredientModal
+        open={ingredientModalOpen}
+        ingredient={editingIngredient}
+        onClose={() => setIngredientModalOpen(false)}
+        onSave={handleSaveIngredient}
       />
     </div>
   );
