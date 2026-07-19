@@ -27,7 +27,11 @@ const orgBId = randomUUID();
 const userBId = randomUUID();
 const rawItemBId = randomUUID();
 
+// A cashier in Tenant A — may read, may NOT manage ingredients.
+const cashierId = randomUUID();
+
 let token: string;
+let cashierToken: string;
 
 beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userId}::uuid, ${`inv-${userId}@dev.local`})`;
@@ -42,8 +46,16 @@ beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${rawItemBId}::uuid, ${orgBId}::uuid, ${'Sugar'}, ${'grams'})`;
 
+  await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${cashierId}::uuid, ${`inv-cashier-${cashierId.slice(0, 8)}@dev.local`})`;
+  await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${cashierId}::uuid, 'cashier')`;
+
   token = jwt.sign(
     { sub: userId, aud: 'authenticated', role: 'authenticated' },
+    JWT_SECRET as string,
+    { algorithm: 'HS256', expiresIn: 3600 },
+  );
+  cashierToken = jwt.sign(
+    { sub: cashierId, aud: 'authenticated', role: 'authenticated' },
     JWT_SECRET as string,
     { algorithm: 'HS256', expiresIn: 3600 },
   );
@@ -57,7 +69,7 @@ afterAll(async () => {
     await admin.$executeRaw`DELETE FROM public.raw_inventory_items WHERE organization_id = ${org}::uuid`;
     await admin.$executeRaw`DELETE FROM public.organization_memberships WHERE organization_id = ${org}::uuid`;
   }
-  await admin.$executeRaw`DELETE FROM public.users WHERE id IN (${userId}::uuid, ${userBId}::uuid)`;
+  await admin.$executeRaw`DELETE FROM public.users WHERE id IN (${userId}::uuid, ${userBId}::uuid, ${cashierId}::uuid)`;
   await admin.$executeRaw`DELETE FROM public.organizations WHERE id IN (${orgId}::uuid, ${orgBId}::uuid)`;
   await admin.$disconnect();
   await prisma.$disconnect();
@@ -223,5 +235,103 @@ describe('GET /api/inventory/stock', () => {
   test('unauthenticated request is rejected with 401', async () => {
     const res = await request(app).get('/api/inventory/stock');
     expect(res.status).toBe(401);
+  });
+});
+
+describe('Ingredient management (create / update, admin-only)', () => {
+  let createdId: string;
+
+  test('owner creates an ingredient (201) with name, unit, and reorder threshold', async () => {
+    const res = await request(app)
+      .post('/api/inventory/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Chickpeas', unit_of_measure: 'grams', reorder_threshold: 500 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe('Chickpeas');
+    expect(res.body.organization_id).toBe(orgId);
+    expect(Number(res.body.reorder_threshold)).toBe(500);
+    createdId = res.body.id;
+  });
+
+  test('the new ingredient appears in /items and in /stock at zero on-hand', async () => {
+    const items = await request(app)
+      .get('/api/inventory/items')
+      .set('Authorization', `Bearer ${cashierToken}`);
+    expect(items.status).toBe(200);
+    expect(items.body.some((i: { id: string }) => i.id === createdId)).toBe(true);
+
+    const stock = await request(app)
+      .get('/api/inventory/stock')
+      .set('Authorization', `Bearer ${token}`);
+    const row = stock.body.find((s: { id: string }) => s.id === createdId);
+    expect(row).toBeDefined();
+    expect(row.on_hand).toBe(0);
+    expect(row.reorder_threshold).toBe(500);
+  });
+
+  test('owner updates the ingredient (rename + new threshold) (200)', async () => {
+    const res = await request(app)
+      .patch(`/api/inventory/items/${createdId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Chick Peas', reorder_threshold: 750 });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe('Chick Peas');
+    expect(Number(res.body.reorder_threshold)).toBe(750);
+  });
+
+  test('a duplicate ingredient name is rejected (409)', async () => {
+    const res = await request(app)
+      .post('/api/inventory/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Flour', unit_of_measure: 'grams' }); // Flour already exists in org A
+    expect(res.status).toBe(409);
+  });
+
+  test('a cashier cannot create an ingredient (403), and nothing is written', async () => {
+    const before = await admin.$queryRaw<Array<{ n: bigint }>>`
+      SELECT count(*) AS n FROM public.raw_inventory_items WHERE organization_id = ${orgId}::uuid`;
+    const res = await request(app)
+      .post('/api/inventory/items')
+      .set('Authorization', `Bearer ${cashierToken}`)
+      .send({ name: 'Sneaky Ingredient', unit_of_measure: 'grams' });
+    expect(res.status).toBe(403);
+    const after = await admin.$queryRaw<Array<{ n: bigint }>>`
+      SELECT count(*) AS n FROM public.raw_inventory_items WHERE organization_id = ${orgId}::uuid`;
+    expect(Number(after[0].n)).toBe(Number(before[0].n));
+  });
+
+  test('a cashier cannot update an ingredient (403)', async () => {
+    const res = await request(app)
+      .patch(`/api/inventory/items/${createdId}`)
+      .set('Authorization', `Bearer ${cashierToken}`)
+      .send({ reorder_threshold: 0 });
+    expect(res.status).toBe(403);
+  });
+
+  test('validation: missing unit (400) and negative threshold (400)', async () => {
+    const noUnit = await request(app)
+      .post('/api/inventory/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'No Unit' });
+    expect(noUnit.status).toBe(400);
+
+    const negThreshold = await request(app)
+      .post('/api/inventory/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Neg', unit_of_measure: 'grams', reorder_threshold: -1 });
+    expect(negThreshold.status).toBe(400);
+  });
+
+  test("cannot update another tenant's ingredient (404), and it is unchanged", async () => {
+    const res = await request(app)
+      .patch(`/api/inventory/items/${rawItemBId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Hijacked' });
+    expect(res.status).toBe(404);
+
+    const rows = await admin.$queryRaw<Array<{ name: string }>>`
+      SELECT name FROM public.raw_inventory_items WHERE id = ${rawItemBId}::uuid`;
+    expect(rows[0].name).toBe('Sugar');
   });
 });

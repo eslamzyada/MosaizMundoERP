@@ -77,6 +77,20 @@ export interface ReceiveStockPayload {
   expiry_date?: string | null;
 }
 
+/** Payload for creating a raw ingredient (POST /api/inventory/items). */
+export interface CreateIngredientPayload {
+  name: string;
+  unit_of_measure: string;
+  reorder_threshold?: number;
+}
+
+/** Payload for editing a raw ingredient (PATCH /api/inventory/items/:id). */
+export interface UpdateIngredientPayload {
+  name?: string;
+  unit_of_measure?: string;
+  reorder_threshold?: number;
+}
+
 // ---- Identity & membership ---------------------------------------------------
 
 /** Mirrors organization_memberships.role's CHECK constraint. */

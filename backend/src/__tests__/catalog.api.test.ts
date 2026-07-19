@@ -105,6 +105,14 @@ describe('Catalog: creating menu items (admin-only)', () => {
     expect(res.body.price).toBe(80);
   });
 
+  test('a duplicate SKU is rejected (409)', async () => {
+    const res = await request(app)
+      .post('/api/catalog/items')
+      .set('Authorization', `Bearer ${tokens.owner}`)
+      .send({ name: 'Another Shawarma', price: 70, sku: 'SHW-1' }); // SHW-1 already used above
+    expect(res.status).toBe(409);
+  });
+
   test('a cashier cannot create an item (403)', async () => {
     const res = await request(app)
       .post('/api/catalog/items')

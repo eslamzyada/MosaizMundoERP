@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { ADMIN_ROLES, requireRole } from '../middleware/requireRole';
 import {
+  createRawItem,
   getDeficits,
   getRawItems,
   getStock,
   postStocktake,
   receiveStock,
+  updateRawItem,
 } from '../controllers/inventory.controller';
 
 // Inventory & Warehouse routes. authMiddleware is applied to the whole router,
@@ -23,6 +25,8 @@ router.get('/stock', getStock);
 
 // Writes are administrative. The database enforces this regardless (0010);
 // requireRole just turns the rejection into an honest 403.
+router.post('/items', requireRole(...ADMIN_ROLES), createRawItem);
+router.patch('/items/:id', requireRole(...ADMIN_ROLES), updateRawItem);
 router.post('/receive', requireRole(...ADMIN_ROLES), receiveStock);
 router.post('/stocktakes/:id/post', requireRole(...ADMIN_ROLES), postStocktake);
 

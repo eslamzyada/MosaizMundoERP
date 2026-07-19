@@ -8,9 +8,10 @@ const UUID_RE =
 function postgresErrorCode(err: unknown): string | undefined {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     const meta = err.meta as { code?: unknown } | undefined;
+    // Raw queries carry the Postgres SQLSTATE in meta.code; typed operations
+    // (create/update) surface Prisma's own code — P2002 (unique), P2025 (not found).
     if (meta && typeof meta.code === 'string') return meta.code;
-    // Prisma maps a missing row on update to P2025.
-    if (err.code === 'P2025') return 'P2025';
+    return err.code;
   }
   return undefined;
 }
@@ -106,7 +107,7 @@ export async function createItem(req: Request, res: Response): Promise<void> {
     res.status(201).json(item);
   } catch (err) {
     const code = postgresErrorCode(err);
-    if (code === '23505') {
+    if (code === '23505' || code === 'P2002') {
       res.status(409).json({ error: 'An item with that SKU already exists' });
       return;
     }
@@ -179,7 +180,7 @@ export async function updateItem(req: Request, res: Response): Promise<void> {
       res.status(404).json({ error: 'Item not found' });
       return;
     }
-    if (code === '23505') {
+    if (code === '23505' || code === 'P2002') {
       res.status(409).json({ error: 'An item with that SKU already exists' });
       return;
     }
