@@ -92,6 +92,11 @@ export default function MenuItemModal({ open, item, onClose, onSave }: Props) {
           />
         </Field>
 
+        {/* Pricing a dish without knowing what it costs is guesswork, so the
+            margin updates as the price is typed. Only shown when editing: a new
+            item has no recipe yet, so there is nothing to cost. */}
+        {item && <PriceInsight item={item} price={price} />}
+
         <Field label="رمز الصنف SKU (اختياري)">
           <input
             type="text"
@@ -119,6 +124,65 @@ export default function MenuItemModal({ open, item, onClose, onSave }: Props) {
         </div>
       </form>
     </Modal>
+  );
+}
+
+const money = (n: number) =>
+  n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * What the price being typed means for this dish: cost, profit per portion, and
+ * food cost as a share of the price — recomputed on every keystroke.
+ *
+ * Margin is withheld whenever the cost is not fully known. A margin derived
+ * from a partial cost overstates the profit, which would be worst exactly here,
+ * at the moment the price is being decided.
+ */
+function PriceInsight({ item, price }: { item: CatalogItem; price: string }) {
+  if (item.recipe_line_count === 0) {
+    return (
+      <p className="-mt-1 text-[11px] text-slate-400">
+        لا توجد وصفة لهذا الصنف بعد، فلا يمكن حساب التكلفة أو الهامش.
+      </p>
+    );
+  }
+
+  if (item.uncosted_line_count > 0) {
+    return (
+      <p className="-mt-1 text-[11px] font-semibold text-warning-strong">
+        تكلفة جزئية: {money(item.total_cost)} ج.م على الأقل — {item.uncosted_line_count} مكوّن بلا
+        رصيد في المخزون. الهامش غير مؤكّد.
+      </p>
+    );
+  }
+
+  const typed = Number(price);
+  const priced = price.trim() !== '' && Number.isFinite(typed) && typed > 0;
+
+  if (!priced) {
+    return (
+      <p className="-mt-1 text-[11px] text-slate-500">
+        التكلفة <span className="font-numerals">{money(item.total_cost)}</span> ج.م — أدخل سعرًا
+        لرؤية الهامش.
+      </p>
+    );
+  }
+
+  const profit = typed - item.total_cost;
+  const foodCostPct = (item.total_cost / typed) * 100;
+
+  return (
+    <p
+      className={[
+        '-mt-1 text-[11px]',
+        profit < 0 ? 'font-semibold text-destructive-strong' : 'text-slate-500',
+      ].join(' ')}
+    >
+      التكلفة <span className="font-numerals">{money(item.total_cost)}</span> ج.م · الربح{' '}
+      <span className="font-numerals font-semibold">{money(profit)}</span> ج.م · نسبة التكلفة{' '}
+      <span className="font-numerals font-semibold">{foodCostPct.toFixed(1)}%</span>
+      {profit < 0 && ' — السعر أقل من التكلفة'}
+    </p>
   );
 }
 

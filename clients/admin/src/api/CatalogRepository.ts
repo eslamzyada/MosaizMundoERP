@@ -1,4 +1,9 @@
-import type { CatalogItem, CreateItemPayload, UpdateItemPayload } from '../types';
+import type {
+  CatalogItem,
+  CatalogItemBase,
+  CreateItemPayload,
+  UpdateItemPayload,
+} from '../types';
 
 // The data-access boundary for the Catalog (menu items) context.
 export interface CatalogRepository {
@@ -6,8 +11,8 @@ export interface CatalogRepository {
   getItems(): Promise<CatalogItem[]>;
 
   /** Creates a menu item and sets its price. Admin-only (server-enforced). */
-  createItem(payload: CreateItemPayload): Promise<CatalogItem>;
+  createItem(payload: CreateItemPayload): Promise<CatalogItemBase>;
 
   /** Renames / re-prices / re-SKUs a menu item. Admin-only. */
-  updateItem(id: string, payload: UpdateItemPayload): Promise<CatalogItem>;
+  updateItem(id: string, payload: UpdateItemPayload): Promise<CatalogItemBase>;
 }

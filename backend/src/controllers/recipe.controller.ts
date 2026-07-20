@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { SAFETY_CAP } from '../lib/pagination';
+import { costRecipe, money, rawItemIdsOf, unitCostsByRawItem } from '../lib/foodCost';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,11 +22,6 @@ function postgresErrorCode(err: unknown): string | undefined {
     return err.code;
   }
   return undefined;
-}
-
-/** Trim floating-point noise without losing a cent. */
-function money(n: number): number {
-  return Math.round(n * 10000) / 10000;
 }
 
 /**
@@ -67,52 +63,27 @@ export async function getRecipes(req: Request, res: Response): Promise<void> {
     // Only the ingredients these recipes actually reference, so the aggregate
     // is bounded by what we are about to return rather than by the org's whole
     // ingredient catalogue.
-    const rawItemIds = [
-      ...new Set(recipes.flatMap((r) => r.bill_of_materials.map((l) => l.raw_item_id))),
-    ];
-
-    const costRows =
-      rawItemIds.length === 0
-        ? []
-        : await req.tx.$queryRaw<Array<{ raw_item_id: string; unit_cost: unknown }>>`
-            SELECT b.raw_item_id,
-                   SUM(b.quantity_remaining * b.cost_at_purchase)
-                     / SUM(b.quantity_remaining) AS unit_cost
-            FROM public.inventory_batches b
-            WHERE b.raw_item_id = ANY(${rawItemIds}::uuid[])
-              AND b.quantity_remaining > 0
-            GROUP BY b.raw_item_id
-            HAVING SUM(b.quantity_remaining) > 0
-          `;
-
-    // An ingredient with no open lots simply has no row here, so the lookup
-    // yields undefined and the line is reported as uncosted.
-    const unitCostOf = new Map<string, number>(
-      costRows.map((c) => [c.raw_item_id, Number(c.unit_cost)]),
-    );
+    const unitCostOf = await unitCostsByRawItem(req.tx, rawItemIdsOf(recipes));
 
     const costed = recipes.map((recipe) => {
-      let total = 0;
-      let uncosted = 0;
-
+      // An ingredient with no open stock is absent from the lookup, so the line
+      // is reported as unpriced rather than free.
       const lines = recipe.bill_of_materials.map((line) => {
         const unitCost = unitCostOf.get(line.raw_item_id);
         if (unitCost === undefined) {
-          uncosted += 1;
           return { ...line, unit_cost: null, line_cost: null };
         }
-        const lineCost = unitCost * Number(line.quantity_required);
-        total += lineCost;
-        return { ...line, unit_cost: money(unitCost), line_cost: money(lineCost) };
+        return {
+          ...line,
+          unit_cost: money(unitCost),
+          line_cost: money(unitCost * Number(line.quantity_required)),
+        };
       });
 
       return {
         ...recipe,
         bill_of_materials: lines,
-        // The cost of the lines we could price. Read it together with
-        // uncosted_line_count: if that is non-zero, this is a floor, not a total.
-        total_cost: money(total),
-        uncosted_line_count: uncosted,
+        ...costRecipe(recipe.bill_of_materials, unitCostOf),
       };
     });
 

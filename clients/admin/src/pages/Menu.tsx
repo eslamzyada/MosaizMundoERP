@@ -113,6 +113,8 @@ export default function Menu() {
                 <Th>الصنف</Th>
                 <Th>SKU</Th>
                 <Th>السعر</Th>
+                <Th>التكلفة</Th>
+                <Th>الهامش</Th>
                 <Th>
                   <span className="sr-only">إجراءات</span>
                 </Th>
@@ -121,7 +123,7 @@ export default function Menu() {
             <tbody className="divide-y divide-surface-sand-border/70">
               {error ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <p className="mb-3 text-destructive-strong">
                       تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
                     </p>
@@ -132,13 +134,13 @@ export default function Menu() {
                 </tr>
               ) : loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                     جارٍ التحميل…
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                     لا توجد أصناف بعد.
                     {mayManage ? ' أضف أول صنف من زر «إضافة صنف».' : ''}
                   </td>
@@ -153,6 +155,12 @@ export default function Menu() {
                         {money(item.price)}
                       </span>
                       <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <CostCell item={item} />
+                    </td>
+                    <td className="px-6 py-4">
+                      <MarginCell item={item} />
                     </td>
                     <td className="px-6 py-4 text-end">
                       {mayManage && (
@@ -180,6 +188,76 @@ export default function Menu() {
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
       />
+    </div>
+  );
+}
+
+/**
+ * What a dish costs to make, in one of three states that must never be confused
+ * with each other. `total_cost` is 0 both for an item with no recipe and for one
+ * whose ingredients are all out of stock — printing a bare "0.00" in either case
+ * would read as "free", and a menu priced off that is priced off nothing.
+ */
+function CostCell({ item }: { item: CatalogItem }) {
+  if (item.recipe_line_count === 0) {
+    return (
+      <span className="text-xs text-slate-400" title="أضف وصفة لهذا الصنف لحساب تكلفته">
+        لا توجد وصفة
+      </span>
+    );
+  }
+
+  const partial = item.uncosted_line_count > 0;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span>
+        <span className="font-numerals font-semibold text-surface-dark">
+          {money(item.total_cost)}
+        </span>
+        <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+      </span>
+      {partial && (
+        <span
+          className="text-[11px] font-semibold text-warning-strong"
+          title={`${item.uncosted_line_count} مكوّن بلا رصيد في المخزون`}
+        >
+          جزئية — التكلفة أعلى
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Profit per portion, and food cost as a share of the price. Both are withheld
+ * unless the cost is complete AND a price is set: a margin computed from a
+ * partial cost flatters the dish, which is the opposite of useful here.
+ */
+function MarginCell({ item }: { item: CatalogItem }) {
+  const unknown = item.recipe_line_count === 0 || item.uncosted_line_count > 0;
+  if (unknown || item.price <= 0) {
+    return <span className="text-slate-300">—</span>;
+  }
+
+  const profit = item.price - item.total_cost;
+  const foodCostPct = (item.total_cost / item.price) * 100;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span>
+        <span
+          className={[
+            'font-numerals font-semibold',
+            profit < 0 ? 'text-destructive-strong' : 'text-surface-dark',
+          ].join(' ')}
+        >
+          {money(profit)}
+        </span>
+        <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+      </span>
+      <span className="font-numerals text-[11px] text-slate-500">
+        نسبة التكلفة {foodCostPct.toFixed(1)}%
+      </span>
     </div>
   );
 }
