@@ -54,7 +54,14 @@ model inventory_deficits {
   updated_at          DateTime            @default(now()) @db.Timestamptz(6)
   raw_inventory_items raw_inventory_items @relation(fields: [raw_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([organization_id, raw_item_id], map: "inventory_deficits_org_item_idx")
+  // Migration 0013 made this UNIQUE (organization_id, raw_item_id), which turns
+  // the link to raw_inventory_items into a one-to-one. Prisma requires the
+  // unique to be declared in the same field order as the relation's `fields:`
+  // (raw_item_id, organization_id); a UNIQUE over the same two columns in
+  // either order enforces identical semantics, and `map:` keeps this pointing
+  // at the real constraint. Re-running `npm run db:pull` regenerates this line
+  // in column order and reintroduces the validation error — reapply this swap.
+  @@unique([raw_item_id, organization_id], map: "inventory_deficits_org_item_key")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -69,6 +76,8 @@ model order_items {
   unit_price       Decimal        @db.Decimal(10, 2)
   created_at       DateTime       @default(now()) @db.Timestamptz(6)
   updated_at       DateTime       @default(now()) @db.Timestamptz(6)
+  cost_at_sale     Decimal        @default(0) @db.Decimal
+  cost_is_complete Boolean        @default(false)
   orders           orders         @relation(fields: [order_id, organization_id], references: [id, organization_id], onDelete: Cascade, onUpdate: NoAction)
   sellable_items   sellable_items @relation(fields: [sellable_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "order_items_sellable_item_fkey")
 
@@ -134,17 +143,17 @@ model organizations {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model raw_inventory_items {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id    String               @db.Uuid
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id    String              @db.Uuid
   name               String
   unit_of_measure    String
-  created_at         DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
-  reorder_threshold  Decimal              @default(0) @db.Decimal(10, 3)
+  created_at         DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime            @default(now()) @db.Timestamptz(6)
+  reorder_threshold  Decimal             @default(0) @db.Decimal(10, 3)
   bill_of_materials  bill_of_materials[]
   inventory_batches  inventory_batches[]
-  inventory_deficits inventory_deficits[]
-  organizations      organizations        @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  inventory_deficits inventory_deficits?
+  organizations      organizations       @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   stocktake_items    stocktake_items[]
 
   @@unique([id, organization_id])
