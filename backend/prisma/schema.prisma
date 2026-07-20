@@ -54,13 +54,6 @@ model inventory_deficits {
   updated_at          DateTime            @default(now()) @db.Timestamptz(6)
   raw_inventory_items raw_inventory_items @relation(fields: [raw_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction)
 
-  // Migration 0013 made this UNIQUE (organization_id, raw_item_id), which turns
-  // the link to raw_inventory_items into a one-to-one. Prisma requires the
-  // unique to be declared in the same field order as the relation's `fields:`
-  // (raw_item_id, organization_id); a UNIQUE over the same two columns in
-  // either order enforces identical semantics, and `map:` keeps this pointing
-  // at the real constraint. Re-running `npm run db:pull` regenerates this line
-  // in column order and reintroduces the validation error — reapply this swap.
   @@unique([raw_item_id, organization_id], map: "inventory_deficits_org_item_key")
 }
 

@@ -148,6 +148,33 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      # The committed schema.prisma is introspected from the database, but the
+      # "Backend Build" job generates from that committed file with NO database,
+      # so it cannot notice when the two have diverged. That is how the schema
+      # went stale for two migrations after 0013. This step is the missing
+      # check: re-introspect the freshly migrated database and fail if the
+      # result differs from what is committed.
+      #
+      # Reads as the superuser: introspection must see every table, and RLS
+      # would hide rows (though not structure) from the app role.
+      - name: Prisma schema matches the migrated database
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mosaiz_mundo"
+        run: |
+          npm run db:pull
+          if ! git diff --exit-code --stat -- prisma/schema.prisma; then
+            echo ""
+            echo "::error file=backend/prisma/schema.prisma::prisma/schema.prisma is out of date with the migrations."
+            echo "The database and the committed Prisma schema disagree. After adding a migration, run:"
+            echo "    cd backend && npm run db:pull && npm run build"
+            echo "and commit the regenerated prisma/schema.prisma. Full diff:"
+            echo ""
+            git --no-pager diff -- prisma/schema.prisma
+            exit 1
+          fi
+          echo "prisma/schema.prisma is in step with the database."
+
       - name: Build backend
         working-directory: backend
         env:
