@@ -12,6 +12,7 @@ interface BackendRawItem {
 }
 
 interface BackendBomLine {
+  id: string;
   raw_item_id: string;
   quantity_required: number;
   raw_inventory_items: BackendRawItem;
@@ -38,6 +39,7 @@ function mapRecipe(s: BackendSellable): Recipe {
       updated_at: s.updated_at,
     },
     recipe_lines: s.bill_of_materials.map((line) => ({
+      id: line.id,
       raw_item: {
         id: line.raw_inventory_items.id,
         name: line.raw_inventory_items.name,
@@ -65,5 +67,15 @@ export class HttpRecipeRepository implements RecipeRepository {
 
   async addIngredient(sellableItemId: string, payload: AddRecipeLinePayload): Promise<void> {
     await apiClient.post(`/api/recipes/${sellableItemId}/lines`, payload);
+  }
+
+  async updateLine(lineId: string, quantityRequired: number): Promise<void> {
+    await apiClient.patch(`/api/recipes/lines/${lineId}`, {
+      quantity_required: quantityRequired,
+    });
+  }
+
+  async removeLine(lineId: string): Promise<void> {
+    await apiClient.delete(`/api/recipes/lines/${lineId}`);
   }
 }

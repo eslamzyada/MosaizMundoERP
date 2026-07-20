@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import Modal from './ui/Modal';
 import Button from './Button';
-import type { IngredientCategory, RawInventoryItem, RecipeLine } from '../types';
+import type { RawInventoryItem } from '../types';
 
 interface Props {
   open: boolean;
   ingredients: RawInventoryItem[];
   onClose: () => void;
-  onAdd: (line: RecipeLine) => void;
+  /**
+   * Emits the new line as a payload rather than a RecipeLine: the line does not
+   * exist yet, so it has no bill_of_materials id to carry.
+   */
+  onAdd: (payload: { raw_item_id: string; quantity_required: number }) => void;
 }
 
 const inputClass =
@@ -18,14 +22,12 @@ const inputClass =
 export default function AddIngredientModal({ open, ingredients, onClose, onAdd }: Props) {
   const [ingredientId, setIngredientId] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [category, setCategory] = useState<IngredientCategory>('purchased');
 
   // Reset the form each time the modal opens.
   useEffect(() => {
     if (open) {
       setIngredientId('');
       setQuantity('');
-      setCategory('purchased');
     }
   }, [open]);
 
@@ -35,10 +37,7 @@ export default function AddIngredientModal({ open, ingredients, onClose, onAdd }
     const qty = Number(quantity);
     if (!selected || !Number.isFinite(qty) || qty <= 0) return;
 
-    onAdd({
-      raw_item: { ...selected, category },
-      quantity_required: qty,
-    });
+    onAdd({ raw_item_id: selected.id, quantity_required: qty });
     onClose();
   }
 
@@ -78,23 +77,6 @@ export default function AddIngredientModal({ open, ingredients, onClose, onAdd }
           />
         </Field>
 
-        <Field label="نوع المكوّن">
-          <div className="flex gap-2">
-            <RadioChip
-              name="category"
-              checked={category === 'purchased'}
-              onChange={() => setCategory('purchased')}
-              label="مشتريات"
-            />
-            <RadioChip
-              name="category"
-              checked={category === 'intermediate'}
-              onChange={() => setCategory('intermediate')}
-              label="وسيط"
-            />
-          </div>
-        </Field>
-
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="secondary" type="button" onClick={onClose}>
             إلغاء
@@ -117,28 +99,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function RadioChip({
-  name,
-  checked,
-  onChange,
-  label,
-}: {
-  name: string;
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-}) {
-  return (
-    <label
-      className={[
-        'flex flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
-        checked
-          ? 'border-twilight-600 bg-twilight-600 text-white'
-          : 'border-surface-sand-border bg-white text-surface-dark hover:bg-surface-sand-alt',
-      ].join(' ')}
-    >
-      <input type="radio" name={name} checked={checked} onChange={onChange} className="sr-only" />
-      {label}
-    </label>
-  );
-}

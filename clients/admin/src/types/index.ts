@@ -181,6 +181,8 @@ export interface RawInventoryItem {
 
 /** One ingredient line of a recipe: how much of a raw item it consumes. */
 export interface RecipeLine {
+  /** The bill_of_materials row id — how a line is addressed for edit/remove. */
+  id: string;
   raw_item: RawInventoryItem;
   quantity_required: number;
 }
