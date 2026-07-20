@@ -176,15 +176,29 @@ export default function Recipes() {
                 </div>
                 <div className="text-start">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    التكلفة الإجمالية
+                    {selected.uncosted_line_count > 0 ? 'تكلفة جزئية' : 'تكلفة المكوّنات'}
                   </div>
                   <div className="font-numerals text-xl font-bold text-twilight-700">
-                    {selected.total_cost.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {money(selected.total_cost)}
                     <span className="ms-1 font-sans text-sm font-medium text-slate-500">ج.م</span>
                   </div>
+                  {/* An incomplete cost is worse than no cost: it looks like a
+                      finished number and would underprice the dish. Say so. */}
+                  {selected.uncosted_line_count > 0 ? (
+                    <p className="mt-1 max-w-[16rem] text-[11px] font-semibold text-warning-strong">
+                      {selected.uncosted_line_count} مكوّن بلا رصيد في المخزون، فلا يمكن تسعيره —
+                      التكلفة الحقيقية أعلى.
+                    </p>
+                  ) : selected.price > 0 ? (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      <span className="font-numerals font-semibold text-surface-dark">
+                        {((selected.total_cost / selected.price) * 100).toFixed(1)}%
+                      </span>{' '}
+                      من سعر البيع ({money(selected.price)} ج.م)
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-500">لم يُحدَّد سعر بيع لهذا الصنف.</p>
+                  )}
                 </div>
               </div>
 
@@ -195,6 +209,7 @@ export default function Recipes() {
                       <Th>المكوّن</Th>
                       <Th>الكمية</Th>
                       <Th>وحدة القياس</Th>
+                      <Th>التكلفة</Th>
                       <Th>النوع</Th>
                       {mayEdit && <Th>إجراءات</Th>}
                     </tr>
@@ -203,7 +218,7 @@ export default function Recipes() {
                     {selected.recipe_lines.length === 0 && (
                       <tr>
                         <td
-                          colSpan={mayEdit ? 5 : 4}
+                          colSpan={mayEdit ? 6 : 5}
                           className="px-6 py-10 text-center text-sm text-slate-400"
                         >
                           لا توجد مكوّنات في هذه الوصفة بعد.
@@ -225,6 +240,19 @@ export default function Recipes() {
                           />
                         </td>
                         <td className="px-6 py-4 text-slate-500">{line.raw_item.unit_of_measure}</td>
+                        <td className="px-6 py-4">
+                          {line.line_cost === null ? (
+                            <Badge variant="warning">بلا رصيد</Badge>
+                          ) : (
+                            <span
+                              className="font-numerals text-surface-dark"
+                              title={`${money(line.unit_cost ?? 0)} ج.م لكل ${line.raw_item.unit_of_measure}`}
+                            >
+                              {money(line.line_cost)}
+                              <span className="ms-1 font-sans text-xs text-slate-400">ج.م</span>
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-4">
                           <CategoryChip category={line.raw_item.category} />
                         </td>
@@ -408,6 +436,11 @@ function QuantityCell({
       )}
     </div>
   );
+}
+
+/** Money, in the Latin numerals the rest of the admin uses for figures. */
+function money(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /** The server's message when there is one, so 409/400 explain themselves. */

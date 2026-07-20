@@ -15,6 +15,8 @@ interface BackendBomLine {
   id: string;
   raw_item_id: string;
   quantity_required: number;
+  unit_cost: number | null;
+  line_cost: number | null;
   raw_inventory_items: BackendRawItem;
 }
 
@@ -23,9 +25,12 @@ interface BackendSellable {
   organization_id: string;
   name: string;
   sku: string | null;
+  price: number;
   created_at: string;
   updated_at: string;
   bill_of_materials: BackendBomLine[];
+  total_cost: number;
+  uncosted_line_count: number;
 }
 
 function mapRecipe(s: BackendSellable): Recipe {
@@ -47,9 +52,15 @@ function mapRecipe(s: BackendSellable): Recipe {
         // category is a UI-only concept; the DB doesn't track it.
       },
       quantity_required: Number(line.quantity_required),
+      // Kept nullable end to end: an ingredient with no stock has no cost, and
+      // coercing that to 0 here would quietly understate the dish.
+      unit_cost: line.unit_cost === null ? null : Number(line.unit_cost),
+      line_cost: line.line_cost === null ? null : Number(line.line_cost),
     })),
-    // Cost lives in inventory_batches, not the recipe — not computed here yet.
-    total_cost: 0,
+    // Food cost, computed by the API from the stock actually on hand.
+    total_cost: Number(s.total_cost),
+    uncosted_line_count: s.uncosted_line_count,
+    price: Number(s.price),
   };
 }
 

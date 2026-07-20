@@ -37,40 +37,81 @@ function sellable(id: string, name: string, sku: string): SellableItem {
   };
 }
 
+// Weighted-average cost of one unit of each ingredient, as the API derives it
+// from stock on hand. `null` means there is no stock to price it from — بقدونس
+// is deliberately unpriced so the "incomplete cost" state is exercised offline.
+const UNIT_COST: Record<string, number | null> = {
+  'r-0001': 0.05,
+  'r-0002': 2.0,
+  'r-0003': 0.08,
+  'r-0004': 0.03,
+  'r-0005': 0.09,
+  'r-0006': 3.0,
+  'r-0007': 0.2,
+  'r-0008': 0.02,
+  'r-0009': 0.04,
+  'r-0010': null,
+  'r-0011': 0.02,
+  'r-0012': 0.01,
+  'r-0013': 0.15,
+  'r-0014': 0.03,
+};
+
 // A recipe line, with the id the real bill_of_materials row would carry — the
 // UI addresses lines by it when editing a quantity or removing an ingredient.
 let lineSeq = 0;
 function line(rawItemId: string, quantityRequired: number): RecipeLine {
   lineSeq += 1;
+  const unitCost = UNIT_COST[rawItemId] ?? null;
   return {
     id: `bom-0000-0000-4000-8000-${String(lineSeq).padStart(12, '0')}`,
     raw_item: ing(rawItemId),
     quantity_required: quantityRequired,
+    unit_cost: unitCost,
+    line_cost: unitCost === null ? null : round(unitCost * quantityRequired),
+  };
+}
+
+function round(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+// Derives total_cost and uncosted_line_count from the lines the same way the
+// API does, so the mock cannot drift into claiming a cost it hasn't accounted for.
+function recipe(sellableItem: SellableItem, price: number, lines: RecipeLine[]): Recipe {
+  return {
+    sellable_item: sellableItem,
+    recipe_lines: lines,
+    total_cost: round(lines.reduce((sum, l) => sum + (l.line_cost ?? 0), 0)),
+    uncosted_line_count: lines.filter((l) => l.line_cost === null).length,
+    price,
   };
 }
 
 // Mock-first: realistic Arabic recipes. No network calls anywhere.
 const MOCK_RECIPES: Recipe[] = [
-  {
-    sellable_item: sellable('s0000001-0000-4000-8000-000000000001', 'شاورما دجاج', 'SHW-01'),
-    total_cost: 12.5,
-    recipe_lines: [line('r-0001', 200), line('r-0002', 1), line('r-0003', 30), line('r-0004', 20)],
-  },
-  {
-    sellable_item: sellable('s0000002-0000-4000-8000-000000000002', 'برجر لحم', 'BRG-01'),
-    total_cost: 18.75,
-    recipe_lines: [line('r-0005', 150), line('r-0006', 1), line('r-0007', 25), line('r-0008', 15)],
-  },
-  {
-    sellable_item: sellable('s0000003-0000-4000-8000-000000000003', 'فلافل', 'FLF-01'),
-    total_cost: 7.0,
-    recipe_lines: [line('r-0009', 120), line('r-0010', 20), line('r-0002', 1)],
-  },
-  {
-    sellable_item: sellable('s0000004-0000-4000-8000-000000000004', 'عصير برتقال طازج', 'JUC-01'),
-    total_cost: 9.25,
-    recipe_lines: [line('r-0011', 400), line('r-0012', 15)],
-  },
+  recipe(sellable('s0000001-0000-4000-8000-000000000001', 'شاورما دجاج', 'SHW-01'), 45, [
+    line('r-0001', 200),
+    line('r-0002', 1),
+    line('r-0003', 30),
+    line('r-0004', 20),
+  ]),
+  recipe(sellable('s0000002-0000-4000-8000-000000000002', 'برجر لحم', 'BRG-01'), 60, [
+    line('r-0005', 150),
+    line('r-0006', 1),
+    line('r-0007', 25),
+    line('r-0008', 15),
+  ]),
+  // Contains بقدونس, which has no stock to price — this recipe stays incomplete.
+  recipe(sellable('s0000003-0000-4000-8000-000000000003', 'فلافل', 'FLF-01'), 25, [
+    line('r-0009', 120),
+    line('r-0010', 20),
+    line('r-0002', 1),
+  ]),
+  recipe(sellable('s0000004-0000-4000-8000-000000000004', 'عصير برتقال طازج', 'JUC-01'), 22, [
+    line('r-0011', 400),
+    line('r-0012', 15),
+  ]),
 ];
 
 export class MockRecipeRepository implements RecipeRepository {
@@ -87,9 +128,10 @@ export class MockRecipeRepository implements RecipeRepository {
   }
 
   addIngredient(sellableItemId: string, payload: AddRecipeLinePayload): Promise<void> {
-    const recipe = MOCK_RECIPES.find((r) => r.sellable_item.id === sellableItemId);
-    if (recipe && ING.has(payload.raw_item_id)) {
-      recipe.recipe_lines.push(line(payload.raw_item_id, payload.quantity_required));
+    const target = MOCK_RECIPES.find((r) => r.sellable_item.id === sellableItemId);
+    if (target && ING.has(payload.raw_item_id)) {
+      target.recipe_lines.push(line(payload.raw_item_id, payload.quantity_required));
+      recost(target);
     }
     return new Promise((resolve) => {
       setTimeout(() => resolve(), 150);
@@ -97,10 +139,13 @@ export class MockRecipeRepository implements RecipeRepository {
   }
 
   updateLine(lineId: string, quantityRequired: number): Promise<void> {
-    for (const recipe of MOCK_RECIPES) {
-      const target = recipe.recipe_lines.find((l) => l.id === lineId);
+    for (const r of MOCK_RECIPES) {
+      const target = r.recipe_lines.find((l) => l.id === lineId);
       if (target) {
         target.quantity_required = quantityRequired;
+        target.line_cost =
+          target.unit_cost === null ? null : round(target.unit_cost * quantityRequired);
+        recost(r);
         break;
       }
     }
@@ -110,10 +155,11 @@ export class MockRecipeRepository implements RecipeRepository {
   }
 
   removeLine(lineId: string): Promise<void> {
-    for (const recipe of MOCK_RECIPES) {
-      const idx = recipe.recipe_lines.findIndex((l) => l.id === lineId);
+    for (const r of MOCK_RECIPES) {
+      const idx = r.recipe_lines.findIndex((l) => l.id === lineId);
       if (idx >= 0) {
-        recipe.recipe_lines.splice(idx, 1);
+        r.recipe_lines.splice(idx, 1);
+        recost(r);
         break;
       }
     }
@@ -121,4 +167,11 @@ export class MockRecipeRepository implements RecipeRepository {
       setTimeout(() => resolve(), 150);
     });
   }
+}
+
+// Editing a recipe changes its cost — recompute so the mock never shows a total
+// that no longer matches its lines.
+function recost(r: Recipe): void {
+  r.total_cost = round(r.recipe_lines.reduce((sum, l) => sum + (l.line_cost ?? 0), 0));
+  r.uncosted_line_count = r.recipe_lines.filter((l) => l.line_cost === null).length;
 }
