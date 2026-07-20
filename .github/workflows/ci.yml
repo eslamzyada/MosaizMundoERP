@@ -120,6 +120,21 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/rbac_verification.sql
 
+      # Cost of goods sold (0015). Seeded as postgres for the same reason as the
+      # RBAC fixture, then asserted as a CASHIER — checkout is SECURITY INVOKER
+      # and that is the role that runs it in production.
+      - name: COGS fixture — stock split across two priced lots (as postgres)
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/cogs_fixture.sql
+
+      - name: COGS verification — cost captured at checkout (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/cogs_verification.sql
+
       # ---- API integration tests against the migrated container DB ----------
       # The app connects as the RLS-constrained mosaiz_app_user; the test
       # harness seeds/tears down via the postgres superuser (ADMIN_DATABASE_URL).
