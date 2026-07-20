@@ -13,4 +13,8 @@ export interface RecipeRepository {
   getIngredients(): Promise<RawInventoryItem[]>;
   /** Adds one ingredient line to a sellable item's recipe. */
   addIngredient(sellableItemId: string, payload: AddRecipeLinePayload): Promise<void>;
+  /** Changes how much of the ingredient the dish consumes. */
+  updateLine(lineId: string, quantityRequired: number): Promise<void>;
+  /** Takes the ingredient back out of the recipe. */
+  removeLine(lineId: string): Promise<void>;
 }

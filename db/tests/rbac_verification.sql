@@ -391,4 +391,71 @@ BEGIN
 END;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- 12. Recipe line REMOVAL (0014). bill_of_materials carries the permissive
+--     user_belongs_to_org policy FOR ALL — which covers DELETE — and 0010 gated
+--     only INSERT and UPDATE. So the DELETE privilege granted by 0014 must ship
+--     with its own RESTRICTIVE gate, or any member of the organization could
+--     quietly drop an ingredient out of a recipe: food cost changes and that
+--     ingredient silently stops being deducted at checkout.
+-- ----------------------------------------------------------------------------
+SET app.current_user_id = 'a11c0001-0000-4000-8000-000000000001';
+
+DO $$
+BEGIN
+    -- A throwaway ingredient and line, so the fixture recipe (asserted against
+    -- in sections 3 and 4) is left intact.
+    INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure)
+    VALUES ('a11cf00d-0000-4000-8000-00000000000d',
+            'a11c0000-0000-4000-8000-000000000000', 'RBAC Garnish', 'grams');
+
+    INSERT INTO public.bill_of_materials
+        (organization_id, sellable_item_id, raw_item_id, quantity_required)
+    VALUES ('a11c0000-0000-4000-8000-000000000000',
+            'a11c5e11-0000-4000-8000-000000000001',
+            'a11cf00d-0000-4000-8000-00000000000d', 5);
+END;
+$$;
+
+-- A cashier MAY NOT remove an ingredient from a recipe. RLS filters the row out
+-- of the DELETE rather than raising, so assert on the effect, not an exception.
+SET app.current_user_id = 'a11c0003-0000-4000-8000-000000000003';
+
+DO $$
+DECLARE
+    v_count int;
+BEGIN
+    BEGIN
+        DELETE FROM public.bill_of_materials
+        WHERE raw_item_id = 'a11cf00d-0000-4000-8000-00000000000d';
+    EXCEPTION WHEN insufficient_privilege THEN
+        NULL;   -- either outcome is fine; the line must simply survive
+    END;
+
+    SELECT count(*) INTO v_count FROM public.bill_of_materials
+    WHERE raw_item_id = 'a11cf00d-0000-4000-8000-00000000000d';
+    IF v_count <> 1 THEN
+        RAISE EXCEPTION 'SECURITY HOLE: a cashier removed an ingredient from a recipe';
+    END IF;
+END;
+$$;
+
+-- A branch manager MAY: removing a line is administrative, like adding one.
+SET app.current_user_id = 'a11c0002-0000-4000-8000-000000000002';
+
+DO $$
+DECLARE
+    v_count int;
+BEGIN
+    DELETE FROM public.bill_of_materials
+    WHERE raw_item_id = 'a11cf00d-0000-4000-8000-00000000000d';
+
+    SELECT count(*) INTO v_count FROM public.bill_of_materials
+    WHERE raw_item_id = 'a11cf00d-0000-4000-8000-00000000000d';
+    IF v_count <> 0 THEN
+        RAISE EXCEPTION 'a branch_manager must be able to remove a recipe line';
+    END IF;
+END;
+$$;
+
 SELECT 'rbac_verification: all assertions passed' AS result;
