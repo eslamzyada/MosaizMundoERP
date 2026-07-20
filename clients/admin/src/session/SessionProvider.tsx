@@ -15,13 +15,19 @@ import type { Me, Role } from '../types';
 const ADMINISTER: Role[] = ['owner', 'regional_manager', 'branch_manager'];
 const SELL: Role[] = [...ADMINISTER, 'cashier', 'staff'];
 const MANAGE_MEMBERS: Role[] = ['owner'];
+// Mirrors FINANCE_ROLES on the API. The accountant is read-only for operations
+// but is exactly who reads the books, so they are included even though they are
+// absent from ADMINISTER. A cashier rings up sales without seeing the margin on
+// them.
+const VIEW_FINANCE: Role[] = [...ADMINISTER, 'accountant'];
 
-export type Capability = 'administer' | 'sell' | 'manage_members';
+export type Capability = 'administer' | 'sell' | 'manage_members' | 'view_finance';
 
 const CAPABILITY_ROLES: Record<Capability, Role[]> = {
   administer: ADMINISTER,
   sell: SELL,
   manage_members: MANAGE_MEMBERS,
+  view_finance: VIEW_FINANCE,
 };
 
 interface SessionValue {

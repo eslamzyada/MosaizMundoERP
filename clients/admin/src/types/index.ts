@@ -225,3 +225,42 @@ export interface Recipe {
   /** Menu price, so cost can be shown as a percentage of it. 0 = unpriced. */
   price: number;
 }
+
+/**
+ * Revenue against the cost recorded at each sale (migration 0015), so the
+ * figures are history rather than a re-estimate from today's stock prices.
+ *
+ * `margin_pct` is computed over `costed_revenue` ONLY. Read it together with
+ * `coverage_pct`: at 60% coverage the margin describes 60% of the takings, and
+ * the rest is revenue whose cost is genuinely unknown. It is null when there is
+ * no costed revenue to divide by — no margin is invented.
+ */
+export interface ProfitBucket {
+  revenue: number;
+  costed_revenue: number;
+  cogs: number;
+  gross_profit: number;
+  margin_pct: number | null;
+  uncosted_revenue: number;
+  uncosted_line_count: number;
+  coverage_pct: number | null;
+}
+
+export interface ProfitDay extends ProfitBucket {
+  /** Calendar day, YYYY-MM-DD. */
+  day: string;
+}
+
+export interface ProfitItem extends ProfitBucket {
+  id: string;
+  name: string;
+  sku: string | null;
+  units_sold: number;
+}
+
+export interface ProfitabilityReport {
+  days: number;
+  summary: ProfitBucket;
+  by_day: ProfitDay[];
+  by_item: ProfitItem[];
+}
