@@ -258,9 +258,29 @@ export interface ProfitItem extends ProfitBucket {
   units_sold: number;
 }
 
+/**
+ * Why some revenue could not be costed, and what would fix it.
+ *
+ * The blocker is read from CURRENT state, not from history: the useful question
+ * is not "what went wrong then" but "what is still stopping this dish from being
+ * costed". `already_resolved` means the block was fixed after those sales — the
+ * revenue stays uncosted forever, but future sales will be fine and there is
+ * nothing to act on.
+ */
+export interface CoverageGap {
+  id: string;
+  name: string;
+  sku: string | null;
+  uncosted_line_count: number;
+  uncosted_revenue: number;
+  blocking_ingredients: Array<{ id: string; name: string; unit_of_measure: string }>;
+  reason: 'no_recipe' | 'unstocked_ingredients' | 'already_resolved';
+}
+
 export interface ProfitabilityReport {
   days: number;
   summary: ProfitBucket;
   by_day: ProfitDay[];
   by_item: ProfitItem[];
+  coverage_gaps: CoverageGap[];
 }
