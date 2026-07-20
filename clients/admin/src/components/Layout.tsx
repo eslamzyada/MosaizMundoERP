@@ -1,19 +1,28 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS, useSession } from '../session/SessionProvider';
+import type { Capability } from '../session/SessionProvider';
 
-const navItems = [
+// `capability` hides a destination the signed-in role cannot use at all. Most
+// pages are readable by everyone and gate only the actions inside them, so this
+// stays empty for them. It is presentation, not enforcement — the API is the
+// boundary in every case.
+const navItems: Array<{ to: string; label: string; end: boolean; capability?: Capability }> = [
   { to: '/', label: 'لوحة التحكم', end: true },
   { to: '/menu', label: 'القائمة', end: false },
   { to: '/orders', label: 'الطلبات', end: false },
   { to: '/inventory', label: 'المخزون', end: false },
   { to: '/recipes', label: 'الوصفات', end: false },
+  // Financial reporting is the one page a cashier cannot read at all, so it is
+  // hidden from them rather than offered and then refused.
+  { to: '/reports', label: 'الأرباح', end: false, capability: 'view_finance' },
   // The roster is readable by every member; only the actions inside are gated.
   { to: '/members', label: 'الفريق', end: false },
 ];
 
 export default function Layout() {
-  const { me } = useSession();
+  const { me, can } = useSession();
+  const visibleNav = navItems.filter((item) => !item.capability || can(item.capability));
   // Signing out clears the session; App's onAuthStateChange listener then
   // swaps the whole app back to the Login screen.
   async function handleLogout() {
@@ -37,7 +46,7 @@ export default function Layout() {
           <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
             الإدارة الخلفية
           </p>
-          {navItems.map((item) => (
+          {visibleNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

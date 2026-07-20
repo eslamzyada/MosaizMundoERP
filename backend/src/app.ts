@@ -9,6 +9,7 @@ import recipeRoutes from './routes/recipe.routes';
 import userRoutes from './routes/user.routes';
 import memberRoutes from './routes/member.routes';
 import catalogRoutes from './routes/catalog.routes';
+import reportRoutes from './routes/report.routes';
 import webhookRoutes from './routes/webhook.routes';
 
 // Recursively convert Prisma Decimal values to plain JS numbers. Prisma
@@ -123,6 +124,10 @@ app.use('/api/members', memberRoutes);
 
 // Catalog — menu item (sellable_items) management: create / rename / re-price.
 app.use('/api/catalog', catalogRoutes);
+
+// Profitability reporting, from the cost captured at each sale. Restricted to
+// FINANCE_ROLES inside the router — SELECT is ungated in the database.
+app.use('/api/reports', reportRoutes);
 
 // Supabase identity webhooks. Guarded by HMAC signature (webhookAuth), NOT the
 // JWT middleware — Supabase calls these, not a logged-in user.

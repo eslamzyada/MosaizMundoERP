@@ -59,3 +59,18 @@ export const ADMIN_ROLES = ['owner', 'regional_manager', 'branch_manager'];
 
 /** May ring up a sale. Everyone except accountant, who is read-only. */
 export const SALES_ROLES = [...ADMIN_ROLES, 'cashier', 'staff'];
+
+/**
+ * May see money: revenue, cost of goods sold, margin.
+ *
+ * The accountant is read-only for operations but is precisely who reads the
+ * books, so they are included here even though they are absent from
+ * ADMIN_ROLES. Cashiers and staff are not: ringing up a sale does not imply
+ * seeing what the restaurant makes on it.
+ *
+ * Unlike the write paths, the database is NOT a second line of defence here —
+ * SELECT is deliberately ungated by the 0010 policies, so any member could read
+ * order_items directly. This middleware is the boundary for financial
+ * reporting, which is why the endpoint must not be mounted without it.
+ */
+export const FINANCE_ROLES = [...ADMIN_ROLES, 'accountant'];
