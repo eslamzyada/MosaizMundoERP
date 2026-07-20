@@ -185,11 +185,27 @@ export interface RecipeLine {
   id: string;
   raw_item: RawInventoryItem;
   quantity_required: number;
+  /**
+   * Weighted-average cost of one unit of this ingredient, across the lots
+   * actually in stock. `null` when there is no stock to price it from — which
+   * is different from free, and must never be rendered as 0.
+   */
+  unit_cost: number | null;
+  /** unit_cost x quantity_required, or null when the ingredient is unpriced. */
+  line_cost: number | null;
 }
 
 /** A sellable item and the raw ingredients it is built from. */
 export interface Recipe {
   sellable_item: SellableItem;
   recipe_lines: RecipeLine[];
+  /**
+   * Food cost of the lines that could be priced. When `uncosted_line_count` is
+   * above zero this is a FLOOR, not the real cost — the UI must say so rather
+   * than presenting it as a finished figure.
+   */
   total_cost: number;
+  uncosted_line_count: number;
+  /** Menu price, so cost can be shown as a percentage of it. 0 = unpriced. */
+  price: number;
 }

@@ -23,13 +23,29 @@ function postgresErrorCode(err: unknown): string | undefined {
   return undefined;
 }
 
+/** Trim floating-point noise without losing a cent. */
+function money(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
 /**
  * GET /api/recipes
  *
- * Returns each sellable item with its bill of materials (the recipe lines) and
- * the raw ingredient of each line. Runs on req.tx, so RLS scopes the result to
- * the caller's organization. (The DB calls the recipe lines `bill_of_materials`;
- * the admin frontend maps them to its `recipe_lines` shape.)
+ * Returns each sellable item with its bill of materials (the recipe lines), the
+ * raw ingredient of each line, and the food cost of the recipe. Runs on req.tx,
+ * so RLS scopes both the recipes AND the cost aggregate to the caller's
+ * organization — another tenant's lots can never contribute to a cost. (The DB
+ * calls the recipe lines `bill_of_materials`; the admin frontend maps them to
+ * its `recipe_lines` shape.)
+ *
+ * Costing basis: the WEIGHTED AVERAGE cost of the stock actually on hand
+ * (value / quantity, over open lots). That is the same basis as the inventory
+ * dashboard's stock value, so the two screens can never disagree.
+ *
+ * An ingredient with no open stock has no cost basis at all. Its unit_cost is
+ * `null`, NOT zero, and the recipe reports `uncosted_line_count` — a recipe
+ * costed from only some of its ingredients is cheaper than the truth, and
+ * presenting that as a finished number is how a dish gets underpriced.
  */
 export async function getRecipes(req: Request, res: Response): Promise<void> {
   if (!req.tx) {
@@ -47,7 +63,60 @@ export async function getRecipes(req: Request, res: Response): Promise<void> {
       orderBy: { name: 'asc' },
       take: SAFETY_CAP,
     });
-    res.status(200).json(recipes);
+
+    // Only the ingredients these recipes actually reference, so the aggregate
+    // is bounded by what we are about to return rather than by the org's whole
+    // ingredient catalogue.
+    const rawItemIds = [
+      ...new Set(recipes.flatMap((r) => r.bill_of_materials.map((l) => l.raw_item_id))),
+    ];
+
+    const costRows =
+      rawItemIds.length === 0
+        ? []
+        : await req.tx.$queryRaw<Array<{ raw_item_id: string; unit_cost: unknown }>>`
+            SELECT b.raw_item_id,
+                   SUM(b.quantity_remaining * b.cost_at_purchase)
+                     / SUM(b.quantity_remaining) AS unit_cost
+            FROM public.inventory_batches b
+            WHERE b.raw_item_id = ANY(${rawItemIds}::uuid[])
+              AND b.quantity_remaining > 0
+            GROUP BY b.raw_item_id
+            HAVING SUM(b.quantity_remaining) > 0
+          `;
+
+    // An ingredient with no open lots simply has no row here, so the lookup
+    // yields undefined and the line is reported as uncosted.
+    const unitCostOf = new Map<string, number>(
+      costRows.map((c) => [c.raw_item_id, Number(c.unit_cost)]),
+    );
+
+    const costed = recipes.map((recipe) => {
+      let total = 0;
+      let uncosted = 0;
+
+      const lines = recipe.bill_of_materials.map((line) => {
+        const unitCost = unitCostOf.get(line.raw_item_id);
+        if (unitCost === undefined) {
+          uncosted += 1;
+          return { ...line, unit_cost: null, line_cost: null };
+        }
+        const lineCost = unitCost * Number(line.quantity_required);
+        total += lineCost;
+        return { ...line, unit_cost: money(unitCost), line_cost: money(lineCost) };
+      });
+
+      return {
+        ...recipe,
+        bill_of_materials: lines,
+        // The cost of the lines we could price. Read it together with
+        // uncosted_line_count: if that is non-zero, this is a floor, not a total.
+        total_cost: money(total),
+        uncosted_line_count: uncosted,
+      };
+    });
+
+    res.status(200).json(costed);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[recipes.get] failed:', err);
