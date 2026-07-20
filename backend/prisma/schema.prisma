@@ -29,17 +29,18 @@ model bill_of_materials {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model inventory_batches {
-  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id     String              @db.Uuid
-  raw_item_id         String              @db.Uuid
-  quantity_received   Decimal             @db.Decimal(10, 3)
-  quantity_remaining  Decimal             @db.Decimal(10, 3)
-  cost_at_purchase    Decimal             @db.Decimal(10, 2)
-  expiry_date         DateTime?           @db.Timestamptz(6)
-  received_at         DateTime            @default(now()) @db.Timestamptz(6)
-  created_at          DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
-  raw_inventory_items raw_inventory_items @relation(fields: [raw_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_batches_raw_item_fkey")
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id       String                  @db.Uuid
+  raw_item_id           String                  @db.Uuid
+  quantity_received     Decimal                 @db.Decimal(10, 3)
+  quantity_remaining    Decimal                 @db.Decimal(10, 3)
+  cost_at_purchase      Decimal                 @db.Decimal(10, 2)
+  expiry_date           DateTime?               @db.Timestamptz(6)
+  received_at           DateTime                @default(now()) @db.Timestamptz(6)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  raw_inventory_items   raw_inventory_items     @relation(fields: [raw_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_batches_raw_item_fkey")
+  inventory_consumption inventory_consumption[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -81,15 +82,16 @@ model order_items {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model orders {
-  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id   String        @db.Uuid
-  client_offline_id String        @db.Uuid
-  status            String        @default("completed")
-  total_amount      Decimal       @db.Decimal(10, 2)
-  created_at        DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime      @default(now()) @db.Timestamptz(6)
-  order_items       order_items[]
-  organizations     organizations @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id       String                  @db.Uuid
+  client_offline_id     String                  @db.Uuid
+  status                String                  @default("completed")
+  total_amount          Decimal                 @db.Decimal(10, 2)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  inventory_consumption inventory_consumption[]
+  order_items           order_items[]
+  organizations         organizations           @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([id, organization_id])
   @@unique([organization_id, client_offline_id])
@@ -136,18 +138,19 @@ model organizations {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model raw_inventory_items {
-  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id    String              @db.Uuid
-  name               String
-  unit_of_measure    String
-  created_at         DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime            @default(now()) @db.Timestamptz(6)
-  reorder_threshold  Decimal             @default(0) @db.Decimal(10, 3)
-  bill_of_materials  bill_of_materials[]
-  inventory_batches  inventory_batches[]
-  inventory_deficits inventory_deficits?
-  organizations      organizations       @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  stocktake_items    stocktake_items[]
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id       String                  @db.Uuid
+  name                  String
+  unit_of_measure       String
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  reorder_threshold     Decimal                 @default(0) @db.Decimal(10, 3)
+  bill_of_materials     bill_of_materials[]
+  inventory_batches     inventory_batches[]
+  inventory_consumption inventory_consumption[]
+  inventory_deficits    inventory_deficits?
+  organizations         organizations           @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  stocktake_items       stocktake_items[]
 
   @@unique([id, organization_id])
   @@unique([organization_id, name])
@@ -233,4 +236,25 @@ model organization_invitations {
   updated_at      DateTime      @default(now()) @db.Timestamptz(6)
   users           users?        @relation(fields: [invited_by], references: [id], onUpdate: NoAction)
   organizations   organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model inventory_consumption {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String              @db.Uuid
+  order_id            String              @db.Uuid
+  raw_item_id         String              @db.Uuid
+  batch_id            String              @db.Uuid
+  quantity            Decimal             @db.Decimal(10, 3)
+  unit_cost           Decimal             @db.Decimal(10, 2)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  inventory_batches   inventory_batches   @relation(fields: [batch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  orders              orders              @relation(fields: [order_id, organization_id], references: [id, organization_id], onDelete: Cascade, onUpdate: NoAction, map: "inventory_consumption_order_fkey")
+  raw_inventory_items raw_inventory_items @relation(fields: [raw_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_consumption_raw_item_fkey")
+
+  @@index([batch_id], map: "inventory_consumption_batch_idx")
+  @@index([order_id], map: "inventory_consumption_order_idx")
 }

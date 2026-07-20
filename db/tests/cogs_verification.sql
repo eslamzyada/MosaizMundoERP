@@ -239,4 +239,99 @@ BEGIN
 END;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- 6. The consumption ledger (0017) records WHICH stock each sale took.
+--
+--    The first sale drew 8 patties: the whole 5-unit lot at 3.00, then 3 from
+--    the 10-unit lot at 5.00. So it must have left exactly two rows, naming
+--    those two lots, with those quantities and those costs.
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_rows   int;
+    v_qty    numeric;
+    v_value  numeric;
+    v_cheap  numeric;
+    v_dear   numeric;
+    v_order  uuid;
+BEGIN
+    SELECT id INTO v_order FROM public.orders
+    WHERE client_offline_id = 'c057c0de-0000-4000-8000-000000000001';
+
+    SELECT count(*), sum(quantity), sum(quantity * unit_cost)
+      INTO v_rows, v_qty, v_value
+    FROM public.inventory_consumption WHERE order_id = v_order;
+
+    IF v_rows <> 2 THEN
+        RAISE EXCEPTION 'expected 2 consumption rows (one per lot drawn), got %', v_rows;
+    END IF;
+    IF v_qty IS DISTINCT FROM 8.000 THEN
+        RAISE EXCEPTION 'consumption must account for all 8 units drawn, got %', v_qty;
+    END IF;
+
+    -- The ledger must agree with the cost recorded on the sale itself. If these
+    -- two ever diverge, one of them is lying about the same event.
+    IF v_value IS DISTINCT FROM 30.00 THEN
+        RAISE EXCEPTION 'consumption value must equal the recorded COGS 30.00, got %', v_value;
+    END IF;
+
+    SELECT sum(quantity) INTO v_cheap FROM public.inventory_consumption
+    WHERE order_id = v_order AND unit_cost = 3.00;
+    SELECT sum(quantity) INTO v_dear FROM public.inventory_consumption
+    WHERE order_id = v_order AND unit_cost = 5.00;
+
+    IF v_cheap IS DISTINCT FROM 5.000 THEN
+        RAISE EXCEPTION 'FIFO must have taken all 5 units of the cheap lot, got %', v_cheap;
+    END IF;
+    IF v_dear IS DISTINCT FROM 3.000 THEN
+        RAISE EXCEPTION 'FIFO must have taken 3 units of the dearer lot, got %', v_dear;
+    END IF;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- 7. A shortfall is NOT consumption. Stock that never existed cannot appear in
+--    a ledger of stock consumed — it belongs to inventory_deficits alone.
+--    The second sale wanted 10 patties and only 7 remained.
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_qty   numeric;
+    v_order uuid;
+BEGIN
+    SELECT id INTO v_order FROM public.orders
+    WHERE client_offline_id = 'c057c0de-0000-4000-8000-000000000002';
+
+    SELECT COALESCE(sum(quantity), 0) INTO v_qty
+    FROM public.inventory_consumption WHERE order_id = v_order;
+
+    IF v_qty IS DISTINCT FROM 7.000 THEN
+        RAISE EXCEPTION
+            'consumption must record only the 7 units actually drawn, not the 10 wanted (got %)',
+            v_qty;
+    END IF;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- 8. Lot traceability, the other reason this ledger exists: given a lot, which
+--    orders did it end up in? Unanswerable before 0017.
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_orders int;
+BEGIN
+    SELECT count(DISTINCT ic.order_id) INTO v_orders
+    FROM public.inventory_consumption ic
+    JOIN public.inventory_batches b ON b.id = ic.batch_id
+    WHERE b.raw_item_id = 'c057f00d-0000-4000-8000-000000000001'
+      AND b.cost_at_purchase = 5.00;
+
+    -- The dearer patty lot fed both the 8-unit sale and the short one.
+    IF v_orders <> 2 THEN
+        RAISE EXCEPTION 'expected the 5.00 lot to trace to 2 orders, got %', v_orders;
+    END IF;
+END;
+$$;
+
 SELECT 'cogs_verification: all assertions passed' AS result;
