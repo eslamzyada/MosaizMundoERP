@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { SAFETY_CAP } from '../lib/pagination';
+import { costRecipe, rawItemIdsOf, unitCostsByRawItem } from '../lib/foodCost';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,8 +38,19 @@ function priceError(price: unknown): string | null {
 /**
  * GET /api/catalog/items
  *
- * The organization's menu items (sellable_items), with price. Readable by any
- * member (RLS-scoped via req.tx); managing them is administrative (below).
+ * The organization's menu items (sellable_items), with price AND what each one
+ * costs to make. Readable by any member (RLS-scoped via req.tx); managing them
+ * is administrative (below).
+ *
+ * Cost is included because this is where prices are set: pricing a dish without
+ * knowing its food cost is guesswork. It uses the shared `lib/foodCost` basis,
+ * so this screen and the recipe editor can never disagree.
+ *
+ * Three states the caller must keep apart, none of which is "cost 0":
+ *   recipe_line_count = 0      -> no recipe at all; the cost is UNKNOWN
+ *   uncosted_line_count > 0    -> partially priced; total_cost is a floor
+ *   otherwise                  -> total_cost is the real food cost
+ * The recipe lines themselves are not returned — the menu only needs the totals.
  */
 export async function listItems(req: Request, res: Response): Promise<void> {
   if (!req.tx) {
@@ -47,10 +59,21 @@ export async function listItems(req: Request, res: Response): Promise<void> {
   }
   try {
     const items = await req.tx.sellable_items.findMany({
+      include: {
+        bill_of_materials: { select: { raw_item_id: true, quantity_required: true } },
+      },
       orderBy: { name: 'asc' },
       take: SAFETY_CAP,
     });
-    res.status(200).json(items);
+
+    const unitCostOf = await unitCostsByRawItem(req.tx, rawItemIdsOf(items));
+
+    const costed = items.map(({ bill_of_materials, ...item }) => ({
+      ...item,
+      ...costRecipe(bill_of_materials, unitCostOf),
+    }));
+
+    res.status(200).json(costed);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[catalog.list] failed:', err);

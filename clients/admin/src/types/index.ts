@@ -12,7 +12,7 @@ export interface SellableItem {
 }
 
 /** A menu item as returned by /api/catalog/items — includes the (server-authoritative) price. */
-export interface CatalogItem {
+export interface CatalogItemBase {
   id: string;
   organization_id: string;
   name: string;
@@ -20,6 +20,22 @@ export interface CatalogItem {
   price: number;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * A menu item as LISTED, which also carries what it costs to make — pricing a
+ * dish without that is guesswork. Create/update return `CatalogItemBase`: those
+ * endpoints answer with the stored row and do not compute cost.
+ *
+ * Three states, and none of them is "costs nothing":
+ *   recipe_line_count === 0   → no recipe; the cost is unknown
+ *   uncosted_line_count > 0   → partly priced; total_cost is a floor
+ *   otherwise                 → total_cost is the real food cost
+ */
+export interface CatalogItem extends CatalogItemBase {
+  total_cost: number;
+  uncosted_line_count: number;
+  recipe_line_count: number;
 }
 
 export interface CreateItemPayload {

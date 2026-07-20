@@ -1,6 +1,11 @@
 import { apiClient } from './client';
 import type { CatalogRepository } from './CatalogRepository';
-import type { CatalogItem, CreateItemPayload, UpdateItemPayload } from '../types';
+import type {
+  CatalogItem,
+  CatalogItemBase,
+  CreateItemPayload,
+  UpdateItemPayload,
+} from '../types';
 
 /**
  * Live implementation. Create/update are owner/manager-only, enforced by the
@@ -13,13 +18,13 @@ export class HttpCatalogRepository implements CatalogRepository {
     return data;
   }
 
-  async createItem(payload: CreateItemPayload): Promise<CatalogItem> {
-    const { data } = await apiClient.post<CatalogItem>('/api/catalog/items', payload);
+  async createItem(payload: CreateItemPayload): Promise<CatalogItemBase> {
+    const { data } = await apiClient.post<CatalogItemBase>('/api/catalog/items', payload);
     return data;
   }
 
-  async updateItem(id: string, payload: UpdateItemPayload): Promise<CatalogItem> {
-    const { data } = await apiClient.patch<CatalogItem>(`/api/catalog/items/${id}`, payload);
+  async updateItem(id: string, payload: UpdateItemPayload): Promise<CatalogItemBase> {
+    const { data } = await apiClient.patch<CatalogItemBase>(`/api/catalog/items/${id}`, payload);
     return data;
   }
 }
