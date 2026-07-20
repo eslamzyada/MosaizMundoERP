@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import { HttpReportRepository } from '../api/HttpReportRepository';
 import type { ReportRepository } from '../api/ReportRepository';
 import { useSession } from '../session/SessionProvider';
-import type { ProfitBucket, ProfitabilityReport } from '../types';
+import type { CoverageGap, ProfitBucket, ProfitabilityReport } from '../types';
 
 const repository: ReportRepository = new HttpReportRepository();
 
@@ -129,6 +130,8 @@ export default function Reports() {
 
           <CoverageNote summary={summary} />
 
+          <CoverageGaps gaps={report.coverage_gaps} />
+
           <DailyChart report={report} />
 
           <ItemTable report={report} />
@@ -154,6 +157,86 @@ function CoverageNote({ summary }: { summary: ProfitBucket }) {
       المبيعات ({summary.uncosted_line_count} سطر) بيع دون تكلفة معروفة — مكوّن نفد من المخزون أو صنف
       بلا وصفة. التكلفة الحقيقية أعلى، والربح الفعلي أقل.
     </p>
+  );
+}
+
+/**
+ * The coverage note says how much revenue could not be costed. This says WHY,
+ * per dish, and what would fix it — turning a warning into a list of actions.
+ *
+ * Dishes whose blocker has already been cleared are shown last and greyed: the
+ * revenue stays uncosted (the sale is history), but nothing needs doing, and
+ * demanding action for them would train the reader to ignore the list.
+ */
+function CoverageGaps({ gaps }: { gaps: CoverageGap[] }) {
+  if (gaps.length === 0) return null;
+
+  const rank = { no_recipe: 0, unstocked_ingredients: 1, already_resolved: 2 } as const;
+  const ordered = [...gaps].sort(
+    (a, b) => rank[a.reason] - rank[b.reason] || b.uncosted_revenue - a.uncosted_revenue,
+  );
+  const actionable = ordered.filter((g) => g.reason !== 'already_resolved').length;
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+      <div className="border-b border-surface-sand-border px-6 py-4">
+        <h2 className="text-sm font-bold text-surface-dark">لماذا لا يمكن تسعير هذه المبيعات؟</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {actionable > 0
+            ? `${actionable} صنف يحتاج إجراءً لرفع نسبة التغطية.`
+            : 'كل الأسباب عولجت — المبيعات القادمة ستُسعَّر بالكامل.'}
+        </p>
+      </div>
+
+      <ul className="divide-y divide-surface-sand-border/70">
+        {ordered.map((gap) => {
+          const resolved = gap.reason === 'already_resolved';
+          return (
+            <li
+              key={gap.id}
+              className={[
+                'flex flex-wrap items-start justify-between gap-3 px-6 py-4',
+                resolved ? 'opacity-60' : '',
+              ].join(' ')}
+            >
+              <div className="min-w-0">
+                <p className="font-semibold text-surface-dark">{gap.name}</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  <span className="font-numerals">{money(gap.uncosted_revenue)}</span> ج.م عبر{' '}
+                  <span className="font-numerals">{gap.uncosted_line_count}</span> عملية بيع
+                </p>
+
+                {gap.reason === 'no_recipe' && (
+                  <p className="mt-1.5 text-xs font-semibold text-warning-strong">
+                    لا توجد وصفة لهذا الصنف — أضف مكوّناته لتُحتسب تكلفته.
+                  </p>
+                )}
+                {gap.reason === 'unstocked_ingredients' && (
+                  <p className="mt-1.5 text-xs font-semibold text-warning-strong">
+                    مكوّنات بلا رصيد:{' '}
+                    {gap.blocking_ingredients.map((b) => b.name).join('، ')} — استلم مخزونًا منها.
+                  </p>
+                )}
+                {resolved && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    عولج بالفعل — المبيعات السابقة تبقى بلا تكلفة، والقادمة ستُسعَّر.
+                  </p>
+                )}
+              </div>
+
+              {!resolved && (
+                <Link
+                  to={gap.reason === 'no_recipe' ? '/recipes' : '/inventory'}
+                  className="rounded-lg border border-surface-sand-border px-3 py-1.5 text-xs font-bold text-twilight-700 transition-colors hover:bg-twilight-100"
+                >
+                  {gap.reason === 'no_recipe' ? 'إلى الوصفات' : 'إلى المخزون'}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

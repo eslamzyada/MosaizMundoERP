@@ -130,6 +130,67 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
       LIMIT ${ITEM_CAP}
     `;
 
+    // Why any revenue could not be costed — a fix-list, not just a warning.
+    //
+    // The historical reason is not recorded on the line (only that its cost was
+    // incomplete), and it is not the useful question anyway. What an owner needs
+    // is what is blocking costing NOW: a dish with no recipe, or a recipe whose
+    // ingredients have no stock to price them from. So the blockers are read
+    // from current state, and a dish whose blocker has since been fixed is
+    // reported as such rather than left on the list forever.
+    const gaps = await req.tx.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        sku: string | null;
+        uncosted_lines: number;
+        uncosted_revenue: unknown;
+        recipe_line_count: number;
+        blocking: unknown;
+      }>
+    >`
+      WITH uncosted AS (
+          SELECT oi.sellable_item_id,
+                 COUNT(*)::int                          AS uncosted_lines,
+                 SUM(oi.quantity * oi.unit_price)       AS uncosted_revenue
+          FROM public.order_items oi
+          JOIN public.orders o ON o.id = oi.order_id
+          WHERE o.status = 'completed'
+            AND o.created_at >= now() - make_interval(days => ${days}::int)
+            AND NOT oi.cost_is_complete
+          GROUP BY oi.sellable_item_id
+      )
+      SELECT
+          s.id,
+          s.name,
+          s.sku,
+          u.uncosted_lines,
+          u.uncosted_revenue,
+          COUNT(bom.id)::int AS recipe_line_count,
+          COALESCE(
+            jsonb_agg(DISTINCT jsonb_build_object(
+                'id',              r.id,
+                'name',            r.name,
+                'unit_of_measure', r.unit_of_measure
+            )) FILTER (WHERE r.id IS NOT NULL AND COALESCE(st.on_hand, 0) <= 0),
+            '[]'::jsonb
+          ) AS blocking
+      FROM uncosted u
+      JOIN public.sellable_items s ON s.id = u.sellable_item_id
+      LEFT JOIN public.bill_of_materials bom
+             ON bom.sellable_item_id = s.id
+            AND bom.organization_id  = s.organization_id
+      LEFT JOIN public.raw_inventory_items r ON r.id = bom.raw_item_id
+      LEFT JOIN LATERAL (
+          SELECT SUM(b.quantity_remaining) AS on_hand
+          FROM public.inventory_batches b
+          WHERE b.raw_item_id = r.id AND b.quantity_remaining > 0
+      ) st ON true
+      GROUP BY s.id, s.name, s.sku, u.uncosted_lines, u.uncosted_revenue
+      ORDER BY u.uncosted_revenue DESC
+      LIMIT ${ITEM_CAP}
+    `;
+
     // The window total is summed from the daily buckets rather than queried
     // again, so the headline can never disagree with the chart under it.
     const totals = daily.reduce<Bucket>(
@@ -157,6 +218,33 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
         units_sold: i.units_sold,
         ...summarise(i),
       })),
+      coverage_gaps: gaps.map((g) => {
+        const blocking = Array.isArray(g.blocking)
+          ? (g.blocking as Array<{ id: string; name: string; unit_of_measure: string }>)
+          : [];
+
+        return {
+          id: g.id,
+          name: g.name,
+          sku: g.sku,
+          uncosted_line_count: g.uncosted_lines,
+          uncosted_revenue: num(g.uncosted_revenue),
+          blocking_ingredients: blocking,
+          // What to do about it, in the order the fixes actually apply:
+          //   no_recipe            -> the dish has no bill of materials at all
+          //   unstocked_ingredients-> it has one, but some ingredient has no
+          //                           stock to price it from
+          //   already_resolved     -> neither is true any more; the block was
+          //                           fixed after these sales, so future ones
+          //                           will be costed and there is nothing to do
+          reason:
+            g.recipe_line_count === 0
+              ? 'no_recipe'
+              : blocking.length > 0
+                ? 'unstocked_ingredients'
+                : 'already_resolved',
+        };
+      }),
     });
   } catch (err) {
     // eslint-disable-next-line no-console
