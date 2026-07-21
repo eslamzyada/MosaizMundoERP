@@ -284,3 +284,38 @@ export interface ProfitabilityReport {
   by_item: ProfitItem[];
   coverage_gaps: CoverageGap[];
 }
+
+// ---- Stocktakes (counting the shelf) ---------------------------------------
+
+/** draft = being counted · posted = applied to stock · cancelled = abandoned. */
+export type StocktakeStatus = 'draft' | 'posted' | 'cancelled';
+
+/** One ingredient on a count sheet. `variance` is generated: counted - expected. */
+export interface StocktakeItem {
+  id: string;
+  raw_item_id: string;
+  name: string;
+  unit_of_measure: string;
+  /** What the books said when the count was opened — the baseline for variance. */
+  expected_quantity: number;
+  counted_quantity: number;
+  variance: number;
+}
+
+export interface Stocktake {
+  id: string;
+  status: StocktakeStatus;
+  created_at: string;
+  updated_at: string;
+  items: StocktakeItem[];
+}
+
+/** A row of the stocktake history list. */
+export interface StocktakeSummary {
+  id: string;
+  status: StocktakeStatus;
+  created_at: string;
+  updated_at: string;
+  item_count: number;
+  variance_count: number;
+}

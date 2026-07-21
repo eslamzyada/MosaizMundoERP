@@ -123,8 +123,18 @@ describe('Inventory API', () => {
     expect(res.status).toBe(404);
   });
 
-  test('POST /api/inventory/stocktakes/:id/post reconciles a draft (200 + deficit)', async () => {
-    // Seed a draft stocktake with a -2 variance on the Flour raw item.
+  test('POST /api/inventory/stocktakes/:id/post makes the books match the count (0019)', async () => {
+    const onHand = async (): Promise<number> => {
+      const [row] = await admin.$queryRaw<Array<{ q: unknown }>>`
+        SELECT COALESCE(sum(quantity_remaining), 0) AS q FROM public.inventory_batches
+        WHERE raw_item_id = ${rawItemId}::uuid AND organization_id = ${orgId}::uuid`;
+      return Number(row.q);
+    };
+    const before = await onHand();
+    expect(before).toBeGreaterThan(2); // enough stock to absorb the shortfall
+
+    // A draft with a -2 variance on the Flour raw item, which also carries the
+    // deficit of 5 seeded in beforeAll.
     const stocktakeId = randomUUID();
     await admin.$executeRaw`INSERT INTO public.stocktakes (id, organization_id, status) VALUES (${stocktakeId}::uuid, ${orgId}::uuid, 'draft')`;
     await admin.$executeRaw`INSERT INTO public.stocktake_items (stocktake_id, organization_id, raw_item_id, expected_quantity, counted_quantity) VALUES (${stocktakeId}::uuid, ${orgId}::uuid, ${rawItemId}::uuid, 10, 8)`;
@@ -138,13 +148,17 @@ describe('Inventory API', () => {
       SELECT status FROM public.stocktakes WHERE id = ${stocktakeId}::uuid`;
     expect(status[0].status).toBe('posted');
 
-    // Rollup (0013): the stocktake's -2 shortfall accumulates onto the deficit
-    // of 5 seeded in beforeAll into a SINGLE row (7), never a second row.
+    // The shortfall moves real stock now: before 0019 the lots were left alone
+    // and the system went on reporting inventory that was not on the shelf.
+    expect(await onHand()).toBeCloseTo(before - 2, 6);
+
+    // And the count settles the item: the deficit of 5 was "awaiting
+    // reconciliation", the count IS that reconciliation, and the shortfall was
+    // absorbed by real lots — so nothing outstanding remains.
     const deficit = await admin.$queryRaw<Array<{ missing_quantity: unknown }>>`
       SELECT missing_quantity FROM public.inventory_deficits
       WHERE raw_item_id = ${rawItemId}::uuid AND organization_id = ${orgId}::uuid`;
-    expect(deficit).toHaveLength(1);
-    expect(Number(deficit[0].missing_quantity)).toBe(7);
+    expect(deficit).toHaveLength(0);
 
     // Posting an already-posted stocktake is rejected (400).
     const again = await request(app)
