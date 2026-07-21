@@ -85,6 +85,70 @@ export async function processCheckout(req: Request, res: Response): Promise<void
   }
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * POST /api/pos/orders/:id/void  { restore_stock: boolean }
+ *
+ * Voids a completed order via app.void_order. restore_stock is REQUIRED and has
+ * no default, because only the caller knows which kind of void this is: a
+ * mis-tap caught before cooking (the ingredients never moved — restore) or a
+ * remake/walk-out (the food was made — the stock is genuinely gone). Guessing
+ * either way corrupts inventory half the time.
+ *
+ * requireRole gates the route, but the procedure is SECURITY INVOKER and the
+ * 0010 orders UPDATE policy is the real boundary. Error contract from 0018:
+ * P0002 -> 404, 55000 -> 409, 42501 -> 403.
+ */
+export async function voidOrder(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  const id = req.params.id;
+  if (typeof id !== 'string' || !UUID_RE.test(id)) {
+    res.status(400).json({ error: 'A valid order id (uuid) is required' });
+    return;
+  }
+
+  const body = (req.body ?? {}) as { restore_stock?: unknown };
+  if (typeof body.restore_stock !== 'boolean') {
+    res.status(400).json({
+      error:
+        'restore_stock (boolean) is required: true if the food was never made, false if it was',
+    });
+    return;
+  }
+
+  try {
+    await req.tx.$executeRaw`CALL app.void_order(${id}::uuid, ${body.restore_stock})`;
+    res.status(200).json({
+      status: 'ok',
+      order_id: id,
+      stock_restored: body.restore_stock,
+    });
+  } catch (err) {
+    const code = postgresErrorCode(err);
+    if (code === 'P0002') {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+    if (code === '55000') {
+      res.status(409).json({ error: 'Order is already voided' });
+      return;
+    }
+    if (code === '42501') {
+      res.status(403).json({ error: 'Voiding an order is limited to managers' });
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.error('[pos.voidOrder] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 /**
  * GET /api/pos/orders?limit=&offset=
  *
