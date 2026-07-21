@@ -120,6 +120,22 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/rbac_verification.sql
 
+      # Suppliers (0020). The fixture seeds a supplier in ANOTHER organization —
+      # only the superuser can, since the app role is confined to its own org —
+      # so the verification can prove the composite FK refuses cross-tenant
+      # attribution.
+      - name: Supplier fixture — a supplier in another org (as postgres)
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/supplier_fixture.sql
+
+      - name: Supplier verification — attribution and role gating (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/supplier_verification.sql
+
       # Cost of goods sold (0015). Seeded as postgres for the same reason as the
       # RBAC fixture, then asserted as a CASHIER — checkout is SECURITY INVOKER
       # and that is the role that runs it in production.

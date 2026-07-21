@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import Modal from './ui/Modal';
 import Button from './Button';
-import type { InventoryStock, ReceiveStockPayload } from '../types';
+import type { InventoryStock, ReceiveStockPayload, Supplier } from '../types';
 
 interface Props {
   open: boolean;
   items: InventoryStock[];
+  /** Active suppliers only — retired ones stay on past lots but are not offered. */
+  suppliers: Supplier[];
   /** Preselected ingredient (e.g. the row whose "استلام" button was clicked). */
   initialItemId?: string;
   onClose: () => void;
@@ -24,6 +26,7 @@ const inputClass =
 export default function ReceiveStockModal({
   open,
   items,
+  suppliers,
   initialItemId,
   onClose,
   onReceive,
@@ -32,6 +35,7 @@ export default function ReceiveStockModal({
   const [quantity, setQuantity] = useState('');
   const [cost, setCost] = useState('');
   const [expiry, setExpiry] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +46,7 @@ export default function ReceiveStockModal({
       setQuantity('');
       setCost('');
       setExpiry('');
+      setSupplierId('');
       setSaving(false);
       setError(null);
     }
@@ -65,6 +70,9 @@ export default function ReceiveStockModal({
         cost_at_purchase: unitCost,
         // Empty date field means "no expiry", not "today".
         expiry_date: expiry ? new Date(expiry).toISOString() : null,
+        // Attribution is optional: a delivery can be recorded now and
+        // attributed later rather than blocking the receipt.
+        supplier_id: supplierId || null,
       });
       onClose();
     } catch {
@@ -92,6 +100,24 @@ export default function ReceiveStockModal({
               </option>
             ))}
           </select>
+        </Field>
+
+        <Field label="المورّد (اختياري)">
+          <select
+            value={supplierId}
+            onChange={(e) => setSupplierId(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">بدون مورّد محدّد</option>
+            {suppliers.map((sup) => (
+              <option key={sup.id} value={sup.id}>
+                {sup.name}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[11px] text-slate-400">
+            تحديد المورّد يتيح تتبّع تغيّر سعر الشراء لهذا المكوّن.
+          </span>
         </Field>
 
         <Field label={selected ? `الكمية (${selected.unit_of_measure})` : 'الكمية'}>

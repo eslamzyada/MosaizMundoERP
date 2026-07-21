@@ -13,6 +13,7 @@ const navItems: Array<{ to: string; label: string; end: boolean; capability?: Ca
   { to: '/orders', label: 'الطلبات', end: false },
   { to: '/inventory', label: 'المخزون', end: false },
   { to: '/stocktake', label: 'الجرد', end: false },
+  { to: '/suppliers', label: 'المورّدون', end: false },
   { to: '/recipes', label: 'الوصفات', end: false },
   // Financial reporting is the one page a cashier cannot read at all, so it is
   // hidden from them rather than offered and then refused.

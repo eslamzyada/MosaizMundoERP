@@ -7,11 +7,14 @@ import ReceiveStockModal from '../components/ReceiveStockModal';
 import IngredientModal from '../components/IngredientModal';
 import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
 import type { InventoryRepository } from '../api/InventoryRepository';
+import { HttpSupplierRepository } from '../api/HttpSupplierRepository';
+import type { SupplierRepository } from '../api/SupplierRepository';
 import { useSession } from '../session/SessionProvider';
-import type { InventoryDeficit, InventoryStock, ReceiveStockPayload } from '../types';
+import type { InventoryDeficit, InventoryStock, ReceiveStockPayload, Supplier } from '../types';
 
 // Depend on the interface, not the concrete class.
 const repository: InventoryRepository = new HttpInventoryRepository();
+const supplierRepository: SupplierRepository = new HttpSupplierRepository();
 
 /** An ingredient is flagged this many days before its soonest lot expires. */
 const EXPIRY_WARN_DAYS = 3;
@@ -60,6 +63,9 @@ export default function Inventory() {
   const mayReceive = can('administer');
 
   const [stock, setStock] = useState<InventoryStock[]>([]);
+  // Only ACTIVE suppliers are offered when receiving; retired ones stay on the
+  // lots they already supplied.
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [deficits, setDeficits] = useState<InventoryDeficit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -91,6 +97,14 @@ export default function Inventory() {
 
   useEffect(() => {
     let active = true;
+    // Attribution is optional, so a supplier fetch failure degrades the picker
+    // rather than failing the page.
+    supplierRepository
+      .list()
+      .then((all) => {
+        if (active) setSuppliers(all.filter((s) => s.is_active));
+      })
+      .catch(() => undefined);
     load()
       .then(([stockData, deficitData]) => {
         if (!active) return;
@@ -375,6 +389,7 @@ export default function Inventory() {
       <ReceiveStockModal
         open={modalOpen}
         items={stock}
+        suppliers={suppliers}
         initialItemId={preselected}
         onClose={() => setModalOpen(false)}
         onReceive={handleReceive}

@@ -91,6 +91,8 @@ export interface ReceiveStockPayload {
   quantity_received: number;
   cost_at_purchase: number;
   expiry_date?: string | null;
+  /** Who supplied it, when known. Optional by design — see migration 0020. */
+  supplier_id?: string | null;
 }
 
 /** Payload for creating a raw ingredient (POST /api/inventory/items). */
@@ -318,4 +320,56 @@ export interface StocktakeSummary {
   updated_at: string;
   item_count: number;
   variance_count: number;
+}
+
+// ---- Suppliers --------------------------------------------------------------
+
+export interface Supplier {
+  id: string;
+  organization_id: string;
+  name: string;
+  contact_name: string | null;
+  phone: string | null;
+  notes: string | null;
+  /** Retired suppliers stay on past lots; they are only hidden from pickers. */
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSupplierPayload {
+  name: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateSupplierPayload {
+  name?: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+  is_active?: boolean;
+}
+
+/**
+ * What one supplier has charged for one ingredient.
+ *
+ * `previous_cost` is null on a first delivery — there is nothing to compare to,
+ * and showing a movement would be inventing one.
+ */
+export interface SupplierPriceRow {
+  raw_item_id: string;
+  raw_item_name: string;
+  unit_of_measure: string;
+  supplier_id: string;
+  supplier_name: string;
+  supplier_is_active: boolean;
+  deliveries: number;
+  last_delivered_at: string;
+  min_cost: number;
+  max_cost: number;
+  latest_cost: number;
+  previous_cost: number | null;
+  total_spend: number;
 }

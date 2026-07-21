@@ -39,8 +39,12 @@ model inventory_batches {
   received_at           DateTime                @default(now()) @db.Timestamptz(6)
   created_at            DateTime                @default(now()) @db.Timestamptz(6)
   updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  supplier_id           String?                 @db.Uuid
   raw_inventory_items   raw_inventory_items     @relation(fields: [raw_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_batches_raw_item_fkey")
+  suppliers             suppliers?              @relation(fields: [supplier_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_batches_supplier_fkey")
   inventory_consumption inventory_consumption[]
+
+  @@index([supplier_id, raw_item_id, received_at(sort: Desc)], map: "inventory_batches_supplier_idx")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -136,6 +140,7 @@ model organizations {
   raw_inventory_items      raw_inventory_items[]
   sellable_items           sellable_items[]
   stocktakes               stocktakes[]
+  suppliers                suppliers[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -262,4 +267,24 @@ model inventory_consumption {
 
   @@index([batch_id], map: "inventory_consumption_batch_idx")
   @@index([order_id], map: "inventory_consumption_order_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model suppliers {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String              @db.Uuid
+  name              String
+  contact_name      String?
+  phone             String?
+  notes             String?
+  is_active         Boolean             @default(true)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime            @default(now()) @db.Timestamptz(6)
+  inventory_batches inventory_batches[]
+  organizations     organizations       @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([id, organization_id])
+  @@unique([organization_id, name])
 }
