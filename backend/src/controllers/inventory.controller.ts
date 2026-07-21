@@ -157,11 +157,23 @@ export async function receiveStock(req: Request, res: Response): Promise<void> {
     quantity_received?: unknown;
     cost_at_purchase?: unknown;
     expiry_date?: unknown;
+    supplier_id?: unknown;
   };
 
   if (typeof body.raw_item_id !== 'string' || !UUID_RE.test(body.raw_item_id)) {
     res.status(400).json({ error: 'raw_item_id (uuid) is required' });
     return;
+  }
+
+  // Attribution is optional (0020): a delivery can be recorded now and
+  // attributed later, and found stock has no supplier at all.
+  let supplierId: string | null = null;
+  if (body.supplier_id !== undefined && body.supplier_id !== null) {
+    if (typeof body.supplier_id !== 'string' || !UUID_RE.test(body.supplier_id)) {
+      res.status(400).json({ error: 'supplier_id must be a uuid when supplied' });
+      return;
+    }
+    supplierId = body.supplier_id;
   }
   if (typeof body.quantity_received !== 'number' || !(body.quantity_received > 0)) {
     res.status(400).json({ error: 'quantity_received must be a positive number' });
@@ -201,18 +213,30 @@ export async function receiveStock(req: Request, res: Response): Promise<void> {
         quantity_remaining: body.quantity_received,
         cost_at_purchase: body.cost_at_purchase,
         expiry_date: expiry,
+        // The composite FK (supplier_id, organization_id) refuses a supplier
+        // from another tenant, so this needs no separate ownership check —
+        // it surfaces below as a foreign key violation.
+        supplier_id: supplierId,
       },
     });
 
     res.status(201).json(batch);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[inventory.receive] failed:', err);
     const pgCode = postgresErrorCode(err);
+    // The composite supplier FK is the only foreign key this insert can break
+    // that the caller controls: the raw item was already resolved under RLS.
+    if (pgCode === '23503' || pgCode === 'P2003') {
+      res.status(400).json({ error: 'Supplier not found in this organization' });
+      return;
+    }
     if (pgCode) {
+      // eslint-disable-next-line no-console
+      console.error('[inventory.receive] failed:', err);
       res.status(400).json({ error: 'Could not receive stock', code: pgCode });
       return;
     }
+    // eslint-disable-next-line no-console
+    console.error('[inventory.receive] failed:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
