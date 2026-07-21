@@ -23,6 +23,16 @@ INSERT INTO public.organization_memberships (organization_id, user_id, role)
 VALUES ('c0570000-0000-4000-8000-000000000000',
         'c0570001-0000-4000-8000-000000000001', 'cashier');
 
+-- A BRANCH MANAGER, for void_verification (0018): voiding is an administrative
+-- correction, and the suite must prove both that this role can and the cashier
+-- cannot.
+INSERT INTO public.users (id, email)
+VALUES ('c0570002-0000-4000-8000-000000000002', 'cogs-manager@ci.test');
+
+INSERT INTO public.organization_memberships (organization_id, user_id, role)
+VALUES ('c0570000-0000-4000-8000-000000000000',
+        'c0570002-0000-4000-8000-000000000002', 'branch_manager');
+
 -- Ingredients ---------------------------------------------------------------
 INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure)
 VALUES ('c057f00d-0000-4000-8000-000000000001',

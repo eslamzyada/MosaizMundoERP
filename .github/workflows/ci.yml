@@ -135,6 +135,15 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/cogs_verification.sql
 
+      # Void (0018) reuses the COGS orders, whose consumption is known exactly,
+      # so the restore arithmetic is pinned to the unit. Runs as the app user,
+      # switching between the fixture's cashier (must be refused) and manager.
+      - name: Void verification — status, restore, and refusals (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/void_verification.sql
+
       # ---- API integration tests against the migrated container DB ----------
       # The app connects as the RLS-constrained mosaiz_app_user; the test
       # harness seeds/tears down via the postgres superuser (ADMIN_DATABASE_URL).

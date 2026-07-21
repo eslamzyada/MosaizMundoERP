@@ -1,36 +1,49 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Badge from '../components/ui/Badge';
+import VoidOrderModal from '../components/VoidOrderModal';
 import { HttpOrderRepository } from '../api/HttpOrderRepository';
 import type { OrderRepository } from '../api/OrderRepository';
 import { ORDER_STATUS_META } from '../lib/orderStatus';
+import { useSession } from '../session/SessionProvider';
 import type { Order } from '../types';
 
 const repository: OrderRepository = new HttpOrderRepository();
 
 export default function Orders() {
+  // Voiding is a management correction (0018): the DB refuses anyone else, the
+  // UI simply doesn't offer it to them.
+  const { can } = useSession();
+  const mayVoid = can('administer');
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [voiding, setVoiding] = useState<Order | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(false);
     repository
       .getOrders()
       .then((data) => {
-        if (!active) return;
         setOrders(data);
         setLoading(false);
       })
       .catch(() => {
-        if (!active) return;
         setError(true);
         setLoading(false);
       });
-    return () => {
-      active = false;
-    };
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleVoid(orderId: string, restoreStock: boolean) {
+    await repository.voidOrder(orderId, restoreStock);
+    load();
+  }
 
   return (
     <div className="p-8">
@@ -49,24 +62,29 @@ export default function Orders() {
                 <Th>العناصر</Th>
                 <Th>الإجمالي</Th>
                 <Th>الحالة</Th>
+                {mayVoid && (
+                  <Th>
+                    <span className="sr-only">إجراءات</span>
+                  </Th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-sand-border/70">
               {error ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-14 text-center text-destructive-strong">
+                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14 text-center text-destructive-strong">
                     تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
                   </td>
                 </tr>
               ) : loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400">
+                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14 text-center text-slate-400">
                     جارٍ تحميل الطلبات…
                   </td>
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400">
+                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14 text-center text-slate-400">
                     لا توجد طلبات بعد.
                   </td>
                 </tr>
@@ -99,6 +117,20 @@ export default function Orders() {
                       <td className="px-6 py-4">
                         <Badge variant={meta.variant}>{meta.label}</Badge>
                       </td>
+                      {mayVoid && (
+                        <td className="px-6 py-4 text-end">
+                          {o.status === 'completed' && (
+                            <button
+                              type="button"
+                              onClick={() => setVoiding(o)}
+                              aria-label={`إلغاء الطلب ${o.id.slice(0, 8)}`}
+                              className="rounded-lg px-2.5 py-1 text-xs font-bold text-destructive-strong transition-colors hover:bg-destructive-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                            >
+                              إلغاء
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })
@@ -107,6 +139,8 @@ export default function Orders() {
           </table>
         </div>
       </div>
+
+      <VoidOrderModal order={voiding} onClose={() => setVoiding(null)} onVoid={handleVoid} />
     </div>
   );
 }

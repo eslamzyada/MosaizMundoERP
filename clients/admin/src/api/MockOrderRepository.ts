@@ -112,4 +112,14 @@ export class MockOrderRepository implements OrderRepository {
       setTimeout(() => resolve(MOCK_ORDERS), 400);
     });
   }
+
+  voidOrder(orderId: string): Promise<void> {
+    const order = MOCK_ORDERS.find((o) => o.id === orderId);
+    if (order) {
+      order.status = 'voided';
+    }
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(), 150);
+    });
+  }
 }

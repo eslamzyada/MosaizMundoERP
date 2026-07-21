@@ -89,9 +89,13 @@ model orders {
   total_amount          Decimal                 @db.Decimal(10, 2)
   created_at            DateTime                @default(now()) @db.Timestamptz(6)
   updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  voided_at             DateTime?               @db.Timestamptz(6)
+  voided_by             String?                 @db.Uuid
+  stock_restored        Boolean?
   inventory_consumption inventory_consumption[]
   order_items           order_items[]
   organizations         organizations           @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                 users?                  @relation(fields: [voided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([id, organization_id])
   @@unique([organization_id, client_offline_id])
@@ -217,6 +221,7 @@ model users {
   email                    String                     @unique
   created_at               DateTime                   @default(now()) @db.Timestamptz(6)
   updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  orders                   orders[]
   organization_invitations organization_invitations[]
   organization_memberships organization_memberships[]
 }
