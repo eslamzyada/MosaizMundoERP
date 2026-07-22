@@ -4,6 +4,7 @@ import type {
   PurchaseOrderStatus,
   PurchaseOrderSummary,
   PurchaseReceipt,
+  ReorderSuggestion,
 } from '../types';
 
 // Data-access boundary for purchase orders. Reads are open to every member;
@@ -11,6 +12,8 @@ import type {
 // 0021 policies behind it.
 export interface PurchaseOrderRepository {
   list(status?: PurchaseOrderStatus): Promise<PurchaseOrderSummary[]>;
+  /** What has fallen below its minimum, net of anything already inbound. */
+  suggestions(): Promise<ReorderSuggestion[]>;
   get(id: string): Promise<PurchaseOrder>;
   create(payload: CreatePurchaseOrderPayload): Promise<{ id: string }>;
   /** draft -> placed. Only then can a delivery be recorded. */

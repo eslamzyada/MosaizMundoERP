@@ -431,3 +431,26 @@ export interface PurchaseReceipt {
   unit_cost?: number | null;
   expiry_date?: string | null;
 }
+
+/**
+ * An ingredient that has fallen below its reorder threshold.
+ *
+ * `shortfall` already nets off `quantity_on_order`, so acting on every
+ * suggestion cannot double-order stock that is already inbound.
+ *
+ * The suggested supplier is the cheapest ACTIVE one by their most recent price
+ * for this exact ingredient. It is null when nothing has ever been bought from
+ * anyone — there is no evidence to choose on, so the UI asks instead.
+ */
+export interface ReorderSuggestion {
+  raw_item_id: string;
+  name: string;
+  unit_of_measure: string;
+  quantity_on_hand: number;
+  reorder_threshold: number;
+  quantity_on_order: number;
+  shortfall: number;
+  suggested_supplier_id: string | null;
+  suggested_supplier_name: string | null;
+  suggested_unit_price: number | null;
+}
