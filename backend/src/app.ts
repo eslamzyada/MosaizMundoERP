@@ -11,6 +11,7 @@ import memberRoutes from './routes/member.routes';
 import catalogRoutes from './routes/catalog.routes';
 import reportRoutes from './routes/report.routes';
 import supplierRoutes from './routes/supplier.routes';
+import purchaseOrderRoutes from './routes/purchaseOrder.routes';
 import webhookRoutes from './routes/webhook.routes';
 
 // Recursively convert Prisma Decimal values to plain JS numbers. Prisma
@@ -132,6 +133,9 @@ app.use('/api/reports', reportRoutes);
 
 // Suppliers, and what they charge for each ingredient over time.
 app.use('/api/suppliers', supplierRoutes);
+
+// Purchase orders: what is on order, and what has actually been delivered.
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 
 // Supabase identity webhooks. Guarded by HMAC signature (webhookAuth), NOT the
 // JWT middleware — Supabase calls these, not a logged-in user.

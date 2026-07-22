@@ -120,21 +120,28 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/rbac_verification.sql
 
-      # Suppliers (0020). The fixture seeds a supplier in ANOTHER organization —
-      # only the superuser can, since the app role is confined to its own org —
-      # so the verification can prove the composite FK refuses cross-tenant
-      # attribution.
-      - name: Supplier fixture — a supplier in another org (as postgres)
+      # Suppliers (0020) and purchase orders (0021). The fixture seeds rows in
+      # ANOTHER organization — only the superuser can, since the app role is
+      # confined to its own org and cannot even see other tenants' rows — so the
+      # suites below can prove the composite FKs refuse cross-tenant references.
+      - name: Cross-tenant fixture — another org's supplier and ingredient (as postgres)
         env:
           PGUSER: postgres
           PGPASSWORD: postgres
-        run: psql -v ON_ERROR_STOP=1 -f db/tests/supplier_fixture.sql
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/cross_tenant_fixture.sql
 
       - name: Supplier verification — attribution and role gating (as mosaiz_app_user)
         env:
           PGUSER: mosaiz_app_user
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/supplier_verification.sql
+
+      # Purchase orders (0021) build on the supplier the previous suite created.
+      - name: Purchase order verification — receiving and shortfalls (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/purchase_order_verification.sql
 
       # Cost of goods sold (0015). Seeded as postgres for the same reason as the
       # RBAC fixture, then asserted as a CASHIER — checkout is SECURITY INVOKER
