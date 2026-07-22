@@ -4,16 +4,19 @@ import axios from 'axios';
 import Button from '../components/Button';
 import Badge from '../components/ui/Badge';
 import NewPurchaseOrderModal from '../components/NewPurchaseOrderModal';
+import ReorderPanel from '../components/ReorderPanel';
 import { HttpPurchaseOrderRepository } from '../api/HttpPurchaseOrderRepository';
 import type { PurchaseOrderRepository } from '../api/PurchaseOrderRepository';
 import { HttpSupplierRepository } from '../api/HttpSupplierRepository';
 import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
 import { useSession } from '../session/SessionProvider';
 import type {
+  CreatePurchaseOrderPayload,
   InventoryStock,
   PurchaseOrder,
   PurchaseOrderStatus,
   PurchaseOrderSummary,
+  ReorderSuggestion,
   Supplier,
 } from '../types';
 
@@ -51,6 +54,7 @@ export default function PurchaseOrders() {
   const [orders, setOrders] = useState<PurchaseOrderSummary[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [items, setItems] = useState<InventoryStock[]>([]);
+  const [suggestions, setSuggestions] = useState<ReorderSuggestion[]>([]);
   const [open, setOpen] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -62,14 +66,16 @@ export default function PurchaseOrders() {
     setLoading(true);
     setError(false);
     try {
-      const [list, sup, stock] = await Promise.all([
+      const [list, sup, stock, suggested] = await Promise.all([
         repository.list(),
         supplierRepository.list(),
         inventoryRepository.getStock(),
+        repository.suggestions(),
       ]);
       setOrders(list);
       setSuppliers(sup.filter((s) => s.is_active));
       setItems(stock);
+      setSuggestions(suggested);
     } catch {
       setError(true);
     } finally {
@@ -149,6 +155,18 @@ export default function PurchaseOrders() {
               {outstanding.length} أمر شراء قيد التوريد.
             </p>
           )}
+
+          <ReorderPanel
+            suggestions={suggestions}
+            suppliers={suppliers}
+            mayOrder={mayOrder}
+            busy={busy}
+            onDraft={async (payload: CreatePurchaseOrderPayload) => {
+              const created = await repository.create(payload);
+              await load();
+              setOpen(await repository.get(created.id));
+            }}
+          />
 
           <OrderTable
             orders={orders}

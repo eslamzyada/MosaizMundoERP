@@ -5,6 +5,7 @@ import {
   cancelPurchaseOrder,
   createPurchaseOrder,
   getPurchaseOrder,
+  getReorderSuggestions,
   listPurchaseOrders,
   placePurchaseOrder,
   receivePurchaseOrder,
@@ -19,6 +20,9 @@ router.use(authMiddleware);
 // Reads stay open: an accountant checking what the business is committed to
 // needs to see outstanding orders.
 router.get('/', listPurchaseOrders);
+// Declared BEFORE '/:id': otherwise "suggestions" is read as an order id and
+// answered with a 400 for a malformed uuid.
+router.get('/suggestions', getReorderSuggestions);
 router.get('/:id', getPurchaseOrder);
 
 // Committing money is administrative. The 0021 RESTRICTIVE policies enforce it

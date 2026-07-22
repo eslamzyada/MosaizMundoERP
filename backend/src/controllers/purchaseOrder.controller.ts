@@ -159,6 +159,110 @@ export async function createPurchaseOrder(req: Request, res: Response): Promise<
 }
 
 /**
+ * GET /api/purchase-orders/suggestions
+ *
+ * What has fallen below its reorder threshold, and who to buy it from.
+ *
+ * The threshold has existed since 0009 and the inventory dashboard has flagged
+ * breaches ever since, but nothing connected that signal to the purchasing side
+ * — so noticing you were low and actually ordering were separate manual acts.
+ *
+ * Two things make this trustworthy rather than merely convenient:
+ *
+ *  * STOCK ALREADY ON ORDER IS NETTED OFF. An ingredient sitting below its
+ *    threshold with a delivery already inbound does not need ordering again;
+ *    suggesting it would cause double-ordering, which is worse than no
+ *    suggestion at all. `quantity_on_order` sums what outstanding PLACED orders
+ *    still owe, and `shortfall` is what remains needed after that.
+ *  * A SUPPLIER IS ONLY SUGGESTED WHEN THERE IS EVIDENCE. The cheapest ACTIVE
+ *    supplier by their most recent price for that exact ingredient — never a
+ *    guess, and null when nothing has been bought from anyone yet, so the UI
+ *    asks rather than inventing a choice.
+ *
+ * Deliberately NOT suggested: how much to order beyond the shortfall. That is a
+ * par-level decision this system has no data for, and a fabricated multiplier
+ * would look authoritative while being arbitrary.
+ */
+export async function getReorderSuggestions(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  try {
+    const rows = await req.tx.$queryRaw`
+      WITH on_hand AS (
+          SELECT ri.id,
+                 ri.name,
+                 ri.unit_of_measure,
+                 ri.reorder_threshold,
+                 COALESCE(SUM(b.quantity_remaining) FILTER (WHERE b.quantity_remaining > 0), 0)
+                   AS quantity_on_hand
+          FROM public.raw_inventory_items ri
+          LEFT JOIN public.inventory_batches b ON b.raw_item_id = ri.id
+          GROUP BY ri.id, ri.name, ri.unit_of_measure, ri.reorder_threshold
+      ),
+      -- What placed orders still owe. Netting this off is what stops a second
+      -- order being suggested for stock that is already inbound.
+      inbound AS (
+          SELECT l.raw_item_id,
+                 SUM(l.quantity_ordered - l.quantity_received) AS quantity_on_order
+          FROM public.purchase_order_lines l
+          JOIN public.purchase_orders o ON o.id = l.purchase_order_id
+          WHERE o.status = 'placed'
+            AND l.quantity_received < l.quantity_ordered
+          GROUP BY l.raw_item_id
+      ),
+      -- The most recent price each active supplier charged for each ingredient.
+      latest_price AS (
+          SELECT DISTINCT ON (b.raw_item_id, b.supplier_id)
+                 b.raw_item_id,
+                 b.supplier_id,
+                 s.name AS supplier_name,
+                 b.cost_at_purchase,
+                 b.received_at
+          FROM public.inventory_batches b
+          JOIN public.suppliers s ON s.id = b.supplier_id
+          WHERE b.supplier_id IS NOT NULL
+            AND s.is_active
+          ORDER BY b.raw_item_id, b.supplier_id, b.received_at DESC
+      ),
+      cheapest AS (
+          SELECT DISTINCT ON (raw_item_id)
+                 raw_item_id, supplier_id, supplier_name, cost_at_purchase
+          FROM latest_price
+          ORDER BY raw_item_id, cost_at_purchase ASC, supplier_name ASC
+      )
+      SELECT h.id                                   AS raw_item_id,
+             h.name,
+             h.unit_of_measure,
+             h.quantity_on_hand,
+             h.reorder_threshold,
+             COALESCE(i.quantity_on_order, 0)       AS quantity_on_order,
+             h.reorder_threshold - h.quantity_on_hand - COALESCE(i.quantity_on_order, 0)
+                                                    AS shortfall,
+             c.supplier_id                          AS suggested_supplier_id,
+             c.supplier_name                        AS suggested_supplier_name,
+             c.cost_at_purchase                     AS suggested_unit_price
+      FROM on_hand h
+      LEFT JOIN inbound i  ON i.raw_item_id = h.id
+      LEFT JOIN cheapest c ON c.raw_item_id = h.id
+      -- A zero threshold means the owner has not asked to be warned about this
+      -- ingredient, so it is not a reorder signal.
+      WHERE h.reorder_threshold > 0
+        AND h.reorder_threshold - h.quantity_on_hand - COALESCE(i.quantity_on_order, 0) > 0
+      ORDER BY h.name ASC
+      LIMIT ${SAFETY_CAP}
+    `;
+    res.status(200).json(rows);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[purchaseOrders.suggestions] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
  * GET /api/purchase-orders?status=
  *
  * Newest first, each with its supplier and how much is still owed. The

@@ -6,6 +6,7 @@ import type {
   PurchaseOrderStatus,
   PurchaseOrderSummary,
   PurchaseReceipt,
+  ReorderSuggestion,
 } from '../types';
 
 export class HttpPurchaseOrderRepository implements PurchaseOrderRepository {
@@ -13,6 +14,11 @@ export class HttpPurchaseOrderRepository implements PurchaseOrderRepository {
     const { data } = await apiClient.get<PurchaseOrderSummary[]>('/api/purchase-orders', {
       params: status ? { status } : undefined,
     });
+    return data;
+  }
+
+  async suggestions(): Promise<ReorderSuggestion[]> {
+    const { data } = await apiClient.get<ReorderSuggestion[]>('/api/purchase-orders/suggestions');
     return data;
   }
 
