@@ -12,6 +12,7 @@ import Members from './pages/Members';
 import Reports from './pages/Reports';
 import StocktakePage from './pages/Stocktake';
 import Suppliers from './pages/Suppliers';
+import PurchaseOrders from './pages/PurchaseOrders';
 import Menu from './pages/Menu';
 import { SessionProvider } from './session/SessionProvider';
 
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="stocktake" element={<StocktakePage />} />
             <Route path="suppliers" element={<Suppliers />} />
+            <Route path="purchase-orders" element={<PurchaseOrders />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

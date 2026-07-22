@@ -373,3 +373,61 @@ export interface SupplierPriceRow {
   previous_cost: number | null;
   total_spend: number;
 }
+
+// ---- Purchase orders --------------------------------------------------------
+
+/** draft = not yet a commitment · placed = outstanding · received = fully delivered. */
+export type PurchaseOrderStatus = 'draft' | 'placed' | 'received' | 'cancelled';
+
+export interface PurchaseOrderLine {
+  id: string;
+  raw_item_id: string;
+  raw_item_name: string;
+  unit_of_measure: string;
+  quantity_ordered: number;
+  quantity_received: number;
+  /** ordered − received. Negative means the supplier over-delivered. */
+  quantity_outstanding: number;
+  unit_price: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  status: PurchaseOrderStatus;
+  supplier_id: string;
+  suppliers: { id: string; name: string };
+  expected_at: string | null;
+  placed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  lines: PurchaseOrderLine[];
+}
+
+/** A row of the order list, with its outstanding position precomputed. */
+export interface PurchaseOrderSummary {
+  id: string;
+  status: PurchaseOrderStatus;
+  supplier_id: string;
+  supplier_name: string;
+  expected_at: string | null;
+  placed_at: string | null;
+  created_at: string;
+  line_count: number;
+  outstanding_lines: number;
+  order_value: number;
+}
+
+export interface CreatePurchaseOrderPayload {
+  supplier_id: string;
+  expected_at?: string | null;
+  notes?: string | null;
+  lines: Array<{ raw_item_id: string; quantity_ordered: number; unit_price: number }>;
+}
+
+/** One line of a delivery. `unit_cost` overrides the agreed price when the invoice differs. */
+export interface PurchaseReceipt {
+  line_id: string;
+  quantity: number;
+  unit_cost?: number | null;
+  expiry_date?: string | null;
+}
