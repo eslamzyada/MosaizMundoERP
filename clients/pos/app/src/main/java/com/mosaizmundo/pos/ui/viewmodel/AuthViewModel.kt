@@ -43,8 +43,11 @@ class AuthViewModel(
 
                 // Token is stored, so the OkHttp interceptor now authenticates
                 // this call. Resolve and persist the caller's organization.
-                val me = posApi.getMe()
+                val me = posApi.getMe(authorization = null)
                 tokenManager.saveOrganizationId(me.organization_id)
+                // The role decides whether this user can authorise a void
+                // themselves, or whether a manager has to.
+                tokenManager.saveRole(me.role)
             } catch (e: Exception) {
                 errorMessage = "تعذّر تسجيل الدخول. تحقّق من البيانات وحاول مجددًا."
                 // Keep login atomic — do not leave a token without an org.

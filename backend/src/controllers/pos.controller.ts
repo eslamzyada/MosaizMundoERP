@@ -156,6 +156,10 @@ export async function voidOrder(req: Request, res: Response): Promise<void> {
  * with each order's line items nested. Paginated (analysis F-04): order history
  * grows without bound, so a bare findMany would eventually return the entire
  * table — and hold its connection for the whole scan.
+ *
+ * Each line carries its item's NAME, not just the id. A till voiding a mistake
+ * has to pick the right order out of a list, and two orders can easily share a
+ * total — "3 items, 190.00" is not identification, "برجر لحم x2" is.
  */
 export async function getOrders(req: Request, res: Response): Promise<void> {
   if (!req.tx) {
@@ -166,7 +170,11 @@ export async function getOrders(req: Request, res: Response): Promise<void> {
   try {
     const { take, skip } = parsePage(req, { defaultLimit: 100, maxLimit: 200 });
     const orders = await req.tx.orders.findMany({
-      include: { order_items: true },
+      include: {
+        order_items: {
+          include: { sellable_items: { select: { name: true, sku: true } } },
+        },
+      },
       orderBy: { created_at: 'desc' },
       take,
       skip,

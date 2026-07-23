@@ -27,11 +27,13 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mosaizmundo.pos.data.local.PosDatabase
 import com.mosaizmundo.pos.data.local.TokenManager
+import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.domain.HttpPosRepository
 import com.mosaizmundo.pos.ui.PosApp
 import com.mosaizmundo.pos.ui.screens.LoginScreen
 import com.mosaizmundo.pos.ui.theme.MosaizPosTheme
 import com.mosaizmundo.pos.ui.viewmodel.AuthViewModel
+import com.mosaizmundo.pos.ui.viewmodel.ManagerAuth
 import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 
 class MainActivity : ComponentActivity() {
@@ -72,9 +74,22 @@ class MainActivity : ComponentActivity() {
                                     val dao = PosDatabase.getInstance(appContext).offlineOrderDao()
                                     HttpPosRepository(dao, appContext)
                                 }
+                                // Lets a manager authorise a single void without
+                                // taking over the cashier's shift session.
+                                val managerAuth = remember {
+                                    ManagerAuth(PosApiProvider.create(appContext))
+                                }
                                 val posViewModel: PosViewModel = viewModel(
                                     factory = viewModelFactory {
-                                        initializer { PosViewModel(repository) }
+                                        initializer {
+                                            PosViewModel(
+                                                repository = repository,
+                                                managerAuth = managerAuth,
+                                                // A manager signed in here skips
+                                                // the extra authorisation step.
+                                                roleFlow = tokenManager.getRole(),
+                                            )
+                                        }
                                     },
                                 )
                                 PosApp(posViewModel)

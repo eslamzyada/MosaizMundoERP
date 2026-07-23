@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,7 +32,7 @@ import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 import java.util.Locale
 
 @Composable
-fun MenuScreen(viewModel: PosViewModel, onProceed: () -> Unit) {
+fun MenuScreen(viewModel: PosViewModel, onProceed: () -> Unit, onOpenOrders: () -> Unit) {
     val menu by viewModel.menuState.collectAsState()
     val cart by viewModel.cartState.collectAsState()
     val failedCount by viewModel.failedOrderCount.collectAsState()
@@ -50,6 +51,7 @@ fun MenuScreen(viewModel: PosViewModel, onProceed: () -> Unit) {
             MenuGrid(
                 items = menu,
                 onItemClick = viewModel::addToCart,
+                onOpenOrders = onOpenOrders,
                 modifier = Modifier.weight(0.65f).fillMaxHeight(),
             )
             CartPanel(
@@ -83,15 +85,24 @@ private fun FailedSyncBanner(count: Int) {
 private fun MenuGrid(
     items: List<SellableItem>,
     onItemClick: (SellableItem) -> Unit,
+    onOpenOrders: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.padding(16.dp)) {
-        Text(
-            text = "القائمة",
-            color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "القائمة",
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            // Corrections happen at the till now, not on a manager's laptop.
+            TextButton(onClick = onOpenOrders) { Text("الطلبات الأخيرة") }
+        }
         Spacer(Modifier.height(16.dp))
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 168.dp),

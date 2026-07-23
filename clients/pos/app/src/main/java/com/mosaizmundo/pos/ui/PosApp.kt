@@ -7,14 +7,15 @@ import androidx.compose.runtime.getValue
 import com.mosaizmundo.pos.ui.screens.CartScreen
 import com.mosaizmundo.pos.ui.screens.CheckoutScreen
 import com.mosaizmundo.pos.ui.screens.MenuScreen
+import com.mosaizmundo.pos.ui.screens.OrdersScreen
 import com.mosaizmundo.pos.ui.viewmodel.PosDestination
 import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 
 /**
  * The authenticated POS flow. A tiny state machine over PosViewModel.destination
- * routes between the menu, the cart, and checkout — no navigation library needed
- * for three screens, and the destination survives config changes (it's in the
- * ViewModel). Hardware back mirrors the in-screen back buttons.
+ * routes between the menu, the cart, checkout, and recent orders — no navigation
+ * library needed for four screens, and the destination survives config changes
+ * (it's in the ViewModel). Hardware back mirrors the in-screen back buttons.
  */
 @Composable
 fun PosApp(viewModel: PosViewModel) {
@@ -24,7 +25,16 @@ fun PosApp(viewModel: PosViewModel) {
 
     when (destination) {
         PosDestination.MENU -> {
-            MenuScreen(viewModel = viewModel, onProceed = viewModel::openCart)
+            MenuScreen(
+                viewModel = viewModel,
+                onProceed = viewModel::openCart,
+                onOpenOrders = viewModel::openOrders,
+            )
+        }
+
+        PosDestination.ORDERS -> {
+            BackHandler { viewModel.backToMenu() }
+            OrdersScreen(viewModel = viewModel, onBack = viewModel::backToMenu)
         }
 
         PosDestination.CART -> {

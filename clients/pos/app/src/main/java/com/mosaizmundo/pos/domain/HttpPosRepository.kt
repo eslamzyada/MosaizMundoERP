@@ -12,6 +12,7 @@ import com.mosaizmundo.pos.api.CheckoutItemPayload
 import com.mosaizmundo.pos.api.CheckoutPayload
 import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.api.PosApiService
+import com.mosaizmundo.pos.api.VoidOrderPayload
 import com.mosaizmundo.pos.data.local.OfflineOrderDao
 import com.mosaizmundo.pos.data.local.OfflineOrderEntity
 import com.mosaizmundo.pos.data.local.TokenManager
@@ -49,6 +50,37 @@ class HttpPosRepository(
                 portionsAvailable = item.portions_available,
             )
         }
+
+    override suspend fun recentOrders(): List<PosOrder> =
+        api.getOrders().map { order ->
+            PosOrder(
+                id = order.id,
+                status = order.status,
+                totalAmount = order.total_amount,
+                createdAt = order.created_at,
+                // Name x quantity, because a total does not identify an order.
+                lineSummary = order.order_items.joinToString(" · ") { line ->
+                    "${line.sellable_items?.name ?: "صنف"} x${line.quantity}"
+                },
+                stockRestored = order.stock_restored,
+            )
+        }
+
+    override suspend fun voidOrder(orderId: String, restoreStock: Boolean, managerToken: String?) {
+        // A manager's token rides on this ONE request. It is never written to
+        // TokenManager, so the cashier's shift session is untouched and the
+        // manager's rights do not outlive the action they authorised. Null means
+        // the signed-in user may void themselves, and the interceptor supplies
+        // the stored session as usual.
+        val response = api.voidOrder(
+            orderId = orderId,
+            authorization = managerToken?.let { "Bearer $it" },
+            payload = VoidOrderPayload(restore_stock = restoreStock),
+        )
+        if (!response.isSuccessful) {
+            throw HttpException(response)
+        }
+    }
 
     override suspend fun submitOrder(orderState: OrderState) {
         // The real organization resolved at login (GET /api/me). Falls back to
