@@ -40,12 +40,13 @@ class HttpPosRepository(
     override fun failedOrderCount(): Flow<Int> = dao.failedCount()
 
     override suspend fun getMenu(): List<SellableItem> =
-        api.getRecipes().map { recipe ->
+        api.getMenu().map { item ->
             SellableItem(
-                id = recipe.id,
-                nameAr = recipe.name,
-                price = recipe.price,
+                id = item.id,
+                nameAr = item.name,
+                price = item.price,
                 imagePlaceholder = "🍽️",
+                portionsAvailable = item.portions_available,
             )
         }
 
