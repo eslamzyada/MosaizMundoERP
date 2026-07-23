@@ -266,6 +266,102 @@ jobs:
       - name: Build (prisma generate + tsc)
         run: npm run build
 
+  backend-tests:
+    # Runs the API gateway's Jest suite against a real, freshly migrated
+    # database. Until this job existed, "Backend Build" only compiled and
+    # "Database CI" only exercised raw SQL — the ~200 integration tests that
+    # drive the HTTP handlers through RLS ran on contributors' machines and
+    # NOWHERE ELSE. Every phase for months shipped on "passes locally", which is
+    # not a check. This is that check.
+    #
+    # Its own postgres service, deliberately separate from the Database CI job:
+    # that job loads the db/tests fixtures (rbac, cogs, cross-tenant seeds), and
+    # these tests assume a database that contains only what each suite seeds and
+    # tears down itself. A clean instance is also the honest question — "does the
+    # suite pass from nothing?" — which is exactly what a new contributor's
+    # checkout faces.
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mosaiz_mundo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mosaiz_mundo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATABASE: mosaiz_mundo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same role split the migrations and the Database CI job assume: postgres
+      # owns objects and runs DDL; mosaiz_app_user is the RLS-constrained login
+      # the API connects as. The tests seed as postgres (ADMIN_DATABASE_URL) and
+      # drive the handlers as mosaiz_app_user (DATABASE_URL), so both must exist.
+      - name: Create application role
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE mosaiz_app_user LOGIN PASSWORD 'ci_app_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;"
+
+      - name: Apply all migrations in order (as postgres)
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          set -e
+          for f in db/migrations/*.sql; do
+            echo "==> applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      # Generates the Prisma Client the tests import, and type-checks in the
+      # same pass. ts-jest transpiles the tests themselves, so tsc is not
+      # strictly required to run them — but building here fails fast on a type
+      # error instead of surfacing it as a confusing runtime fault mid-suite.
+      - name: Build (prisma generate + tsc)
+        working-directory: backend
+        run: npm run build
+
+      # The two "secrets" below are NOT real credentials and must never be.
+      # SUPABASE_JWT_SECRET is the HS256 key the tests sign their own tokens with
+      # and the middleware verifies them against — a self-contained loopback that
+      # authenticates against nothing outside this process. (Real Supabase signs
+      # with ES256; the auth.es256 suite generates its own keypair and injects
+      # the public key at runtime.) SUPABASE_WEBHOOK_SECRET is likewise the HMAC
+      # key the webhook suite both signs and verifies with. Hardcoding them here
+      # is correct: a repository secret would imply they gate something real.
+      - name: Jest integration suite (against the migrated database)
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://mosaiz_app_user:ci_app_password@localhost:5432/mosaiz_mundo"
+          ADMIN_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mosaiz_mundo"
+          SUPABASE_JWT_SECRET: "ci_only_hs256_test_secret_not_a_real_credential"
+          SUPABASE_WEBHOOK_SECRET: "ci_only_webhook_test_secret_not_a_real_credential"
+        run: npm test
+
   admin-frontend:
     # Compiles the React admin dashboard (Vite + TypeScript). Mock-first, so no
     # database or backend is needed — a plain type-check + production build.
