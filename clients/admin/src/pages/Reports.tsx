@@ -5,7 +5,8 @@ import Button from '../components/Button';
 import { HttpReportRepository } from '../api/HttpReportRepository';
 import type { ReportRepository } from '../api/ReportRepository';
 import { useSession } from '../session/SessionProvider';
-import type { CoverageGap, ProfitBucket, ProfitabilityReport } from '../types';
+import { voidReasonLabel } from '../lib/voidReasons';
+import type { CoverageGap, ProfitBucket, ProfitabilityReport, VoidsReport } from '../types';
 
 const repository: ReportRepository = new HttpReportRepository();
 
@@ -31,6 +32,7 @@ export default function Reports() {
 
   const [days, setDays] = useState(30);
   const [report, setReport] = useState<ProfitabilityReport | null>(null);
+  const [voids, setVoids] = useState<VoidsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -47,6 +49,13 @@ export default function Reports() {
         setError(true);
         setLoading(false);
       });
+
+    // Fetched separately and failing quietly: voids are a secondary panel, and
+    // losing them should not take down the profit figures this page exists for.
+    repository
+      .getVoids(window)
+      .then(setVoids)
+      .catch(() => setVoids(null));
   }, []);
 
   useEffect(() => {
@@ -137,7 +146,121 @@ export default function Reports() {
           <ItemTable report={report} />
         </>
       )}
+
+      {/* Outside the revenue guard on purpose: a window can hold voids and no
+          completed sales, and that is precisely a period worth looking at. */}
+      {voids && voids.summary.void_count > 0 && <VoidsPanel report={voids} />}
     </div>
+  );
+}
+
+/**
+ * What voiding cost, by cause (0022).
+ *
+ * The two money columns are deliberately not added together, because they are
+ * not the same loss. Lost revenue is often recovered — a mis-tap gets re-rung a
+ * moment later and the customer still pays. Ingredient cost is food that was
+ * made and cannot be sold, and it is gone for good. A month of wrong_item voids
+ * that all restored their stock costs almost nothing and means "fix the button
+ * layout"; the same count of kitchen_error voids that did not means the kitchen
+ * is throwing away food. One total would hide exactly that difference.
+ */
+function VoidsPanel({ report }: { report: VoidsReport }) {
+  const worst = [...report.by_reason].sort(
+    (a, b) => b.ingredient_cost_lost - a.ingredient_cost_lost,
+  )[0];
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+      <div className="border-b border-surface-sand-border px-6 py-4">
+        <h2 className="text-sm font-bold text-surface-dark">الإلغاءات وأسبابها</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          <span className="font-numerals font-semibold">{report.summary.void_count}</span> طلب
+          مُلغى في هذه المدة. الإيراد الضائع غالبًا يُستردّ بإعادة التسجيل؛ تكلفة المكوّنات هي ما
+          فُقد فعلًا.
+        </p>
+      </div>
+
+      {worst && worst.ingredient_cost_lost > 0 && (
+        <p className="border-b border-surface-sand-border bg-warning-soft/30 px-6 py-3 text-xs text-surface-dark">
+          أكبر خسارة فعلية من <strong>{voidReasonLabel(worst.reason)}</strong> — طعام حُضِّر ولم
+          يُبَع بقيمة{' '}
+          <span className="font-numerals font-bold">{money(worst.ingredient_cost_lost)}</span> ج.م.
+        </p>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+          <thead className="bg-surface-sand-alt/60">
+            <tr>
+              <Th>السبب</Th>
+              <Th>عدد الإلغاءات</Th>
+              <Th>أُعيدت المكوّنات</Th>
+              <Th>الإيراد الضائع</Th>
+              <Th>تكلفة مكوّنات مفقودة</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-sand-border/70">
+            {report.by_reason.map((r) => (
+              <tr key={r.reason} className="transition-colors hover:bg-surface-sand/60">
+                <td className="px-6 py-3.5 font-semibold text-surface-dark">
+                  {voidReasonLabel(r.reason)}
+                </td>
+                <td className="px-6 py-3.5">
+                  <span className="font-numerals text-surface-dark">{r.void_count}</span>
+                </td>
+                <td className="px-6 py-3.5 text-slate-500">
+                  <span className="font-numerals">{r.stock_returned_count}</span>
+                  <span className="mx-1 text-slate-300">/</span>
+                  <span className="font-numerals">{r.void_count}</span>
+                </td>
+                <td className="px-6 py-3.5">
+                  <span className="font-numerals text-slate-600">{money(r.lost_revenue)}</span>
+                </td>
+                <td className="px-6 py-3.5">
+                  <span
+                    className={`font-numerals font-semibold ${
+                      r.ingredient_cost_lost > 0 ? 'text-destructive-strong' : 'text-slate-400'
+                    }`}
+                  >
+                    {money(r.ingredient_cost_lost)}
+                  </span>
+                  {/* Say when the figure is a floor, not a total. */}
+                  {r.uncosted_void_count > 0 && (
+                    <span className="ms-1.5 text-xs text-slate-400">
+                      (+<span className="font-numerals">{r.uncosted_void_count}</span> بلا تكلفة
+                      معروفة)
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {report.by_actor.length > 0 && (
+        <div className="border-t border-surface-sand-border px-6 py-4">
+          <p className="text-xs font-bold text-surface-dark">من اعتمد الإلغاء</p>
+          {/* Not a leaderboard: whoever covers the busiest shift authorises the
+              most corrections, and that is the job. It is here so a genuine
+              outlier can be noticed at all. */}
+          <p className="mt-0.5 text-xs text-slate-400">
+            الأكثر عددًا ليس بالضرورة الأكثر خطأً — من يغطّي أزحم الورديات يعتمد أكثر التصحيحات.
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+            {report.by_actor.map((a) => (
+              <li key={a.user_id ?? 'unknown'} className="text-xs text-slate-600">
+                {a.email ?? '—'}{' '}
+                <span className="font-numerals font-semibold text-surface-dark">
+                  {a.void_count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
 

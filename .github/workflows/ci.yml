@@ -207,6 +207,20 @@ jobs:
           fi
           echo "prisma/schema.prisma is in step with the database."
 
+      # The void vocabulary (0022) necessarily lives in two places — a CHECK
+      # constraint and a TypeScript constant the API validates against — so
+      # something has to compare them. Left unchecked, a reason could be added
+      # to one and not the other, and the mismatch would surface at the till as
+      # an unexplained error on a correction someone is waiting to make.
+      #
+      # Run here because this is the only job with a freshly migrated database.
+      # The suite needs no JWT secret: it reads pg_constraint and nothing else.
+      - name: Void reason vocabulary matches the database
+        working-directory: backend
+        env:
+          ADMIN_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mosaiz_mundo"
+        run: npx jest src/__tests__/voidReasons.drift.test.ts --runInBand --forceExit
+
       - name: Build backend
         working-directory: backend
         env:

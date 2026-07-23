@@ -1,5 +1,6 @@
 package com.mosaizmundo.pos.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -18,6 +21,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +37,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mosaizmundo.pos.domain.PosOrder
+import com.mosaizmundo.pos.domain.VoidReason
 import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 import com.mosaizmundo.pos.ui.viewmodel.VoidState
 import java.util.Locale
@@ -93,8 +98,14 @@ fun OrdersScreen(viewModel: PosViewModel, onBack: () -> Unit) {
     }
 
     when (val state = voidState) {
+        is VoidState.AskingReason -> ReasonDialog(
+            order = state.order,
+            onChoose = viewModel::chooseReason,
+            onDismiss = viewModel::cancelVoid,
+        )
         is VoidState.AskingStockChoice -> StockChoiceDialog(
             order = state.order,
+            reason = state.reason,
             onChoose = viewModel::chooseStockHandling,
             onDismiss = viewModel::cancelVoid,
         )
@@ -105,6 +116,91 @@ fun OrdersScreen(viewModel: PosViewModel, onBack: () -> Unit) {
         )
         else -> Unit
     }
+}
+
+/**
+ * Why is this being voided?
+ *
+ * Asked first, because it is what the cashier already knows — they are voiding
+ * *because* of something. A fixed list rather than a text box: "wrong order",
+ * "mistake" and "خطأ" are one event spelled three ways, and a void nobody can
+ * total is a void nobody learns from.
+ */
+@Composable
+private fun ReasonDialog(
+    order: PosOrder,
+    onChoose: (VoidReason, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var selected by remember { mutableStateOf<VoidReason?>(null) }
+    var note by remember { mutableStateOf("") }
+
+    val chosen = selected
+    val ready = chosen != null && (!chosen.requiresNote || note.isNotBlank())
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ما سبب الإلغاء؟") },
+        text = {
+            // Seven options plus a note can exceed a short till screen, so the
+            // body scrolls rather than clipping the last choices out of reach.
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(order.lineSummary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Spacer(Modifier.height(10.dp))
+
+                VoidReason.values().forEach { reason ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selected = reason }
+                            .padding(vertical = 4.dp),
+                    ) {
+                        RadioButton(selected = selected == reason, onClick = { selected = reason })
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            Text(reason.label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = reason.hint,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+
+                if (chosen != null) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = {
+                            if (it.length <= VoidReason.NOTE_MAX_LENGTH) note = it
+                        },
+                        label = {
+                            Text(if (chosen.requiresNote) "وضِّح السبب (مطلوب)" else "ملاحظة (اختياري)")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (chosen.requiresNote && note.isBlank()) {
+                        Text(
+                            text = "«سبب آخر» بلا توضيح لا يفيد أحدًا لاحقًا.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (chosen != null) onChoose(chosen, note) },
+                enabled = ready,
+            ) { Text("التالي") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("تراجع") }
+        },
+    )
 }
 
 @Composable
@@ -138,13 +234,24 @@ private fun OrderRow(order: PosOrder, onVoid: () -> Unit) {
             }
 
             if (order.isVoided) {
-                // Say so plainly, or a cashier will try to void it again.
-                Text(
-                    text = "ملغى",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                // Say so plainly, or a cashier will try to void it again — and
+                // say why, so the history is reviewable rather than a column of
+                // identical red labels.
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "ملغى",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (order.voidReasonLabel.isNotEmpty()) {
+                        Text(
+                            text = order.voidReasonLabel,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
             } else {
                 OutlinedButton(onClick = onVoid) { Text("إلغاء") }
             }
@@ -156,10 +263,15 @@ private fun OrderRow(order: PosOrder, onVoid: () -> Unit) {
  * The same question the admin asks, because it is the same decision: restoring
  * stock is right for a mis-tap caught before cooking and wrong for a remake, and
  * only the person standing there knows which happened.
+ *
+ * [reason] is shown, never used to preselect an answer. A kitchen error caught
+ * at the pass restores stock; a cancellation after plating does not. Guessing
+ * from the cause would be wrong often enough to corrupt inventory.
  */
 @Composable
 private fun StockChoiceDialog(
     order: PosOrder,
+    reason: VoidReason,
     onChoose: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -169,6 +281,12 @@ private fun StockChoiceDialog(
         text = {
             Column {
                 Text(order.lineSummary, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "السبب: ${reason.label}",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "الإجابة تحدّد ما يحدث للمكوّنات المخصومة، ولا يمكن تعديلها لاحقًا.",

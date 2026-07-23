@@ -8,6 +8,7 @@ import com.mosaizmundo.pos.domain.PosRepository
 import com.mosaizmundo.pos.domain.SellableItem
 import com.mosaizmundo.pos.api.MANAGER_ROLES
 import com.mosaizmundo.pos.domain.PosOrder
+import com.mosaizmundo.pos.domain.VoidReason
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -26,17 +27,31 @@ enum class CheckoutStatus { IDLE, SUBMITTING, SUCCESS, ERROR }
 /**
  * Where a void has got to.
  *
- * NEEDS_AUTHORISATION is the crux: the till is signed in as a cashier all
- * shift, and voiding is manager-only, so the cashier picks the order and
- * answers the stock question, then a manager authorises that one action.
+ * Two questions are asked, in this order, and they are not the same question:
+ * WHY it is being voided (0022, a fixed vocabulary so voids can be counted),
+ * then WHETHER THE FOOD WAS MADE (0018, which decides what happens to the
+ * shelf). Why comes first because it is what the person already knows — they
+ * are voiding *because* of something.
+ *
+ * NeedsAuthorisation is the crux: the till is signed in as a cashier all shift,
+ * and voiding is manager-only, so the cashier answers both questions and then a
+ * manager authorises that one action.
  */
 sealed interface VoidState {
     data object Idle : VoidState
-    /** An order is chosen; asking whether the food was actually made. */
-    data class AskingStockChoice(val order: PosOrder) : VoidState
-    /** The choice is made; a manager must now authorise it. */
+    /** An order is chosen; asking why. */
+    data class AskingReason(val order: PosOrder) : VoidState
+    /** The cause is known; asking whether the food was actually made. */
+    data class AskingStockChoice(
+        val order: PosOrder,
+        val reason: VoidReason,
+        val note: String,
+    ) : VoidState
+    /** Both answers are in; a manager must now authorise it. */
     data class NeedsAuthorisation(
         val order: PosOrder,
+        val reason: VoidReason,
+        val note: String,
         val restoreStock: Boolean,
         val error: String? = null,
         val checking: Boolean = false,
@@ -135,11 +150,31 @@ class PosViewModel(
 
     /** Step 1: the cashier picks an order. */
     fun beginVoid(order: PosOrder) {
-        _voidState.value = VoidState.AskingStockChoice(order)
+        _voidState.value = VoidState.AskingReason(order)
     }
 
     /**
-     * Step 2: they answer "was the food made?".
+     * Step 2: they say why.
+     *
+     * The note is carried through even when empty; the repository turns blank
+     * into null so the stored column is absent rather than an empty string.
+     */
+    fun chooseReason(reason: VoidReason, note: String) {
+        val current = _voidState.value
+        if (current !is VoidState.AskingReason) return
+        // 'other' without an explanation is refused by the database anyway;
+        // stopping here means the cashier finds out now rather than two taps later.
+        if (reason.requiresNote && note.isBlank()) return
+
+        _voidState.value = VoidState.AskingStockChoice(current.order, reason, note)
+    }
+
+    /**
+     * Step 3: they answer "was the food made?".
+     *
+     * Never derived from the reason. A kitchen error caught at the pass restores
+     * stock; a cancellation after plating does not. Guessing would refuse or
+     * corrupt a real void.
      *
      * A manager signed in at this terminal goes straight through — making them
      * re-enter their own password to authorise themselves would be theatre.
@@ -150,13 +185,18 @@ class PosViewModel(
         if (current !is VoidState.AskingStockChoice) return
 
         if (currentRole.value in MANAGER_ROLES) {
-            submitVoid(current.order, restoreStock, managerToken = null)
+            submitVoid(current.order, restoreStock, current.reason, current.note, managerToken = null)
         } else {
-            _voidState.value = VoidState.NeedsAuthorisation(current.order, restoreStock)
+            _voidState.value = VoidState.NeedsAuthorisation(
+                order = current.order,
+                reason = current.reason,
+                note = current.note,
+                restoreStock = restoreStock,
+            )
         }
     }
 
-    /** Step 3: a manager signs in to authorise this one action. */
+    /** Step 4: a manager signs in to authorise this one action. */
     fun authoriseVoid(email: String, password: String) {
         val current = _voidState.value
         if (current !is VoidState.NeedsAuthorisation) return
@@ -166,7 +206,13 @@ class PosViewModel(
             _voidState.value = current.copy(checking = true, error = null)
             when (val result = auth.authorise(email, password)) {
                 is ManagerAuth.Result.Authorised ->
-                    submitVoid(current.order, current.restoreStock, result.token)
+                    submitVoid(
+                        current.order,
+                        current.restoreStock,
+                        current.reason,
+                        current.note,
+                        result.token,
+                    )
                 is ManagerAuth.Result.NotAManager ->
                     _voidState.value = current.copy(
                         checking = false,
@@ -181,13 +227,19 @@ class PosViewModel(
         }
     }
 
-    private fun submitVoid(order: PosOrder, restoreStock: Boolean, managerToken: String?) {
+    private fun submitVoid(
+        order: PosOrder,
+        restoreStock: Boolean,
+        reason: VoidReason,
+        note: String,
+        managerToken: String?,
+    ) {
         viewModelScope.launch {
             _voidState.value = VoidState.Working
             try {
                 // A null token means the signed-in user is themselves a manager,
                 // so the stored session authorises the call.
-                repository.voidOrder(order.id, restoreStock, managerToken)
+                repository.voidOrder(order.id, restoreStock, reason, note, managerToken)
                 _voidState.value = VoidState.Idle
                 refreshOrders()
             } catch (e: Exception) {

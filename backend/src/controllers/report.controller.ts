@@ -252,3 +252,147 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+/**
+ * GET /api/reports/voids?days=30
+ *
+ * What voiding is costing, grouped by cause (0022). Runs on req.tx, so RLS
+ * scopes it to the caller's organization. Restricted to FINANCE_ROLES.
+ *
+ * A void has two costs and they are not the same money:
+ *
+ *  * lost_revenue — the order value that will not be collected. Real, but often
+ *    recoverable: a mis-tap gets re-rung a moment later and the customer still
+ *    pays. Counting it as pure loss would overstate the damage.
+ *  * ingredient_cost_lost — the COGS of voids where the stock was NOT restored.
+ *    This is food that was made and cannot be sold, and it is the number that
+ *    is genuinely gone. It is summed from cost_at_sale (0015), the cost captured
+ *    at the moment of the sale, so it does not drift when the next delivery
+ *    arrives at a different price.
+ *
+ * Reporting both, split, is the point. A month of wrong_item voids that all
+ * restored their stock costs almost nothing and means "fix the button layout";
+ * the same count of kitchen_error voids that did not means the kitchen is
+ * throwing away food.
+ *
+ * `uncosted_void_count` is the honesty column: voids whose COGS is not fully
+ * known, so ingredient_cost_lost is a floor rather than a total.
+ */
+export async function getVoids(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  const days = parseDays(req.query.days);
+
+  try {
+    // Aggregated per order first: an order has many lines, and summing
+    // total_amount across a join to order_items would multiply each order's
+    // value by its line count.
+    const byReason = await req.tx.$queryRaw<
+      Array<{
+        void_reason: string;
+        void_count: number;
+        lost_revenue: unknown;
+        stock_returned_count: number;
+        ingredient_cost_lost: unknown;
+        uncosted_void_count: number;
+      }>
+    >`
+      WITH voided AS (
+          SELECT o.id,
+                 o.void_reason,
+                 o.total_amount,
+                 o.stock_restored,
+                 COALESCE(SUM(oi.cost_at_sale), 0)          AS cogs,
+                 -- An order is fully costed only if every line is. bool_and
+                 -- over no rows is NULL, hence the coalesce: an order with no
+                 -- lines cannot be vouched for either.
+                 COALESCE(bool_and(oi.cost_is_complete), false) AS fully_costed
+          FROM public.orders o
+          LEFT JOIN public.order_items oi ON oi.order_id = o.id
+          WHERE o.status = 'voided'
+            AND o.voided_at >= now() - make_interval(days => ${days}::int)
+          GROUP BY o.id, o.void_reason, o.total_amount, o.stock_restored
+      )
+      SELECT
+          void_reason,
+          COUNT(*)::int                                                  AS void_count,
+          COALESCE(SUM(total_amount), 0)                                 AS lost_revenue,
+          COUNT(*) FILTER (WHERE stock_restored)::int                    AS stock_returned_count,
+          -- Only the un-restored voids destroyed anything.
+          COALESCE(SUM(cogs) FILTER (WHERE NOT stock_restored), 0)       AS ingredient_cost_lost,
+          COUNT(*) FILTER (WHERE NOT stock_restored
+                             AND NOT fully_costed)::int                  AS uncosted_void_count
+      FROM voided
+      GROUP BY void_reason
+      ORDER BY 2 DESC
+    `;
+
+    // Who is voiding, which is a different question from why. Deliberately not
+    // presented as a leaderboard: a manager who covers the busiest shift will
+    // authorise the most corrections, and that is the job, not a red flag. It
+    // is here so a real outlier can be noticed at all.
+    const byActor = await req.tx.$queryRaw<
+      Array<{ user_id: string | null; email: string | null; void_count: number }>
+    >`
+      SELECT o.voided_by                AS user_id,
+             u.email,
+             COUNT(*)::int              AS void_count
+      FROM public.orders o
+      LEFT JOIN public.users u ON u.id = o.voided_by
+      WHERE o.status = 'voided'
+        AND o.voided_at >= now() - make_interval(days => ${days}::int)
+      GROUP BY o.voided_by, u.email
+      ORDER BY 3 DESC
+      LIMIT ${ITEM_CAP}
+    `;
+
+    const rows = byReason.map((r) => ({
+      reason: r.void_reason,
+      void_count: r.void_count,
+      lost_revenue: num(r.lost_revenue),
+      /** Voids that put the ingredients back — the cheap kind. */
+      stock_returned_count: r.stock_returned_count,
+      /** COGS of food that was made and then written off. */
+      ingredient_cost_lost: num(r.ingredient_cost_lost),
+      /** How many of those the figure above cannot fully account for. */
+      uncosted_void_count: r.uncosted_void_count,
+    }));
+
+    // Totals summed from the same rows the caller sees, so the headline cannot
+    // disagree with the breakdown under it.
+    const summary = rows.reduce(
+      (acc, r) => ({
+        void_count: acc.void_count + r.void_count,
+        lost_revenue: acc.lost_revenue + r.lost_revenue,
+        stock_returned_count: acc.stock_returned_count + r.stock_returned_count,
+        ingredient_cost_lost: acc.ingredient_cost_lost + r.ingredient_cost_lost,
+        uncosted_void_count: acc.uncosted_void_count + r.uncosted_void_count,
+      }),
+      {
+        void_count: 0,
+        lost_revenue: 0,
+        stock_returned_count: 0,
+        ingredient_cost_lost: 0,
+        uncosted_void_count: 0,
+      },
+    );
+
+    res.status(200).json({
+      days,
+      summary,
+      by_reason: rows,
+      by_actor: byActor.map((a) => ({
+        user_id: a.user_id,
+        email: a.email,
+        void_count: a.void_count,
+      })),
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[reports.voids] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}

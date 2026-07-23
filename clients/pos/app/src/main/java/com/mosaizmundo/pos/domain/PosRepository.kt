@@ -22,10 +22,21 @@ interface PosRepository {
      * ingredients, false leaves them deducted. The backend requires it and has
      * no default (migration 0018), because either guess is wrong half the time.
      *
+     * [reason] is why (0022); the database refuses a void without one. [note] is
+     * optional context and mandatory only for [VoidReason.OTHER]. The two are
+     * independent of [restoreStock] on purpose — a kitchen error caught at the
+     * pass restores stock, a cancellation after plating does not.
+     *
      * [managerToken] is null when the signed-in user may void themselves;
      * otherwise it authorises this single call and is never persisted.
      */
-    suspend fun voidOrder(orderId: String, restoreStock: Boolean, managerToken: String?)
+    suspend fun voidOrder(
+        orderId: String,
+        restoreStock: Boolean,
+        reason: VoidReason,
+        note: String,
+        managerToken: String?,
+    )
 
     /**
      * Live count of queued offline orders the server PERMANENTLY rejected. These

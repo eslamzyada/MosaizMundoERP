@@ -63,10 +63,17 @@ class HttpPosRepository(
                     "${line.sellable_items?.name ?: "صنف"} x${line.quantity}"
                 },
                 stockRestored = order.stock_restored,
+                voidReason = order.void_reason,
             )
         }
 
-    override suspend fun voidOrder(orderId: String, restoreStock: Boolean, managerToken: String?) {
+    override suspend fun voidOrder(
+        orderId: String,
+        restoreStock: Boolean,
+        reason: VoidReason,
+        note: String,
+        managerToken: String?,
+    ) {
         // A manager's token rides on this ONE request. It is never written to
         // TokenManager, so the cashier's shift session is untouched and the
         // manager's rights do not outlive the action they authorised. Null means
@@ -75,7 +82,11 @@ class HttpPosRepository(
         val response = api.voidOrder(
             orderId = orderId,
             authorization = managerToken?.let { "Bearer $it" },
-            payload = VoidOrderPayload(restore_stock = restoreStock),
+            payload = VoidOrderPayload(
+                restore_stock = restoreStock,
+                void_reason = reason.code,
+                void_note = note.trim().ifBlank { null },
+            ),
         )
         if (!response.isSuccessful) {
             throw HttpException(response)

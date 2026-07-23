@@ -84,10 +84,16 @@ async function seedSale(opts: {
   const orderId = randomUUID();
   const status = opts.status ?? 'completed';
   const daysAgo = opts.daysAgo ?? 0;
+  // Since 0022 a voided order must carry a reason — orders_void_reason_matches_status
+  // makes the reasonless void this fixture used to write an unrepresentable state.
+  const voidReason = status === 'voided' ? 'wrong_item' : null;
   await admin.$executeRaw`
-    INSERT INTO public.orders (id, organization_id, client_offline_id, status, total_amount, created_at)
+    INSERT INTO public.orders (id, organization_id, client_offline_id, status, total_amount, created_at,
+                               voided_at, void_reason, stock_restored)
     VALUES (${orderId}::uuid, ${opts.org}::uuid, ${randomUUID()}::uuid, ${status},
-            ${opts.qty * opts.price}, now() - make_interval(days => ${daysAgo}::int))`;
+            ${opts.qty * opts.price}, now() - make_interval(days => ${daysAgo}::int),
+            ${status === 'voided' ? new Date() : null}, ${voidReason}::text,
+            ${status === 'voided' ? true : null})`;
   await admin.$executeRaw`
     INSERT INTO public.order_items
       (order_id, organization_id, sellable_item_id, quantity, unit_price, cost_at_sale, cost_is_complete)

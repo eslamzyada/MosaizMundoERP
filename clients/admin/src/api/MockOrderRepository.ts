@@ -1,4 +1,5 @@
 import type { OrderRepository } from './OrderRepository';
+import type { VoidReasonCode } from '../lib/voidReasons';
 import type { Order, OrderItem, OrderStatus } from '../types';
 
 const ORG = 'org-00000000-0000-4000-8000-000000000001';
@@ -17,6 +18,11 @@ function item(orderId: string, seq: number, sellableId: string, quantity: number
   };
 }
 
+/**
+ * `voided` carries the whole void, not just the status: the database refuses a
+ * voided order without a reason (0022), so a mock that produced one would be
+ * showing the UI a state that cannot exist.
+ */
 function order(
   id: string,
   coid: string,
@@ -24,6 +30,7 @@ function order(
   total: number,
   createdAt: string,
   items: OrderItem[],
+  voided?: { reason: string; note?: string; restored: boolean },
 ): Order {
   return {
     id,
@@ -34,6 +41,10 @@ function order(
     created_at: createdAt,
     updated_at: createdAt,
     order_items: items,
+    voided_at: voided ? createdAt : null,
+    stock_restored: voided ? voided.restored : null,
+    void_reason: voided ? voided.reason : null,
+    void_note: voided?.note ?? null,
   };
 }
 
@@ -68,6 +79,8 @@ const MOCK_ORDERS: Order[] = [
     22.0,
     '2026-07-12T13:52:00.000Z',
     [item('o3c4d5e6-0000-4000-8000-000000000003', 1, 's-shawarma', 1, 22.0)],
+    // Caught before the kitchen moved, so the ingredients went back.
+    { reason: 'wrong_item', restored: true },
   ),
   order(
     'o4d5e6f7-0000-4000-8000-000000000004',
@@ -91,6 +104,8 @@ const MOCK_ORDERS: Order[] = [
       item('o5e6f7a8-0000-4000-8000-000000000005', 1, 's-cola', 1, 9.0),
       item('o5e6f7a8-0000-4000-8000-000000000005', 2, 's-falafel', 1, 6.5),
     ],
+    // The other kind: the food was made, so the stock stays deducted.
+    { reason: 'customer_complaint', note: 'الفلافل كانت باردة', restored: false },
   ),
   order(
     'o6f7a8b9-0000-4000-8000-000000000006',
@@ -113,10 +128,19 @@ export class MockOrderRepository implements OrderRepository {
     });
   }
 
-  voidOrder(orderId: string): Promise<void> {
+  voidOrder(
+    orderId: string,
+    restoreStock: boolean,
+    reason: VoidReasonCode,
+    note: string,
+  ): Promise<void> {
     const order = MOCK_ORDERS.find((o) => o.id === orderId);
     if (order) {
       order.status = 'voided';
+      order.voided_at = new Date().toISOString();
+      order.stock_restored = restoreStock;
+      order.void_reason = reason;
+      order.void_note = note === '' ? null : note;
     }
     return new Promise((resolve) => {
       setTimeout(() => resolve(), 150);

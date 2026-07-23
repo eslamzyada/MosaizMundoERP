@@ -32,15 +32,30 @@ class MockPosRepository : PosRepository {
     private val orders = mutableListOf(
         PosOrder("m-0001", "completed", 155.0, "2026-07-23T12:40:00Z", "شاورما دجاج x2 · كولا x1", null),
         PosOrder("m-0002", "completed", 65.0, "2026-07-23T12:12:00Z", "برجر لحم x1", null),
-        PosOrder("m-0003", "voided", 25.0, "2026-07-23T11:55:00Z", "فلافل x1", true),
+        // A voided order always has a cause — the database makes the reasonless
+        // void this mock used to show an unrepresentable state (0022).
+        PosOrder(
+            "m-0003", "voided", 25.0, "2026-07-23T11:55:00Z", "فلافل x1", true,
+            voidReason = VoidReason.WRONG_ITEM.code,
+        ),
     )
 
     override suspend fun recentOrders(): List<PosOrder> = orders.toList()
 
-    override suspend fun voidOrder(orderId: String, restoreStock: Boolean, managerToken: String?) {
+    override suspend fun voidOrder(
+        orderId: String,
+        restoreStock: Boolean,
+        reason: VoidReason,
+        note: String,
+        managerToken: String?,
+    ) {
         val index = orders.indexOfFirst { it.id == orderId }
         if (index >= 0) {
-            orders[index] = orders[index].copy(status = "voided", stockRestored = restoreStock)
+            orders[index] = orders[index].copy(
+                status = "voided",
+                stockRestored = restoreStock,
+                voidReason = reason.code,
+            )
         }
     }
 }
