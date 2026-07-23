@@ -34,13 +34,18 @@ object PosApiProvider {
             .addInterceptor { chain ->
                 // The interceptor runs on OkHttp's network thread, so a blocking
                 // read of the (in-memory-cached) token is acceptable here.
+                // A request may carry its own Authorization — a manager
+                // authorising a single void at a till signed in as a cashier.
+                // That token is passed per-call and never persisted, so the
+                // stored session must not overwrite it.
+                val explicitAuth = chain.request().header("Authorization") != null
                 val token = runBlocking { tokenManager.getToken().first() }
                 val builder = chain.request().newBuilder()
                     // ngrok's free tier returns an HTML interstitial to non-browser
                     // clients unless this header is present; without it the JSON
                     // parser would receive HTML. Harmless against a non-ngrok host.
                     .addHeader("ngrok-skip-browser-warning", "true")
-                if (!token.isNullOrBlank()) {
+                if (!explicitAuth && !token.isNullOrBlank()) {
                     builder.addHeader("Authorization", "Bearer $token")
                 }
                 chain.proceed(builder.build())

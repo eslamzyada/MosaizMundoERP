@@ -25,20 +25,32 @@ class TokenManager(private val context: Context) {
     fun getOrganizationId(): Flow<String?> =
         context.authDataStore.data.map { prefs -> prefs[ORGANIZATION_ID] }
 
+    /** The signed-in user's role, so the app knows whether they may void. */
+    fun getRole(): Flow<String?> =
+        context.authDataStore.data.map { prefs -> prefs[ROLE] }
+
+    suspend fun saveRole(role: String) {
+        context.authDataStore.edit { prefs -> prefs[ROLE] = role }
+    }
+
     suspend fun saveOrganizationId(organizationId: String) {
         context.authDataStore.edit { prefs -> prefs[ORGANIZATION_ID] = organizationId }
     }
 
-    /** Clears the whole session (token + organization) — e.g. on logout or a failed login. */
+    /** Clears the whole session (token + organization + role) — on logout or a failed login. */
     suspend fun clearToken() {
         context.authDataStore.edit { prefs ->
             prefs.remove(ACCESS_TOKEN)
             prefs.remove(ORGANIZATION_ID)
+            // Must go too: a stale manager role would let the next cashier to
+            // use this terminal void without any authorisation.
+            prefs.remove(ROLE)
         }
     }
 
     companion object {
         private val ACCESS_TOKEN = stringPreferencesKey("access_token")
         private val ORGANIZATION_ID = stringPreferencesKey("organization_id")
+        private val ROLE = stringPreferencesKey("role")
     }
 }

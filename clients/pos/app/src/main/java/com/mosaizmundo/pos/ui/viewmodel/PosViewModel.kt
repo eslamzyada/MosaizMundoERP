@@ -6,7 +6,11 @@ import com.mosaizmundo.pos.domain.CartItem
 import com.mosaizmundo.pos.domain.OrderState
 import com.mosaizmundo.pos.domain.PosRepository
 import com.mosaizmundo.pos.domain.SellableItem
+import com.mosaizmundo.pos.api.MANAGER_ROLES
+import com.mosaizmundo.pos.domain.PosOrder
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,10 +18,32 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** The screen currently shown in the authenticated POS flow. */
-enum class PosDestination { MENU, CART, CHECKOUT }
+enum class PosDestination { MENU, CART, CHECKOUT, ORDERS }
 
 /** Lifecycle of a checkout submission, observed by the CheckoutScreen. */
 enum class CheckoutStatus { IDLE, SUBMITTING, SUCCESS, ERROR }
+
+/**
+ * Where a void has got to.
+ *
+ * NEEDS_AUTHORISATION is the crux: the till is signed in as a cashier all
+ * shift, and voiding is manager-only, so the cashier picks the order and
+ * answers the stock question, then a manager authorises that one action.
+ */
+sealed interface VoidState {
+    data object Idle : VoidState
+    /** An order is chosen; asking whether the food was actually made. */
+    data class AskingStockChoice(val order: PosOrder) : VoidState
+    /** The choice is made; a manager must now authorise it. */
+    data class NeedsAuthorisation(
+        val order: PosOrder,
+        val restoreStock: Boolean,
+        val error: String? = null,
+        val checking: Boolean = false,
+    ) : VoidState
+    data object Working : VoidState
+    data class Failed(val message: String) : VoidState
+}
 
 /**
  * Holds the menu, the current-order (cart) state, the in-flow navigation
@@ -28,7 +54,13 @@ enum class CheckoutStatus { IDLE, SUBMITTING, SUCCESS, ERROR }
  */
 class PosViewModel(
     private val repository: PosRepository,
+    private val managerAuth: ManagerAuth? = null,
+    /** The signed-in user's role; a manager skips the authorisation step. */
+    roleFlow: Flow<String?> = flowOf(null),
 ) : ViewModel() {
+
+    private val currentRole: StateFlow<String?> =
+        roleFlow.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _menuState = MutableStateFlow<List<SellableItem>>(emptyList())
     val menuState: StateFlow<List<SellableItem>> = _menuState.asStateFlow()
@@ -41,6 +73,15 @@ class PosViewModel(
 
     private val _checkoutStatus = MutableStateFlow(CheckoutStatus.IDLE)
     val checkoutStatus: StateFlow<CheckoutStatus> = _checkoutStatus.asStateFlow()
+
+    private val _orders = MutableStateFlow<List<PosOrder>>(emptyList())
+    val orders: StateFlow<List<PosOrder>> = _orders.asStateFlow()
+
+    private val _ordersLoading = MutableStateFlow(false)
+    val ordersLoading: StateFlow<Boolean> = _ordersLoading.asStateFlow()
+
+    private val _voidState = MutableStateFlow<VoidState>(VoidState.Idle)
+    val voidState: StateFlow<VoidState> = _voidState.asStateFlow()
 
     /**
      * How many queued offline sales the server permanently rejected. Surfaced so
@@ -70,6 +111,92 @@ class PosViewModel(
     fun backToMenu() { _destination.value = PosDestination.MENU }
 
     fun backToCart() { _destination.value = PosDestination.CART }
+
+    fun openOrders() {
+        _destination.value = PosDestination.ORDERS
+        refreshOrders()
+    }
+
+    // --- Voiding ------------------------------------------------------------
+
+    fun refreshOrders() {
+        viewModelScope.launch {
+            _ordersLoading.value = true
+            try {
+                _orders.value = repository.recentOrders()
+            } catch (_: Exception) {
+                // Offline or unauthorized: keep whatever list we had rather than
+                // blanking the screen mid-shift.
+            } finally {
+                _ordersLoading.value = false
+            }
+        }
+    }
+
+    /** Step 1: the cashier picks an order. */
+    fun beginVoid(order: PosOrder) {
+        _voidState.value = VoidState.AskingStockChoice(order)
+    }
+
+    /**
+     * Step 2: they answer "was the food made?".
+     *
+     * A manager signed in at this terminal goes straight through — making them
+     * re-enter their own password to authorise themselves would be theatre.
+     * Anyone else has to have a manager authorise it.
+     */
+    fun chooseStockHandling(restoreStock: Boolean) {
+        val current = _voidState.value
+        if (current !is VoidState.AskingStockChoice) return
+
+        if (currentRole.value in MANAGER_ROLES) {
+            submitVoid(current.order, restoreStock, managerToken = null)
+        } else {
+            _voidState.value = VoidState.NeedsAuthorisation(current.order, restoreStock)
+        }
+    }
+
+    /** Step 3: a manager signs in to authorise this one action. */
+    fun authoriseVoid(email: String, password: String) {
+        val current = _voidState.value
+        if (current !is VoidState.NeedsAuthorisation) return
+        val auth = managerAuth ?: return
+
+        viewModelScope.launch {
+            _voidState.value = current.copy(checking = true, error = null)
+            when (val result = auth.authorise(email, password)) {
+                is ManagerAuth.Result.Authorised ->
+                    submitVoid(current.order, current.restoreStock, result.token)
+                is ManagerAuth.Result.NotAManager ->
+                    _voidState.value = current.copy(
+                        checking = false,
+                        error = "هذا الحساب لا يملك صلاحية الإلغاء.",
+                    )
+                ManagerAuth.Result.BadCredentials ->
+                    _voidState.value = current.copy(
+                        checking = false,
+                        error = "بيانات الدخول غير صحيحة.",
+                    )
+            }
+        }
+    }
+
+    private fun submitVoid(order: PosOrder, restoreStock: Boolean, managerToken: String?) {
+        viewModelScope.launch {
+            _voidState.value = VoidState.Working
+            try {
+                // A null token means the signed-in user is themselves a manager,
+                // so the stored session authorises the call.
+                repository.voidOrder(order.id, restoreStock, managerToken)
+                _voidState.value = VoidState.Idle
+                refreshOrders()
+            } catch (e: Exception) {
+                _voidState.value = VoidState.Failed("تعذّر إلغاء الطلب. حاول مرة أخرى.")
+            }
+        }
+    }
+
+    fun cancelVoid() { _voidState.value = VoidState.Idle }
 
     // --- Cart editing -------------------------------------------------------
 
