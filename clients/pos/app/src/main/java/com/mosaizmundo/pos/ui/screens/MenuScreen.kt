@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -124,13 +125,55 @@ private fun MenuItemCard(item: SellableItem, onClick: () -> Unit) {
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(
-                // Latin numerals regardless of device locale.
-                text = "%.2f ج.م".format(Locale.US, item.price),
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    // Latin numerals regardless of device locale.
+                    text = "%.2f ج.م".format(Locale.US, item.price),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                AvailabilityLabel(portions = item.portionsAvailable)
+            }
         }
     }
 }
+
+/**
+ * How many portions the recorded stock still allows.
+ *
+ * Shown only when it is actionable: null means no recipe constrains this item,
+ * and a comfortable number is noise on a screen a cashier reads mid-queue. What
+ * matters is "this is about to run out" and "the books say this is gone".
+ *
+ * Nothing here disables the tile. The figure can be stale — the device may have
+ * been offline for an hour — and the server records a deficit when a sale
+ * outruns stock. Refusing a sale the customer is standing there to make, on the
+ * strength of a possibly-stale number, would be the worse failure.
+ */
+@Composable
+private fun AvailabilityLabel(portions: Int?) {
+    if (portions == null || portions > LOW_STOCK_PORTIONS) return
+
+    val (text, color) = if (portions <= 0) {
+        // "The books say none left" — not "you may not sell it".
+        "نفد" to MaterialTheme.colorScheme.error
+    } else {
+        "يكفي $portions" to MaterialTheme.colorScheme.tertiary
+    }
+
+    Text(
+        text = text,
+        color = color,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+    )
+}
+
+// Below this, a cashier benefits from the warning; above it, the number is
+// noise on a busy screen.
+private const val LOW_STOCK_PORTIONS = 5

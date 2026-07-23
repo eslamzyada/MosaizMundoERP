@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { SAFETY_CAP } from '../lib/pagination';
 import { costRecipe, money, rawItemIdsOf, unitCostsByRawItem } from '../lib/foodCost';
+import { callerRole, FINANCE_ROLES } from '../middleware/requireRole';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -59,6 +60,22 @@ export async function getRecipes(req: Request, res: Response): Promise<void> {
       orderBy: { name: 'asc' },
       take: SAFETY_CAP,
     });
+
+    // WHAT a dish is made of is operational knowledge — a cook or a cashier may
+    // legitimately need it. WHAT IT COSTS is financial, and #45 restricted
+    // profitability to FINANCE_ROLES for exactly that reason. This endpoint
+    // started returning costs in #42 without a matching gate, so every member
+    // (and every POS device calling it) could read food costs.
+    //
+    // The fix strips the money rather than gating the route: refusing the whole
+    // endpoint would deny people the recipe itself, which is not the secret.
+    const role = await callerRole(req);
+    const maySeeCost = role !== null && FINANCE_ROLES.includes(role);
+
+    if (!maySeeCost) {
+      res.status(200).json(recipes);
+      return;
+    }
 
     // Only the ingredients these recipes actually reference, so the aggregate
     // is bounded by what we are about to return rather than by the org's whole

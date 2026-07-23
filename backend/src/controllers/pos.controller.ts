@@ -182,9 +182,25 @@ export async function getOrders(req: Request, res: Response): Promise<void> {
 /**
  * GET /api/pos/menu
  *
- * Returns the caller's catalog. Because the query runs on req.tx (bound to the
- * RLS session), sellable_items.findMany automatically returns ONLY the items
- * for the caller's organization(s) — no explicit organization_id filter.
+ * The caller's catalog, with how many portions of each dish the stock on hand
+ * can still make. Runs on req.tx (bound to the RLS session), so it returns ONLY
+ * the caller's organization's items — no explicit organization_id filter.
+ *
+ * `portions_available` is the smallest number of portions any single ingredient
+ * allows: one dish needing 200g of chicken and 1 flatbread is limited by
+ * whichever runs out first. That is the number a cashier actually needs — not
+ * raw stock levels, which would require them to do recipe arithmetic mid-queue.
+ *
+ * NULL means unconstrained, not zero: an item with no recipe consumes no
+ * tracked ingredient, so nothing limits it. Reporting 0 there would grey out
+ * every drink and side that has never been given a recipe.
+ *
+ * ADVISORY ONLY — this must never block a sale, and checkout does not consult
+ * it. The POS works offline, so the figure is a snapshot that can be stale by
+ * the time it matters; and process_pos_checkout already records a deficit when
+ * a sale outruns recorded stock, which is the honest response to selling
+ * something the books did not know you had. Blocking on a stale number would
+ * refuse real sales at the till, which is far worse than a deficit to reconcile.
  */
 export async function getMenu(req: Request, res: Response): Promise<void> {
   if (!req.tx) {
@@ -193,10 +209,40 @@ export async function getMenu(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const items = await req.tx.sellable_items.findMany({
-      orderBy: { name: 'asc' },
-      take: SAFETY_CAP,
-    });
+    // COUNT/FLOOR are cast to int: res.json cannot serialize a BigInt, and a
+    // fractional portion is not a thing a cashier can sell.
+    const items = await req.tx.$queryRaw`
+      WITH stock AS (
+          SELECT b.raw_item_id,
+                 SUM(b.quantity_remaining) AS on_hand
+          FROM public.inventory_batches b
+          WHERE b.quantity_remaining > 0
+          GROUP BY b.raw_item_id
+      ),
+      -- Portions each individual ingredient allows, per dish.
+      per_ingredient AS (
+          SELECT bom.sellable_item_id,
+                 FLOOR(COALESCE(st.on_hand, 0) / bom.quantity_required)::int AS portions
+          FROM public.bill_of_materials bom
+          LEFT JOIN stock st ON st.raw_item_id = bom.raw_item_id
+      )
+      SELECT s.id,
+             s.organization_id,
+             s.name,
+             s.sku,
+             s.price,
+             s.created_at,
+             s.updated_at,
+             -- MIN over an empty set is NULL, which is exactly the "no recipe,
+             -- so nothing constrains it" case.
+             MIN(p.portions) AS portions_available
+      FROM public.sellable_items s
+      LEFT JOIN per_ingredient p ON p.sellable_item_id = s.id
+      GROUP BY s.id, s.organization_id, s.name, s.sku, s.price,
+               s.created_at, s.updated_at
+      ORDER BY s.name ASC
+      LIMIT ${SAFETY_CAP}
+    `;
     res.status(200).json(items);
   } catch (err) {
     // eslint-disable-next-line no-console

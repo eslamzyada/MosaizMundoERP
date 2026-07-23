@@ -14,6 +14,10 @@ const repository: RecipeRepository = new HttpRecipeRepository();
 export default function Recipes() {
   const { can } = useSession();
   const mayEdit = can('administer');
+  // The API strips costs for anyone outside FINANCE_ROLES, so those fields
+  // arrive undefined. Mirroring the check here keeps the layout honest rather
+  // than rendering "0.00" where the server sent nothing.
+  const maySeeCost = can('view_finance');
 
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [ingredients, setIngredients] = useState<RawInventoryItem[]>([]);
@@ -174,6 +178,7 @@ export default function Recipes() {
                     <span className="font-numerals">{selected.sellable_item.sku ?? '—'}</span>
                   </p>
                 </div>
+                {maySeeCost && (
                 <div className="text-start">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     {selected.uncosted_line_count > 0 ? 'تكلفة جزئية' : 'تكلفة المكوّنات'}
@@ -200,6 +205,7 @@ export default function Recipes() {
                     <p className="mt-1 text-[11px] text-slate-500">لم يُحدَّد سعر بيع لهذا الصنف.</p>
                   )}
                 </div>
+                )}
               </div>
 
               <div className="overflow-x-auto">
@@ -209,7 +215,7 @@ export default function Recipes() {
                       <Th>المكوّن</Th>
                       <Th>الكمية</Th>
                       <Th>وحدة القياس</Th>
-                      <Th>التكلفة</Th>
+                      {maySeeCost && <Th>التكلفة</Th>}
                       <Th>النوع</Th>
                       {mayEdit && <Th>إجراءات</Th>}
                     </tr>
@@ -218,7 +224,7 @@ export default function Recipes() {
                     {selected.recipe_lines.length === 0 && (
                       <tr>
                         <td
-                          colSpan={mayEdit ? 6 : 5}
+                          colSpan={(mayEdit ? 5 : 4) + (maySeeCost ? 1 : 0)}
                           className="px-6 py-10 text-center text-sm text-slate-400"
                         >
                           لا توجد مكوّنات في هذه الوصفة بعد.
@@ -240,6 +246,7 @@ export default function Recipes() {
                           />
                         </td>
                         <td className="px-6 py-4 text-slate-500">{line.raw_item.unit_of_measure}</td>
+                        {maySeeCost && (
                         <td className="px-6 py-4">
                           {line.line_cost === null ? (
                             <Badge variant="warning">بلا رصيد</Badge>
@@ -253,6 +260,7 @@ export default function Recipes() {
                             </span>
                           )}
                         </td>
+                        )}
                         <td className="px-6 py-4">
                           <CategoryChip category={line.raw_item.category} />
                         </td>

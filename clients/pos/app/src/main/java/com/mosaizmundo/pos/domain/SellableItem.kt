@@ -9,4 +9,9 @@ data class SellableItem(
     val nameAr: String,
     val price: Double,
     val imagePlaceholder: String,
+    /**
+     * Portions the recorded stock can still make, or null when nothing tracked
+     * constrains this item (no recipe). Advisory only — see MenuItemResponse.
+     */
+    val portionsAvailable: Int? = null,
 )

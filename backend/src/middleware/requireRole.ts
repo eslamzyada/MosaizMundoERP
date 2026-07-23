@@ -13,6 +13,24 @@ import { NextFunction, Request, Response } from 'express';
  * Role is resolved from the caller's earliest ACTIVE membership — the same rule
  * GET /api/me uses, so the client's view of "my role" and the gate agree.
  */
+/**
+ * The caller's role, by the same rule requireRole and GET /api/me use.
+ *
+ * For handlers that must not REFUSE a request but should shape what it returns
+ * — an endpoint whose data is partly operational and partly financial, where
+ * gating the whole route would deny people information they legitimately need.
+ * Returns null when there is no active membership.
+ */
+export async function callerRole(req: Request): Promise<string | null> {
+  if (!req.tx || !req.userId) return null;
+  const membership = await req.tx.organization_memberships.findFirst({
+    where: { user_id: req.userId, is_active: true },
+    orderBy: { created_at: 'asc' },
+    select: { role: true },
+  });
+  return membership?.role ?? null;
+}
+
 export function requireRole(...allowedRoles: string[]) {
   return async function roleGate(
     req: Request,
