@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { parsePage, SAFETY_CAP } from '../lib/pagination';
+import {
+  isVoidReason,
+  REASON_REQUIRING_NOTE,
+  VOID_NOTE_MAX_LENGTH,
+  VOID_REASONS,
+} from '../lib/voidReasons';
 
 // Pulls the PostgreSQL SQLSTATE out of a Prisma raw-query error, when present.
 // A raw CALL that the database rejects surfaces as a PrismaClientKnownRequestError
@@ -89,17 +95,29 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * POST /api/pos/orders/:id/void  { restore_stock: boolean }
+ * POST /api/pos/orders/:id/void
+ *   { restore_stock: boolean, void_reason: string, void_note?: string }
  *
- * Voids a completed order via app.void_order. restore_stock is REQUIRED and has
- * no default, because only the caller knows which kind of void this is: a
- * mis-tap caught before cooking (the ingredients never moved — restore) or a
- * remake/walk-out (the food was made — the stock is genuinely gone). Guessing
- * either way corrupts inventory half the time.
+ * Voids a completed order via app.void_order.
+ *
+ * restore_stock is REQUIRED and has no default, because only the caller knows
+ * which kind of void this is: a mis-tap caught before cooking (the ingredients
+ * never moved — restore) or a remake/walk-out (the food was made — the stock is
+ * genuinely gone). Guessing either way corrupts inventory half the time.
+ *
+ * void_reason (0022) is REQUIRED and drawn from a closed vocabulary. A void
+ * without a cause is an unreadable event: twenty a week might be a cashier who
+ * needs training, a kitchen plating the wrong dish, or two similar burgers next
+ * to each other on the button grid, and all three look identical without it.
+ * void_note is optional context, and mandatory only for 'other'.
+ *
+ * The two are deliberately INDEPENDENT — a kitchen error caught at the pass
+ * restores stock, a cancellation after plating does not — so nothing here
+ * derives one from the other.
  *
  * requireRole gates the route, but the procedure is SECURITY INVOKER and the
- * 0010 orders UPDATE policy is the real boundary. Error contract from 0018:
- * P0002 -> 404, 55000 -> 409, 42501 -> 403.
+ * 0010 orders UPDATE policy is the real boundary. Error contract: P0002 -> 404,
+ * 55000 -> 409, 42501 -> 403 (0018); 22023 / 23514 -> 400 (0022).
  */
 export async function voidOrder(req: Request, res: Response): Promise<void> {
   if (!req.tx) {
@@ -113,7 +131,11 @@ export async function voidOrder(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const body = (req.body ?? {}) as { restore_stock?: unknown };
+  const body = (req.body ?? {}) as {
+    restore_stock?: unknown;
+    void_reason?: unknown;
+    void_note?: unknown;
+  };
   if (typeof body.restore_stock !== 'boolean') {
     res.status(400).json({
       error:
@@ -122,12 +144,46 @@ export async function voidOrder(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  if (!isVoidReason(body.void_reason)) {
+    res.status(400).json({
+      error: 'void_reason is required and must be one of the recognised causes',
+      allowed: VOID_REASONS,
+    });
+    return;
+  }
+  const reason = body.void_reason;
+
+  if (body.void_note !== undefined && body.void_note !== null && typeof body.void_note !== 'string') {
+    res.status(400).json({ error: 'void_note must be text' });
+    return;
+  }
+  // Trimmed here as well as in the procedure so the length check below measures
+  // the note that will actually be stored, not its whitespace.
+  const note = typeof body.void_note === 'string' ? body.void_note.trim() : '';
+
+  if (reason === REASON_REQUIRING_NOTE && note === '') {
+    res.status(400).json({
+      error: `void_note is required when void_reason is '${REASON_REQUIRING_NOTE}'`,
+    });
+    return;
+  }
+  if (note.length > VOID_NOTE_MAX_LENGTH) {
+    res.status(400).json({
+      error: `void_note must be ${VOID_NOTE_MAX_LENGTH} characters or fewer`,
+    });
+    return;
+  }
+
   try {
-    await req.tx.$executeRaw`CALL app.void_order(${id}::uuid, ${body.restore_stock})`;
+    // Cast explicitly: the note may be NULL, and an untyped NULL parameter
+    // leaves Postgres unable to resolve which procedure is being called.
+    await req.tx.$executeRaw`CALL app.void_order(
+      ${id}::uuid, ${body.restore_stock}, ${reason}::text, ${note === '' ? null : note}::text)`;
     res.status(200).json({
       status: 'ok',
       order_id: id,
       stock_restored: body.restore_stock,
+      void_reason: reason,
     });
   } catch (err) {
     const code = postgresErrorCode(err);
@@ -141,6 +197,17 @@ export async function voidOrder(req: Request, res: Response): Promise<void> {
     }
     if (code === '42501') {
       res.status(403).json({ error: 'Voiding an order is limited to managers' });
+      return;
+    }
+    // The validation above should mean neither of these is reachable. If one
+    // is, the API and the schema have drifted apart — answer honestly rather
+    // than as a 500, and let voidReasons.drift.test.ts be the thing that stops
+    // it happening again.
+    if (code === '22023' || code === '23514') {
+      res.status(400).json({
+        error: 'The void reason was rejected by the database',
+        allowed: VOID_REASONS,
+      });
       return;
     }
     // eslint-disable-next-line no-console

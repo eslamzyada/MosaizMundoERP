@@ -99,6 +99,8 @@ model orders {
   voided_at             DateTime?               @db.Timestamptz(6)
   voided_by             String?                 @db.Uuid
   stock_restored        Boolean?
+  void_reason           String?
+  void_note             String?
   inventory_consumption inventory_consumption[]
   order_items           order_items[]
   organizations         organizations           @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)

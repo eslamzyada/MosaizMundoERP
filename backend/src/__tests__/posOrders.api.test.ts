@@ -139,7 +139,7 @@ describe('Voiding from the till', () => {
     const res = await request(app)
       .post(`/api/pos/orders/${orderId}/void`)
       .set('Authorization', `Bearer ${tokens.cashier}`)
-      .send({ restore_stock: true });
+      .send({ restore_stock: true, void_reason: 'wrong_item' });
     expect(res.status).toBe(403);
 
     const order = (await orders('cashier')).find((o) => o.id === orderId)!;
@@ -156,7 +156,7 @@ describe('Voiding from the till', () => {
     const res = await request(app)
       .post(`/api/pos/orders/${orderId}/void`)
       .set('Authorization', `Bearer ${tokens.manager}`)
-      .send({ restore_stock: true });
+      .send({ restore_stock: true, void_reason: 'wrong_item' });
     expect(res.status).toBe(200);
 
     // Three patties come back.
@@ -193,7 +193,7 @@ describe('Voiding from the till', () => {
     const res = await request(app)
       .post(`/api/pos/orders/${orderId}/void`)
       .set('Authorization', `Bearer ${tokens.manager}`)
-      .send({ restore_stock: false });
+      .send({ restore_stock: false, void_reason: 'kitchen_error' });
     expect(res.status).toBe(200);
 
     // The food was made: the patties are gone regardless of the refund.

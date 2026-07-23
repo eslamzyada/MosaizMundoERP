@@ -182,6 +182,40 @@ export interface Order {
   created_at: string;
   updated_at: string;
   order_items: OrderItem[];
+  // Void metadata (0018, 0022). All null unless status is 'voided' — the
+  // database enforces that a voided order has a reason and nothing else does.
+  voided_at: string | null;
+  stock_restored: boolean | null;
+  void_reason: string | null;
+  void_note: string | null;
+}
+
+// ---- Voids report (0022) ---------------------------------------------------
+
+export interface VoidReasonRow {
+  reason: string;
+  void_count: number;
+  /** Order value that will not be collected — often re-rung a moment later. */
+  lost_revenue: number;
+  /** Voids that put the ingredients back: the cheap kind. */
+  stock_returned_count: number;
+  /** COGS of food that was made and then written off. The money truly gone. */
+  ingredient_cost_lost: number;
+  /** How many un-restored voids the figure above cannot fully account for. */
+  uncosted_void_count: number;
+}
+
+export interface VoidActorRow {
+  user_id: string | null;
+  email: string | null;
+  void_count: number;
+}
+
+export interface VoidsReport {
+  days: number;
+  summary: Omit<VoidReasonRow, 'reason'>;
+  by_reason: VoidReasonRow[];
+  by_actor: VoidActorRow[];
 }
 
 // ---- Bill of Materials (recipes) -------------------------------------------

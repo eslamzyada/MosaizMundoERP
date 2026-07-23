@@ -12,6 +12,8 @@ data class OrderResponse(
     val total_amount: Double,
     val created_at: String,
     val stock_restored: Boolean?,
+    /** Why it was voided (0022). Null exactly when the order is not voided. */
+    val void_reason: String?,
     val order_items: List<OrderLineResponse>,
 )
 
@@ -34,7 +36,14 @@ data class OrderLineItem(
  * [restore_stock] is REQUIRED by the backend and has no default: only the
  * person voiding knows whether the food was actually made, and guessing either
  * way corrupts inventory half the time (migration 0018).
+ *
+ * [void_reason] is REQUIRED too (0022) and must come from the shared
+ * vocabulary. [void_note] is optional context, mandatory only for 'other' —
+ * null rather than "" when there is none, so the column stays null and readers
+ * do not have to special-case an empty string.
  */
 data class VoidOrderPayload(
     val restore_stock: Boolean,
+    val void_reason: String,
+    val void_note: String?,
 )

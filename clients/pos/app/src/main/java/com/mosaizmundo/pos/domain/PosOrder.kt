@@ -12,6 +12,11 @@ data class PosOrder(
     val createdAt: String,
     val lineSummary: String,
     val stockRestored: Boolean?,
+    /** The stored void reason code, or null when the order is not voided. */
+    val voidReason: String? = null,
 ) {
     val isVoided: Boolean get() = status == "voided"
+
+    /** The cause in Arabic, for the till's history list. */
+    val voidReasonLabel: String get() = VoidReason.labelFor(voidReason)
 }

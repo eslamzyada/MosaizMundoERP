@@ -43,15 +43,34 @@ async function checkout(qty: number): Promise<string> {
   return res.body.order_id as string;
 }
 
+/**
+ * `reason` defaults to a valid one so the tests that are about something else
+ * stay about that thing; pass NO_REASON to leave it out deliberately.
+ */
+const NO_REASON = Symbol('no reason');
+
 async function voidVia(
   who: string,
   orderId: string,
   restore: unknown,
+  reason: unknown = 'wrong_item',
+  note?: unknown,
 ): Promise<request.Response> {
+  const body: Record<string, unknown> = {};
+  if (restore !== undefined) body.restore_stock = restore;
+  if (reason !== NO_REASON) body.void_reason = reason;
+  if (note !== undefined) body.void_note = note;
   return request(app)
     .post(`/api/pos/orders/${orderId}/void`)
     .set('Authorization', `Bearer ${tokens[who]}`)
-    .send(restore === undefined ? {} : { restore_stock: restore });
+    .send(body);
+}
+
+async function orderRow(orderId: string) {
+  const [row] = await admin.$queryRaw<
+    Array<{ status: string; void_reason: string | null; void_note: string | null }>
+  >`SELECT status, void_reason, void_note FROM public.orders WHERE id = ${orderId}::uuid`;
+  return row;
 }
 
 async function stockOnHand(): Promise<number> {
@@ -218,5 +237,196 @@ describe('Order void API', () => {
       .post(`/api/pos/orders/${randomUUID()}/void`)
       .send({ restore_stock: true });
     expect(res.status).toBe(401);
+  });
+});
+
+/**
+ * Everything below runs AFTER the block above on purpose: those tests assert
+ * exact stock levels and an exact revenue total, and any order rung up before
+ * them would change both.
+ *
+ * Stock stands at 12 of 20 here (two dishes' worth still out with the two
+ * orders that were never voided).
+ */
+describe('Why an order was voided (0022)', () => {
+  test('a reason is required — a void with no cause cannot be read later', async () => {
+    const orderId = await checkout(1);
+
+    const res = await voidVia('owner', orderId, true, NO_REASON);
+    expect(res.status).toBe(400);
+
+    // Refusing has to be total. A void that flipped the status and then failed
+    // validation would leave exactly the unreadable record this prevents.
+    expect((await orderRow(orderId)).status).toBe('completed');
+    expect(await stockOnHand()).toBeCloseTo(10, 6);
+
+    // And the same order is still voidable once a reason is given.
+    const ok = await voidVia('owner', orderId, true, 'customer_cancelled');
+    expect(ok.status).toBe(200);
+    expect(await stockOnHand()).toBeCloseTo(12, 6);
+  });
+
+  test('an unrecognised reason is refused, and the answer says what is allowed', async () => {
+    const orderId = await checkout(1);
+
+    for (const bad of ['shrinkage', 'wrongitem', '', '   ', 42, null, { code: 'other' }]) {
+      const res = await voidVia('owner', orderId, true, bad);
+      expect(res.status).toBe(400);
+      // A client that guessed wrong should not have to read the migration to
+      // find out what the choices are.
+      expect(res.body.allowed).toContain('wrong_item');
+    }
+
+    expect((await orderRow(orderId)).status).toBe('completed');
+    expect(await stockOnHand()).toBeCloseTo(10, 6);
+  });
+
+  test("'other' must say what, and whitespace is not an explanation", async () => {
+    const orderId = (await admin.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM public.orders
+      WHERE organization_id = ${orgId}::uuid AND status = 'completed'
+      ORDER BY created_at DESC LIMIT 1`)[0].id;
+
+    for (const note of [undefined, '', '   ', '\n\t ']) {
+      const res = await voidVia('owner', orderId, true, 'other', note);
+      expect(res.status).toBe(400);
+    }
+    expect((await orderRow(orderId)).status).toBe('completed');
+  });
+
+  test('a note longer than the limit is refused', async () => {
+    const orderId = (await admin.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM public.orders
+      WHERE organization_id = ${orgId}::uuid AND status = 'completed'
+      ORDER BY created_at DESC LIMIT 1`)[0].id;
+
+    const res = await voidVia('owner', orderId, true, 'wrong_item', 'x'.repeat(501));
+    expect(res.status).toBe(400);
+    expect((await orderRow(orderId)).status).toBe('completed');
+  });
+
+  test("'other' with a real note is accepted, and the note is stored trimmed", async () => {
+    const orderId = (await admin.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM public.orders
+      WHERE organization_id = ${orgId}::uuid AND status = 'completed'
+      ORDER BY created_at DESC LIMIT 1`)[0].id;
+
+    const res = await voidVia('owner', orderId, true, 'other', '   comped for the chef   ');
+    expect(res.status).toBe(200);
+    expect(res.body.void_reason).toBe('other');
+
+    const row = await orderRow(orderId);
+    expect(row.void_reason).toBe('other');
+    expect(row.void_note).toBe('comped for the chef');
+    expect(await stockOnHand()).toBeCloseTo(12, 6);
+  });
+
+  test('a named reason may carry a note too — notes are not just for "other"', async () => {
+    const orderId = await checkout(1);
+
+    const res = await voidVia('owner', orderId, true, 'duplicate', 'rung twice on the same tab');
+    expect(res.status).toBe(200);
+
+    const row = await orderRow(orderId);
+    expect(row.void_reason).toBe('duplicate');
+    expect(row.void_note).toBe('rung twice on the same tab');
+  });
+
+  test('the reason comes back in order history, so a till can show it', async () => {
+    const res = await request(app)
+      .get('/api/pos/orders')
+      .set('Authorization', `Bearer ${tokens.owner}`);
+    expect(res.status).toBe(200);
+
+    const voided = (res.body as Array<{ status: string; void_reason: string | null }>).filter(
+      (o) => o.status === 'voided',
+    );
+    expect(voided.length).toBeGreaterThan(0);
+    // The guarantee the report rests on: no voided order is missing its cause.
+    expect(voided.every((o) => o.void_reason !== null)).toBe(true);
+  });
+});
+
+describe('Voids report', () => {
+  // One deliberate kitchen error, NOT restored: 2 dishes = 4 units @ 2.00.
+  let kitchenOrderId: string;
+
+  beforeAll(async () => {
+    kitchenOrderId = await checkout(2);
+    const res = await voidVia('owner', kitchenOrderId, false, 'kitchen_error');
+    expect(res.status).toBe(200);
+  });
+
+  async function voidsReport(who: string) {
+    return request(app)
+      .get('/api/reports/voids?days=30')
+      .set('Authorization', `Bearer ${tokens[who]}`);
+  }
+
+  test('voids are grouped by cause, with the money attached', async () => {
+    const res = await voidsReport('owner');
+    expect(res.status).toBe(200);
+
+    const kitchen = res.body.by_reason.find(
+      (r: { reason: string }) => r.reason === 'kitchen_error',
+    );
+    expect(kitchen.void_count).toBe(1);
+    expect(kitchen.lost_revenue).toBeCloseTo(20, 6);
+    expect(kitchen.stock_returned_count).toBe(0);
+    // The food was made and thrown away: 4 units at the cost captured at sale.
+    expect(kitchen.ingredient_cost_lost).toBeCloseTo(8, 6);
+  });
+
+  test('a void that put the stock back destroyed no ingredients', async () => {
+    const res = await voidsReport('owner');
+
+    // wrong_item: three voids from the block above, two of which restored.
+    const wrong = res.body.by_reason.find((r: { reason: string }) => r.reason === 'wrong_item');
+    expect(wrong.void_count).toBe(3);
+    expect(wrong.stock_returned_count).toBe(2);
+    // Only the single un-restored one contributes — 4 units @ 2.00.
+    expect(wrong.ingredient_cost_lost).toBeCloseTo(8, 6);
+
+    // Every restored void: real lost revenue, zero food destroyed. Reporting
+    // these as the same loss is exactly the confusion this split exists to end.
+    const cancelled = res.body.by_reason.find(
+      (r: { reason: string }) => r.reason === 'customer_cancelled',
+    );
+    expect(cancelled.stock_returned_count).toBe(cancelled.void_count);
+    expect(cancelled.ingredient_cost_lost).toBeCloseTo(0, 6);
+  });
+
+  test('the headline is the sum of the breakdown under it', async () => {
+    const res = await voidsReport('owner');
+    const rows = res.body.by_reason as Array<{ void_count: number; lost_revenue: number }>;
+
+    expect(res.body.summary.void_count).toBe(rows.reduce((s, r) => s + r.void_count, 0));
+    expect(res.body.summary.lost_revenue).toBeCloseTo(
+      rows.reduce((s, r) => s + r.lost_revenue, 0),
+      6,
+    );
+  });
+
+  test('who authorised each void is recorded', async () => {
+    const res = await voidsReport('owner');
+    const actor = res.body.by_actor.find((a: { user_id: string }) => a.user_id === ownerId);
+    expect(actor.void_count).toBeGreaterThan(0);
+  });
+
+  test('a cashier may not read what voiding costs', async () => {
+    const res = await voidsReport('cashier');
+    expect(res.status).toBe(403);
+  });
+
+  test("another tenant's voids never appear", async () => {
+    const res = await voidsReport('owner');
+    const total = (res.body.by_reason as Array<{ void_count: number }>).reduce(
+      (s, r) => s + r.void_count,
+      0,
+    );
+    const [{ count }] = await admin.$queryRaw<Array<{ count: bigint }>>`
+      SELECT count(*) AS count FROM public.orders
+      WHERE organization_id = ${orgId}::uuid AND status = 'voided'`;
+    expect(total).toBe(Number(count));
   });
 });

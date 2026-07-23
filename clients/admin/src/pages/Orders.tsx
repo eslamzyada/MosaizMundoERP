@@ -5,6 +5,7 @@ import VoidOrderModal from '../components/VoidOrderModal';
 import { HttpOrderRepository } from '../api/HttpOrderRepository';
 import type { OrderRepository } from '../api/OrderRepository';
 import { ORDER_STATUS_META } from '../lib/orderStatus';
+import { voidReasonLabel, type VoidReasonCode } from '../lib/voidReasons';
 import { useSession } from '../session/SessionProvider';
 import type { Order } from '../types';
 
@@ -40,8 +41,13 @@ export default function Orders() {
     load();
   }, [load]);
 
-  async function handleVoid(orderId: string, restoreStock: boolean) {
-    await repository.voidOrder(orderId, restoreStock);
+  async function handleVoid(
+    orderId: string,
+    restoreStock: boolean,
+    reason: VoidReasonCode,
+    note: string,
+  ) {
+    await repository.voidOrder(orderId, restoreStock, reason, note);
     load();
   }
 
@@ -116,6 +122,27 @@ export default function Orders() {
                       </td>
                       <td className="px-6 py-4">
                         <Badge variant={meta.variant}>{meta.label}</Badge>
+                        {/* A void without its cause is an unreadable event —
+                            showing it here is what makes the list reviewable
+                            rather than just a row of red badges. */}
+                        {o.status === 'voided' && o.void_reason && (
+                          <div className="mt-1.5 space-y-0.5">
+                            <span className="block text-xs font-semibold text-slate-600">
+                              {voidReasonLabel(o.void_reason)}
+                            </span>
+                            {o.void_note && (
+                              <span
+                                title={o.void_note}
+                                className="block max-w-[15rem] truncate text-xs text-slate-400"
+                              >
+                                {o.void_note}
+                              </span>
+                            )}
+                            <span className="block text-xs text-slate-400">
+                              {o.stock_restored ? 'أُعيدت المكوّنات' : 'المكوّنات استُهلكت'}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       {mayVoid && (
                         <td className="px-6 py-4 text-end">
