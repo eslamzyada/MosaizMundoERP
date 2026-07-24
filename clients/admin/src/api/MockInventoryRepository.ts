@@ -1,7 +1,9 @@
 import type { InventoryRepository } from './InventoryRepository';
 import type {
   CreateIngredientPayload,
+  DeleteIngredientResult,
   ExpiringLot,
+  StockLot,
   InventoryDeficit,
   InventoryStock,
   ReceiveStockPayload,
@@ -78,6 +80,7 @@ const MOCK_STOCK: InventoryStock[] = [
     open_batches: 1,
     earliest_expiry: '2026-07-24T00:00:00.000Z',
     stock_value: 45,
+    is_active: true,
   },
   {
     id: 'raw-0000-0000-4000-8000-000000000002',
@@ -88,6 +91,7 @@ const MOCK_STOCK: InventoryStock[] = [
     open_batches: 2,
     earliest_expiry: '2026-07-27T00:00:00.000Z',
     stock_value: 500,
+    is_active: true,
   },
   {
     id: 'raw-0000-0000-4000-8000-000000000003',
@@ -98,6 +102,7 @@ const MOCK_STOCK: InventoryStock[] = [
     open_batches: 0,
     earliest_expiry: null,
     stock_value: 0,
+    is_active: true,
   },
   {
     id: 'raw-0000-0000-4000-8000-000000000004',
@@ -108,6 +113,7 @@ const MOCK_STOCK: InventoryStock[] = [
     open_batches: 1,
     earliest_expiry: '2026-07-19T00:00:00.000Z',
     stock_value: 64,
+    is_active: true,
   },
   {
     id: 'raw-0000-0000-4000-8000-000000000005',
@@ -118,6 +124,7 @@ const MOCK_STOCK: InventoryStock[] = [
     open_batches: 1,
     earliest_expiry: null,
     stock_value: 420,
+    is_active: true,
   },
 ];
 
@@ -157,6 +164,7 @@ export class MockInventoryRepository implements InventoryRepository {
       open_batches: 0,
       earliest_expiry: null,
       stock_value: 0,
+    is_active: true,
     });
     return new Promise((resolve) => setTimeout(() => resolve(), 150));
   }
@@ -220,5 +228,57 @@ export class MockInventoryRepository implements InventoryRepository {
 
   getWriteOffs(): Promise<WriteOff[]> {
     return new Promise((resolve) => setTimeout(() => resolve([]), 150));
+  }
+
+  // Mirrors the real rule: anything holding stock counts as "has history" here,
+  // so the UI's two branches are both reachable without a backend.
+  deleteIngredient(id: string): Promise<DeleteIngredientResult> {
+    const row = MOCK_STOCK.find((s) => s.id === id);
+    if (row && row.on_hand > 0) {
+      return Promise.resolve({
+        outcome: 'has_history',
+        references: {
+          recipes: 2,
+          stock_lots: row.open_batches,
+          consumption_records: 14,
+          write_offs: 1,
+          stocktake_counts: 3,
+          purchase_order_lines: 2,
+          deficits: 0,
+        },
+      });
+    }
+    const i = MOCK_STOCK.findIndex((s) => s.id === id);
+    if (i >= 0) MOCK_STOCK.splice(i, 1);
+    return Promise.resolve({ outcome: 'deleted' });
+  }
+
+  setIngredientActive(id: string, isActive: boolean): Promise<void> {
+    const row = MOCK_STOCK.find((s) => s.id === id);
+    if (row) row.is_active = isActive;
+    return new Promise((resolve) => setTimeout(() => resolve(), 150));
+  }
+
+  getItemLots(id: string): Promise<StockLot[]> {
+    const row = MOCK_STOCK.find((s) => s.id === id);
+    const lots: StockLot[] = row
+      ? [
+          {
+            id: `${id}-lot-1`,
+            quantity_received: row.on_hand + 10,
+            quantity_remaining: row.on_hand,
+            cost_at_purchase: 12.5,
+            value_remaining: row.on_hand * 12.5,
+            expiry_date: row.earliest_expiry,
+            received_at: '2026-07-12T09:00:00.000Z',
+            supplier_name: 'مورّد تجريبي',
+          },
+        ]
+      : [];
+    return new Promise((resolve) => setTimeout(() => resolve(lots), 200));
+  }
+
+  correctLotCost(): Promise<number> {
+    return Promise.resolve(12.5);
   }
 }

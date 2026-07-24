@@ -83,6 +83,8 @@ export interface InventoryStock {
   open_batches: number;
   earliest_expiry: string | null;
   stock_value: number;
+  /** False for a retired ingredient (0024). Kept listed while it still holds stock. */
+  is_active: boolean;
 }
 
 /** Payload for recording a new FIFO stock lot (POST /api/inventory/receive). */
@@ -189,6 +191,36 @@ export interface Order {
   void_reason: string | null;
   void_note: string | null;
 }
+
+// ---- Ingredient lifecycle (0024) -------------------------------------------
+
+/** One stock lot behind an ingredient — where a cost actually lives. */
+export interface StockLot {
+  id: string;
+  quantity_received: number;
+  quantity_remaining: number;
+  cost_at_purchase: number;
+  value_remaining: number;
+  expiry_date: string | null;
+  received_at: string;
+  supplier_name: string | null;
+}
+
+/** What stopped an ingredient being deleted, so the refusal can be explained. */
+export interface IngredientReferences {
+  recipes: number;
+  stock_lots: number;
+  consumption_records: number;
+  write_offs: number;
+  stocktake_counts: number;
+  purchase_order_lines: number;
+  deficits: number;
+}
+
+/** Outcome of asking to remove an ingredient. */
+export type DeleteIngredientResult =
+  | { outcome: 'deleted' }
+  | { outcome: 'has_history'; references: IngredientReferences };
 
 // ---- Stock write-offs (0023) -----------------------------------------------
 
