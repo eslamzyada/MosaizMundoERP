@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { DateRangeError, parseDateRange } from '../lib/dateRange';
 
 /**
  * Profitability reporting, read from the cost captured at each sale (0015)
@@ -7,17 +8,8 @@ import { Request, Response } from 'express';
  * delivery arrives at a different price.
  */
 
-const DEFAULT_DAYS = 30;
-const MAX_DAYS = 365;
 /** Enough dishes to see the whole menu; a guard, not a page size. */
 const ITEM_CAP = 200;
-
-/** A window in days: positive, whole, and bounded. */
-function parseDays(raw: unknown): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 1) return DEFAULT_DAYS;
-  return Math.min(Math.floor(n), MAX_DAYS);
-}
 
 /** Raw aggregates arrive as Decimal (or null when a FILTER matched nothing). */
 function num(v: unknown): number {
@@ -62,7 +54,7 @@ function summarise(row: Bucket) {
 }
 
 /**
- * GET /api/reports/profitability?days=30
+ * GET /api/reports/profitability?from=&to=  (or ?days=30)
  *
  * Revenue, cost of goods sold and gross margin over a window, broken down by
  * day and by menu item. Runs on req.tx, so RLS scopes every figure to the
@@ -84,7 +76,19 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
     return;
   }
 
-  const days = parseDays(req.query.days);
+  let range;
+  try {
+    range = parseDateRange(req);
+  } catch (err) {
+    if (err instanceof DateRangeError) {
+      // A window the caller can fix. Substituting a different one silently
+      // would hand back figures for a period they did not ask about.
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+  const { from, until } = range;
 
   try {
     // FILTER yields NULL when nothing matches, so every aggregate is coalesced;
@@ -101,7 +105,7 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
       FROM public.order_items oi
       JOIN public.orders o ON o.id = oi.order_id
       WHERE o.status = 'completed'
-        AND o.created_at >= now() - make_interval(days => ${days}::int)
+        AND o.created_at >= ${from} AND o.created_at < ${until}
       GROUP BY 1
       ORDER BY 1
     `;
@@ -124,7 +128,7 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
       JOIN public.orders o ON o.id = oi.order_id
       JOIN public.sellable_items s ON s.id = oi.sellable_item_id
       WHERE o.status = 'completed'
-        AND o.created_at >= now() - make_interval(days => ${days}::int)
+        AND o.created_at >= ${from} AND o.created_at < ${until}
       GROUP BY s.id, s.name, s.sku
       ORDER BY 5 DESC
       LIMIT ${ITEM_CAP}
@@ -156,7 +160,7 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
           FROM public.order_items oi
           JOIN public.orders o ON o.id = oi.order_id
           WHERE o.status = 'completed'
-            AND o.created_at >= now() - make_interval(days => ${days}::int)
+            AND o.created_at >= ${from} AND o.created_at < ${until}
             AND NOT oi.cost_is_complete
           GROUP BY oi.sellable_item_id
       )
@@ -204,7 +208,7 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
     );
 
     res.status(200).json({
-      days,
+      ...range.label,
       summary: summarise(totals),
       by_day: daily.map((d) => ({
         // Date only: the bucket is a calendar day, not an instant.
@@ -254,7 +258,7 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
 }
 
 /**
- * GET /api/reports/voids?days=30
+ * GET /api/reports/voids?from=&to=  (or ?days=30)
  *
  * What voiding is costing, grouped by cause (0022). Runs on req.tx, so RLS
  * scopes it to the caller's organization. Restricted to FINANCE_ROLES.
@@ -284,7 +288,19 @@ export async function getVoids(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const days = parseDays(req.query.days);
+  let range;
+  try {
+    range = parseDateRange(req);
+  } catch (err) {
+    if (err instanceof DateRangeError) {
+      // A window the caller can fix. Substituting a different one silently
+      // would hand back figures for a period they did not ask about.
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+  const { from, until } = range;
 
   try {
     // Aggregated per order first: an order has many lines, and summing
@@ -313,7 +329,7 @@ export async function getVoids(req: Request, res: Response): Promise<void> {
           FROM public.orders o
           LEFT JOIN public.order_items oi ON oi.order_id = o.id
           WHERE o.status = 'voided'
-            AND o.voided_at >= now() - make_interval(days => ${days}::int)
+            AND o.voided_at >= ${from} AND o.voided_at < ${until}
           GROUP BY o.id, o.void_reason, o.total_amount, o.stock_restored
       )
       SELECT
@@ -343,7 +359,7 @@ export async function getVoids(req: Request, res: Response): Promise<void> {
       FROM public.orders o
       LEFT JOIN public.users u ON u.id = o.voided_by
       WHERE o.status = 'voided'
-        AND o.voided_at >= now() - make_interval(days => ${days}::int)
+        AND o.voided_at >= ${from} AND o.voided_at < ${until}
       GROUP BY o.voided_by, u.email
       ORDER BY 3 DESC
       LIMIT ${ITEM_CAP}
@@ -381,7 +397,7 @@ export async function getVoids(req: Request, res: Response): Promise<void> {
     );
 
     res.status(200).json({
-      days,
+      ...range.label,
       summary,
       by_reason: rows,
       by_actor: byActor.map((a) => ({
@@ -398,7 +414,7 @@ export async function getVoids(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * GET /api/reports/waste?days=30
+ * GET /api/reports/waste?from=&to=  (or ?days=30)
  *
  * What the bin is costing, by cause, by ingredient, and by supplier (0023).
  * Runs on req.tx so RLS scopes every figure; restricted to FINANCE_ROLES.
@@ -428,7 +444,19 @@ export async function getWaste(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const days = parseDays(req.query.days);
+  let range;
+  try {
+    range = parseDateRange(req);
+  } catch (err) {
+    if (err instanceof DateRangeError) {
+      // A window the caller can fix. Substituting a different one silently
+      // would hand back figures for a period they did not ask about.
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+  const { from, until } = range;
 
   try {
     const byReason = await req.tx.$queryRaw<
@@ -452,7 +480,7 @@ export async function getWaste(req: Request, res: Response): Promise<void> {
              -- the records were already wrong before anything was discarded.
              COUNT(*) FILTER (WHERE w.quantity_short > 0)::int AS short_count
       FROM public.stock_write_offs w
-      WHERE w.created_at >= now() - make_interval(days => ${days}::int)
+      WHERE w.created_at >= ${from} AND w.created_at < ${until}
       GROUP BY w.reason
       ORDER BY 5 DESC
     `;
@@ -476,7 +504,7 @@ export async function getWaste(req: Request, res: Response): Promise<void> {
              COALESCE(SUM(w.total_cost), 0)           AS cost
       FROM public.stock_write_offs w
       JOIN public.raw_inventory_items r ON r.id = w.raw_item_id
-      WHERE w.created_at >= now() - make_interval(days => ${days}::int)
+      WHERE w.created_at >= ${from} AND w.created_at < ${until}
         AND w.reason IN ('expired', 'spoiled', 'damaged', 'prep_error')
       GROUP BY r.id, r.name, r.unit_of_measure
       ORDER BY 6 DESC
@@ -495,7 +523,7 @@ export async function getWaste(req: Request, res: Response): Promise<void> {
       JOIN public.stock_write_offs w ON w.id = l.write_off_id
       JOIN public.inventory_batches b ON b.id = l.batch_id
       JOIN public.suppliers s ON s.id = b.supplier_id
-      WHERE w.created_at >= now() - make_interval(days => ${days}::int)
+      WHERE w.created_at >= ${from} AND w.created_at < ${until}
         AND w.reason IN ('expired', 'spoiled', 'damaged', 'prep_error')
       GROUP BY s.id, s.name
       ORDER BY 4 DESC
@@ -509,7 +537,7 @@ export async function getWaste(req: Request, res: Response): Promise<void> {
       FROM public.order_items oi
       JOIN public.orders o ON o.id = oi.order_id
       WHERE o.status = 'completed'
-        AND o.created_at >= now() - make_interval(days => ${days}::int)
+        AND o.created_at >= ${from} AND o.created_at < ${until}
     `;
 
     const rows = byReason.map((r) => ({
@@ -531,7 +559,7 @@ export async function getWaste(req: Request, res: Response): Promise<void> {
     const cogs = num(sold?.cogs);
 
     res.status(200).json({
-      days,
+      ...range.label,
       summary: {
         /** Everything discarded, whatever the cause. */
         write_off_cost: wasteCost + staffMealCost + otherCost,

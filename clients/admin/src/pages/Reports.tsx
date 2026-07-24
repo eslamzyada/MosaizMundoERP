@@ -9,6 +9,7 @@ import { voidReasonLabel } from '../lib/voidReasons';
 import { writeOffReasonLabel } from '../lib/writeOffReasons';
 import type {
   CoverageGap,
+  ReportWindow,
   ProfitBucket,
   ProfitabilityReport,
   VoidsReport,
@@ -37,18 +38,22 @@ export default function Reports() {
   const { can } = useSession();
   const mayView = can('view_finance');
 
-  const [days, setDays] = useState(30);
+  const [window, setWindow] = useState<ReportWindow>({ kind: 'rolling', days: 30 });
+  // Draft dates, applied only when both are set — a half-typed range would
+  // otherwise fire a request the server correctly refuses.
+  const [fromDraft, setFromDraft] = useState('');
+  const [toDraft, setToDraft] = useState('');
   const [report, setReport] = useState<ProfitabilityReport | null>(null);
   const [voids, setVoids] = useState<VoidsReport | null>(null);
   const [wasteReport, setWasteReport] = useState<WasteReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const load = useCallback((window: number) => {
+  const load = useCallback((w: ReportWindow) => {
     setLoading(true);
     setError(false);
     repository
-      .getProfitability(window)
+      .getProfitability(w)
       .then((data) => {
         setReport(data);
         setLoading(false);
@@ -61,20 +66,20 @@ export default function Reports() {
     // Fetched separately and failing quietly: voids are a secondary panel, and
     // losing them should not take down the profit figures this page exists for.
     repository
-      .getVoids(window)
+      .getVoids(w)
       .then(setVoids)
       .catch(() => setVoids(null));
 
     // Same treatment: a secondary panel must not take the profit figures down.
     repository
-      .getWaste(window)
+      .getWaste(w)
       .then(setWasteReport)
       .catch(() => setWasteReport(null));
   }, []);
 
   useEffect(() => {
-    if (mayView) load(days);
-  }, [days, load, mayView]);
+    if (mayView) load(window);
+  }, [window, load, mayView]);
 
   // The API refuses this to anyone outside FINANCE_ROLES; this is the courtesy
   // version of the same answer, so a cashier is not shown a broken page.
@@ -99,25 +104,96 @@ export default function Reports() {
           <p className="mt-1 text-sm text-slate-500">
             الإيرادات مقابل تكلفة المبيعات المسجّلة وقت البيع — لا تتغيّر بتغيّر أسعار الشراء لاحقًا.
           </p>
+          {/* On screen this is context; on paper it is the whole provenance of
+              the sheet. A printed report that does not say which period it
+              covers cannot be filed, compared, or trusted a month later. */}
+          {report && (
+            <p className="mt-1 text-xs text-slate-500">
+              الفترة{' '}
+              <span className="font-numerals font-semibold text-surface-dark">
+                {report.from}
+              </span>{' '}
+              إلى{' '}
+              <span className="font-numerals font-semibold text-surface-dark">{report.to}</span>
+              {report.days !== null && (
+                <span className="text-slate-400"> (آخر {report.days} يومًا)</span>
+              )}
+              <span className="hidden print:inline">
+                {' '}· طُبع{' '}
+                <span className="font-numerals">
+                  {new Date().toLocaleDateString('en-GB')}
+                </span>
+              </span>
+            </p>
+          )}
         </div>
-        {/* Filters in one row above the figures. */}
-        <div className="flex gap-2" role="group" aria-label="المدة الزمنية">
-          {WINDOWS.map((w) => (
-            <button
-              key={w.days}
-              type="button"
-              onClick={() => setDays(w.days)}
-              aria-pressed={days === w.days}
-              className={[
-                'rounded-lg px-3 py-1.5 text-xs font-bold transition-colors',
-                days === w.days
-                  ? 'bg-twilight-600 text-white'
-                  : 'border border-surface-sand-border bg-white text-slate-600 hover:bg-surface-sand-alt',
-              ].join(' ')}
-            >
-              {w.label}
-            </button>
-          ))}
+        {/* Presets answer "how are we doing now"; the dates answer "how did
+            last month go" — and only the second can be quoted in a meeting,
+            because it does not slide forward every time the page reloads. */}
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <div className="flex gap-2" role="group" aria-label="المدة الزمنية">
+            {WINDOWS.map((w) => {
+              const active = window.kind === 'rolling' && window.days === w.days;
+              return (
+                <button
+                  key={w.days}
+                  type="button"
+                  onClick={() => {
+                    setFromDraft('');
+                    setToDraft('');
+                    setWindow({ kind: 'rolling', days: w.days });
+                  }}
+                  aria-pressed={active}
+                  className={[
+                    'rounded-lg px-3 py-1.5 text-xs font-bold transition-colors',
+                    active
+                      ? 'bg-twilight-600 text-white'
+                      : 'border border-surface-sand-border bg-white text-slate-600 hover:bg-surface-sand-alt',
+                  ].join(' ')}
+                >
+                  {w.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              aria-label="من تاريخ"
+              value={fromDraft}
+              max={toDraft || undefined}
+              onChange={(e) => {
+                setFromDraft(e.target.value);
+                if (e.target.value && toDraft) {
+                  setWindow({ kind: 'range', from: e.target.value, to: toDraft });
+                }
+              }}
+              className="rounded-lg border border-surface-sand-border bg-white px-2 py-1.5 font-numerals text-xs text-slate-600"
+            />
+            <span className="text-xs text-slate-400">—</span>
+            <input
+              type="date"
+              aria-label="إلى تاريخ"
+              value={toDraft}
+              min={fromDraft || undefined}
+              onChange={(e) => {
+                setToDraft(e.target.value);
+                if (fromDraft && e.target.value) {
+                  setWindow({ kind: 'range', from: fromDraft, to: e.target.value });
+                }
+              }}
+              className="rounded-lg border border-surface-sand-border bg-white px-2 py-1.5 font-numerals text-xs text-slate-600"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => globalThis.print()}
+            className="rounded-lg border border-surface-sand-border bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:bg-surface-sand-alt"
+          >
+            طباعة
+          </button>
         </div>
       </header>
 
@@ -126,7 +202,7 @@ export default function Reports() {
           <p className="mb-3 text-sm text-destructive-strong">
             تعذّر تحميل التقرير. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
           </p>
-          <Button variant="secondary" onClick={() => load(days)}>
+          <Button variant="secondary" onClick={() => load(window)}>
             إعادة المحاولة
           </Button>
         </div>
