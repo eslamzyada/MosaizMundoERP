@@ -102,3 +102,114 @@ describe('Supabase identity webhook', () => {
     expect(res.status).toBe(401);
   });
 });
+
+/**
+ * The static shared-secret scheme ("Option A", runbook §3).
+ *
+ * Supabase's built-in Database Webhooks can attach arbitrary static headers but
+ * cannot compute an HMAC over the body, so this is the scheme that lets the
+ * product's own webhook feature authenticate against us at all.
+ */
+describe('Supabase identity webhook — static token', () => {
+  test('valid token -> 200 and provisions the tenant', async () => {
+    const userId = randomUUID();
+    const email = `token-${userId}@dev.local`;
+    provisioned.push(userId);
+
+    const res = await request(app)
+      .post('/api/webhooks/supabase')
+      .set('Content-Type', 'application/json')
+      .set('x-webhook-token', WEBHOOK_SECRET as string)
+      .send(JSON.stringify({ type: 'INSERT', record: { id: userId, email } }));
+
+    expect(res.status).toBe(200);
+
+    const memberships = await admin.$queryRaw<Array<{ role: string }>>`
+      SELECT role FROM public.organization_memberships WHERE user_id = ${userId}::uuid`;
+    expect(memberships.length).toBe(1);
+    expect(memberships[0].role).toBe('owner');
+  });
+
+  test('wrong token -> 401 and provisions nothing', async () => {
+    const userId = randomUUID();
+
+    const res = await request(app)
+      .post('/api/webhooks/supabase')
+      .set('Content-Type', 'application/json')
+      .set('x-webhook-token', 'not-the-secret')
+      .send(
+        JSON.stringify({
+          type: 'INSERT',
+          record: { id: userId, email: `badtoken-${userId}@dev.local` },
+        }),
+      );
+
+    expect(res.status).toBe(401);
+
+    const users = await admin.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM public.users WHERE id = ${userId}::uuid`;
+    expect(users.length).toBe(0);
+  });
+
+  test('a token that is a PREFIX of the secret is still rejected', async () => {
+    // Guards the constant-time comparison: hashing both sides to a fixed 32
+    // bytes means a truncated guess can neither match nor crash the compare.
+    const userId = randomUUID();
+
+    const res = await request(app)
+      .post('/api/webhooks/supabase')
+      .set('Content-Type', 'application/json')
+      .set('x-webhook-token', (WEBHOOK_SECRET as string).slice(0, -1))
+      .send(
+        JSON.stringify({
+          type: 'INSERT',
+          record: { id: userId, email: `prefix-${userId}@dev.local` },
+        }),
+      );
+
+    expect(res.status).toBe(401);
+  });
+
+  test('an empty token is rejected, not treated as "no header"', async () => {
+    const userId = randomUUID();
+
+    const res = await request(app)
+      .post('/api/webhooks/supabase')
+      .set('Content-Type', 'application/json')
+      .set('x-webhook-token', '')
+      .send(
+        JSON.stringify({
+          type: 'INSERT',
+          record: { id: userId, email: `empty-${userId}@dev.local` },
+        }),
+      );
+
+    expect(res.status).toBe(401);
+  });
+
+  test('a BAD signature cannot be rescued by also sending a good token', async () => {
+    // The downgrade case, and the reason the signature branch returns rather
+    // than falling through: if a failed HMAC could retry as a token, an attacker
+    // who held the token could always force the weaker path by sending both.
+    // A present signature must be judged on its own merits.
+    const userId = randomUUID();
+
+    const res = await request(app)
+      .post('/api/webhooks/supabase')
+      .set('Content-Type', 'application/json')
+      .set('x-supabase-signature', 'deadbeef')
+      .set('x-webhook-token', WEBHOOK_SECRET as string)
+      .send(
+        JSON.stringify({
+          type: 'INSERT',
+          record: { id: userId, email: `downgrade-${userId}@dev.local` },
+        }),
+      );
+
+    expect(res.status).toBe(401);
+
+    const users = await admin.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM public.users WHERE id = ${userId}::uuid`;
+    expect(users.length).toBe(0);
+  });
+});

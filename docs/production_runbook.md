@@ -99,38 +99,71 @@ deploy-time nicety, not a blocker.
    `localhost` and an ngrok tunnel (ephemeral URL) won't do for production. Deploy
    the API first and use its stable HTTPS URL.
 
-2. **Signature formats differ — pick one.** The backend I built verifies a *custom*
-   header `x-supabase-signature = HMAC-SHA256(rawBody, SUPABASE_WEBHOOK_SECRET)`.
-   Supabase's own signed hooks instead follow the **Standard Webhooks** spec
-   (`webhook-signature` header, secret in `v1,whsec_…` format). They do **not**
-   match out of the box. Choose:
+2. **Signature formats differ.** Supabase's own signed hooks follow the
+   **Standard Webhooks** spec (`webhook-signature` header, `v1,whsec_…` secret),
+   which does not match a custom HMAC header out of the box. **Option A is now
+   implemented** — the backend accepts either of two schemes, both keyed by
+   `SUPABASE_WEBHOOK_SECRET`:
 
-   - **Option A — Database Webhook + static shared secret (simplest).**
-     Dashboard → *Database → Webhooks* → create a webhook on `auth.users` `INSERT`
-     → POST to `https://<your-api>/api/webhooks/supabase`, adding a static header
-     (e.g. `x-webhook-token: <secret>`). Then change the backend's `webhookAuth` to
-     compare that static header in constant time instead of computing an HMAC.
-     Secure enough over HTTPS; least moving parts.
+   | Header | Scheme | Use when |
+   | --- | --- | --- |
+   | `x-supabase-signature` | HMAC-SHA256 over the raw body | The caller can compute an HMAC (an Edge Function bridge, your own service, tests). **Preferred.** |
+   | `x-webhook-token` | the secret sent verbatim | **Supabase Database Webhooks**, which can attach static headers but cannot sign a body. |
 
-   - **Option B — Standard Webhooks (most robust).** Swap `webhookAuth` to verify
-     with the [`standardwebhooks`](https://www.standardwebhooks.com/) library and a
+   A present signature is judged on its own merits and never retried as a token,
+   so an attacker holding the token cannot downgrade a signed request by sending
+   both. Asserted by a test.
+
+   **Security trade-off, stated plainly:** accepting both means the security is
+   that of the *weaker* path. A static token travels on every request, so a
+   compromised TLS terminator, proxy, or request log leaks a credential that is
+   replayable against any body; the HMAC secret never travels. What makes it
+   acceptable: HTTPS in front of the API, a single-purpose secret that grants
+   only "provision a tenant from a signup" and no session or data access, and an
+   idempotent handler so a replay is a no-op. Move to the HMAC scheme (Option C
+   below) if you want that closed.
+
+   Still available if you'd rather not use a static token at all:
+
+   - **Option B — Standard Webhooks.** Swap `webhookAuth` to verify with the
+     [`standardwebhooks`](https://www.standardwebhooks.com/) library and a
      `v1,whsec_…` secret, then use a Supabase Auth Hook. Matches Supabase natively.
 
    - **Option C — Edge Function bridge.** A Supabase Edge Function receives the
-     signed hook, verifies it, and re-POSTs to the backend in its current custom
-     format. Most flexible, most infrastructure.
+     signed hook, verifies it, and re-POSTs using the HMAC scheme above. Most
+     flexible, most infrastructure — and the upgrade path off the static token.
 
-**Generate the secret** (whichever option):
+**Generate the secret:**
 
 ```bash
 node -e "console.log('SUPABASE_WEBHOOK_SECRET=' + require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-Set it in `backend/.env` **and** the Supabase side. Until then the webhook route
-correctly **fails closed** (500), which is why it's empty locally.
+Set it in `backend/.env` **and** the Supabase side. If it is unset the route
+correctly **fails closed** (500).
 
-> Tell me which option you want and I'll implement the backend side + the SQL/Edge
-> Function to match.
+**Create the hook** (dashboard → *Database → Webhooks* → *Create a new hook*):
+
+- Table `auth.users`, event **INSERT**
+- Type **HTTP Request**, method **POST**
+- URL `https://<your-api>/api/webhooks/supabase`
+- HTTP header `x-webhook-token` = the secret
+
+**Verify it locally first** — no Supabase and no public URL needed. With the API
+running, this signs a fake signup the way the HMAC scheme expects and posts it:
+
+```bash
+cd backend && node -e "const c=require('crypto');const s=require('dotenv').config().parsed.SUPABASE_WEBHOOK_SECRET;const body=JSON.stringify({record:{id:c.randomUUID(),email:'probe@example.com'}});const sig=c.createHmac('sha256',s).update(body).digest('hex');fetch('http://localhost:3000/api/webhooks/supabase',{method:'POST',headers:{'Content-Type':'application/json','x-supabase-signature':sig},body}).then(r=>r.text().then(t=>console.log(r.status,t)))"
+```
+
+Expect `200 {"status":"ok","message":"Tenant provisioned",…}`. Re-running the
+same id returns `already provisioned` (idempotent, so Supabase retries are
+safe). Clean up afterwards:
+
+```sql
+DELETE FROM public.organizations WHERE slug LIKE 'org-probe-example-com-%';
+DELETE FROM public.users WHERE email = 'probe@example.com';
+```
 
 ---
 
