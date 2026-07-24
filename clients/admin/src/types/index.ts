@@ -190,6 +190,49 @@ export interface Order {
   void_note: string | null;
 }
 
+// ---- Stock write-offs (0023) -----------------------------------------------
+
+/** A lot at or near its expiry date, with what is still on the shelf at risk. */
+export interface ExpiringLot {
+  batch_id: string;
+  raw_item_id: string;
+  item_name: string;
+  unit_of_measure: string;
+  quantity_remaining: number;
+  cost_at_purchase: number;
+  /** Only what remains: stock already sold is not a future loss. */
+  value_at_risk: number;
+  expiry_date: string;
+  supplier_name: string | null;
+  already_expired: boolean;
+  /** Negative once expired — how long it has been sitting there past its date. */
+  days_left: number;
+}
+
+export interface WriteOffPayload {
+  raw_item_id: string;
+  quantity: number;
+  reason: string;
+  note?: string;
+  /** Naming a lot draws from that lot alone; omitting it draws FIFO. */
+  batch_id?: string;
+}
+
+export interface WriteOff {
+  id: string;
+  raw_item_id: string;
+  quantity_requested: number;
+  quantity_written_off: number;
+  /** The part the books did not have — also recorded as an inventory deficit. */
+  quantity_short: number;
+  total_cost: number;
+  reason: string;
+  note: string | null;
+  created_at: string;
+  raw_inventory_items: { name: string; unit_of_measure: string };
+  users: { email: string } | null;
+}
+
 // ---- Voids report (0022) ---------------------------------------------------
 
 export interface VoidReasonRow {

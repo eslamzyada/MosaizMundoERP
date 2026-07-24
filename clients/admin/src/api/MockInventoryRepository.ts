@@ -1,10 +1,13 @@
 import type { InventoryRepository } from './InventoryRepository';
 import type {
   CreateIngredientPayload,
+  ExpiringLot,
   InventoryDeficit,
   InventoryStock,
   ReceiveStockPayload,
   UpdateIngredientPayload,
+  WriteOff,
+  WriteOffPayload,
 } from '../types';
 
 // Mock-first: hardcoded, realistic data. No network calls anywhere in the app.
@@ -166,5 +169,56 @@ export class MockInventoryRepository implements InventoryRepository {
       if (payload.reorder_threshold !== undefined) row.reorder_threshold = payload.reorder_threshold;
     }
     return new Promise((resolve) => setTimeout(() => resolve(), 150));
+  }
+
+  // ---- Write-offs and expiry (0023) ----------------------------------------
+
+  // Two lots that span the states the panel styles differently: one already
+  // past its date (the urgent kind — stock the books still call sellable) and
+  // one a few days out.
+  getExpiring(days: number): Promise<ExpiringLot[]> {
+    const lots: ExpiringLot[] = [
+      {
+        batch_id: 'mock-lot-expired',
+        raw_item_id: MOCK_STOCK[0]?.id ?? 'mock-1',
+        item_name: MOCK_STOCK[0]?.name ?? 'دجاج',
+        unit_of_measure: MOCK_STOCK[0]?.unit_of_measure ?? 'kg',
+        quantity_remaining: 3,
+        cost_at_purchase: 90,
+        value_at_risk: 270,
+        expiry_date: new Date(Date.now() - 2 * 86400000).toISOString(),
+        supplier_name: 'مورّد تجريبي',
+        already_expired: true,
+        days_left: -2,
+      },
+      {
+        batch_id: 'mock-lot-soon',
+        raw_item_id: MOCK_STOCK[1]?.id ?? 'mock-2',
+        item_name: MOCK_STOCK[1]?.name ?? 'طماطم',
+        unit_of_measure: MOCK_STOCK[1]?.unit_of_measure ?? 'kg',
+        quantity_remaining: 8,
+        cost_at_purchase: 12,
+        value_at_risk: 96,
+        expiry_date: new Date(Date.now() + 2 * 86400000).toISOString(),
+        supplier_name: null,
+        already_expired: false,
+        days_left: 2,
+      },
+    ];
+    return new Promise((resolve) =>
+      setTimeout(() => resolve(lots.filter((l) => l.days_left <= days)), 200),
+    );
+  }
+
+  createWriteOff(payload: WriteOffPayload): Promise<void> {
+    const row = MOCK_STOCK.find((s) => s.id === payload.raw_item_id);
+    if (row) {
+      row.on_hand = Math.max(0, row.on_hand - payload.quantity);
+    }
+    return new Promise((resolve) => setTimeout(() => resolve(), 150));
+  }
+
+  getWriteOffs(): Promise<WriteOff[]> {
+    return new Promise((resolve) => setTimeout(() => resolve([]), 150));
   }
 }

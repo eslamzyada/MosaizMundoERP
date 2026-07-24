@@ -167,6 +167,14 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/void_verification.sql
 
+      # Must follow void_verification: the write-off arithmetic is pinned to the
+      # stock levels the voids leave behind (patty back to 15, cheese at 94).
+      - name: Write-off verification — FIFO, named lots, and the reason gate (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/write_off_verification.sql
+
       # ---- API integration tests against the migrated container DB ----------
       # The app connects as the RLS-constrained mosaiz_app_user; the test
       # harness seeds/tears down via the postgres superuser (ADMIN_DATABASE_URL).

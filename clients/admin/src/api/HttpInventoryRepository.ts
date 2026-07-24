@@ -2,10 +2,13 @@ import { apiClient } from './client';
 import type { InventoryRepository } from './InventoryRepository';
 import type {
   CreateIngredientPayload,
+  ExpiringLot,
   InventoryDeficit,
   InventoryStock,
   ReceiveStockPayload,
   UpdateIngredientPayload,
+  WriteOff,
+  WriteOffPayload,
 } from '../types';
 
 // Live implementation of InventoryRepository. RLS on the backend scopes the
@@ -31,5 +34,22 @@ export class HttpInventoryRepository implements InventoryRepository {
 
   async updateIngredient(id: string, payload: UpdateIngredientPayload): Promise<void> {
     await apiClient.patch(`/api/inventory/items/${id}`, payload);
+  }
+
+  async getExpiring(days: number): Promise<ExpiringLot[]> {
+    const { data } = await apiClient.get<{ days: number; lots: ExpiringLot[] }>(
+      '/api/inventory/expiring',
+      { params: { days } },
+    );
+    return data.lots;
+  }
+
+  async createWriteOff(payload: WriteOffPayload): Promise<void> {
+    await apiClient.post('/api/inventory/write-offs', payload);
+  }
+
+  async getWriteOffs(): Promise<WriteOff[]> {
+    const { data } = await apiClient.get<WriteOff[]>('/api/inventory/write-offs');
+    return data;
   }
 }
