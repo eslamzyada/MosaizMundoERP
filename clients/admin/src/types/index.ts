@@ -272,6 +272,17 @@ export interface WriteOff {
   users: { email: string } | null;
 }
 
+// ---- Report windows --------------------------------------------------------
+
+/**
+ * The period a report covers. A rolling window answers "how are we doing now";
+ * an explicit one answers "how did last month go" — and only the second can be
+ * quoted, because it does not slide forward every time the page is reloaded.
+ */
+export type ReportWindow =
+  | { kind: 'rolling'; days: number }
+  | { kind: 'range'; from: string; to: string };
+
 // ---- Waste report (0023) ---------------------------------------------------
 
 export interface WasteReasonRow {
@@ -301,8 +312,15 @@ export interface WasteSupplierRow {
   cost: number;
 }
 
-export interface WasteReport {
-  days: number;
+export interface ReportPeriod {
+  /** Inclusive calendar dates the figures cover. */
+  from: string;
+  to: string;
+  /** The rolling length asked for, or null when an explicit range was given. */
+  days: number | null;
+}
+
+export interface WasteReport extends ReportPeriod {
   summary: {
     write_off_cost: number;
     waste_cost: number;
@@ -340,8 +358,7 @@ export interface VoidActorRow {
   void_count: number;
 }
 
-export interface VoidsReport {
-  days: number;
+export interface VoidsReport extends ReportPeriod {
   summary: Omit<VoidReasonRow, 'reason'>;
   by_reason: VoidReasonRow[];
   by_actor: VoidActorRow[];
@@ -442,8 +459,7 @@ export interface CoverageGap {
   reason: 'no_recipe' | 'unstocked_ingredients' | 'already_resolved';
 }
 
-export interface ProfitabilityReport {
-  days: number;
+export interface ProfitabilityReport extends ReportPeriod {
   summary: ProfitBucket;
   by_day: ProfitDay[];
   by_item: ProfitItem[];

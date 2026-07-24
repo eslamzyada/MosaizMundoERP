@@ -26,3 +26,53 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/*
+ * Printing a report.
+ *
+ * A report that prints with the sidebar, the buttons and a dark chrome is one
+ * nobody prints twice. On paper the only things that matter are the figures and
+ * the period they cover — everything that exists to *navigate* the app is noise
+ * once it is on a page, so it is removed rather than merely hidden off-screen.
+ */
+@media print {
+  /* Navigation and controls have no meaning on paper. */
+  aside,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Ink is expensive and tinted backgrounds print as grey mud. */
+  * {
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #000 !important;
+  }
+
+  /* Keep the borders that carry meaning — table structure — but hairline. */
+  table,
+  th,
+  td,
+  section {
+    border-color: #999 !important;
+  }
+
+  /* Let the page use its full width once the sidebar is gone. */
+  main,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* A table split mid-row across a page break is unreadable. */
+  tr,
+  section {
+    break-inside: avoid;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}
