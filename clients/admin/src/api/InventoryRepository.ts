@@ -1,9 +1,12 @@
 import type {
   CreateIngredientPayload,
+  ExpiringLot,
   InventoryDeficit,
   InventoryStock,
   ReceiveStockPayload,
   UpdateIngredientPayload,
+  WriteOff,
+  WriteOffPayload,
 } from '../types';
 
 // The data-access boundary for the Inventory context. The UI depends only on
@@ -24,4 +27,17 @@ export interface InventoryRepository {
 
   /** Renames / re-units / re-thresholds an ingredient. Admin-only. */
   updateIngredient(id: string, payload: UpdateIngredientPayload): Promise<void>;
+
+  /**
+   * Lots at or past their expiry date within `days`, soonest first. The
+   * preventive half of write-offs: seeing what is about to turn is how you
+   * avoid having to discard it.
+   */
+  getExpiring(days: number): Promise<ExpiringLot[]>;
+
+  /** Discards stock outside a sale, with a reason (0023). Admin-only. */
+  createWriteOff(payload: WriteOffPayload): Promise<void>;
+
+  /** The log of what has been discarded, newest first. */
+  getWriteOffs(): Promise<WriteOff[]>;
 }
