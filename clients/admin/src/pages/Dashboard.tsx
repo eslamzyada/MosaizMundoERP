@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import MetricWidget from '../components/MetricWidget';
 import Badge from '../components/ui/Badge';
 import { HttpOrderRepository } from '../api/HttpOrderRepository';
 import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
 import { ORDER_STATUS_META } from '../lib/orderStatus';
-import type { InventoryDeficit, Order } from '../types';
+import type { InventoryDeficit, InventoryStock, Order } from '../types';
 
 const orderRepository = new HttpOrderRepository();
 const inventoryRepository = new HttpInventoryRepository();
@@ -13,27 +13,67 @@ const inventoryRepository = new HttpInventoryRepository();
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [deficits, setDeficits] = useState<InventoryDeficit[]>([]);
+  const [stock, setStock] = useState<InventoryStock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  /** When these figures were actually read. A dashboard that cannot say how old
+   *  it is invites you to trust a number from an hour ago. */
+  const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+
+  const load = useCallback(async () => {
+    setError(false);
+    try {
+      const [orderData, deficitData, stockData] = await Promise.all([
+        orderRepository.getOrders(),
+        inventoryRepository.getDeficits(),
+        inventoryRepository.getStock(),
+      ]);
+      setOrders(orderData);
+      setDeficits(deficitData);
+      setStock(stockData);
+      setFetchedAt(new Date());
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    Promise.all([orderRepository.getOrders(), inventoryRepository.getDeficits()])
-      .then(([orderData, deficitData]) => {
-        if (!active) return;
-        setOrders(orderData);
-        setDeficits(deficitData);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!active) return;
-        setError(true);
-        setLoading(false);
-      });
-    return () => {
-      active = false;
+    void load();
+  }, [load]);
+
+  /**
+   * Re-read when the page is looked at again.
+   *
+   * This was a snapshot taken once on mount: change stock on another page, or
+   * leave this tab open while someone else works, and it kept showing figures
+   * that were no longer true — with nothing on screen admitting it. Refetching
+   * on focus and on tab visibility makes "I just changed that" and "this is
+   * what it says" agree, which is the whole expectation a dashboard sets.
+   */
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load();
     };
-  }, []);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [load]);
+
+  const stockValue = useMemo(
+    () => stock.reduce((sum, s) => sum + Number(s.stock_value ?? 0), 0),
+    [stock],
+  );
+  const lowStockCount = useMemo(
+    () =>
+      stock.filter((s) => s.reorder_threshold > 0 && Number(s.on_hand) < s.reorder_threshold)
+        .length,
+    [stock],
+  );
 
   const completed = useMemo(() => orders.filter((o) => o.status === 'completed'), [orders]);
   const totalSales = useMemo(
@@ -50,9 +90,31 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-surface-dark">لوحة التحكم</h1>
-        <p className="mt-1 text-sm text-slate-500">نظرة عامة على أداء اليوم.</p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-surface-dark">لوحة التحكم</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            نظرة عامة على أداء اليوم.
+            {fetchedAt && (
+              <span className="ms-2 text-xs text-slate-400">
+                آخر تحديث{' '}
+                <span className="font-numerals">
+                  {fetchedAt.toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </span>
+            )}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded-lg border border-surface-sand-border bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:bg-surface-sand-alt focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+        >
+          تحديث
+        </button>
       </header>
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -77,6 +139,27 @@ export default function Dashboard() {
         <MetricWidget
           label="نواقص المخزون"
           value={deficits.length.toLocaleString('en-US')}
+          accent="amber"
+          loading={loading || error}
+          icon={<AlertIcon />}
+        />
+        {/* Inventory had no presence here at all, which is why changing it
+            appeared to leave the dashboard untouched — there was nothing on the
+            page that could move. */}
+        <MetricWidget
+          label="قيمة المخزون"
+          value={stockValue.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+          suffix="ج.م"
+          accent="twilight"
+          loading={loading || error}
+          icon={<BoxIcon />}
+        />
+        <MetricWidget
+          label="تحت الحد الأدنى"
+          value={lowStockCount.toLocaleString('en-US')}
           accent="amber"
           loading={loading || error}
           icon={<AlertIcon />}
@@ -140,6 +223,16 @@ export default function Dashboard() {
         </div>
       </section>
     </div>
+  );
+}
+
+function BoxIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+      <path d="M21 8V16L12 21L3 16V8L12 3L21 8Z" strokeLinejoin="round" />
+      <path d="M3 8L12 13L21 8" strokeLinejoin="round" />
+      <path d="M12 13V21" strokeLinejoin="round" />
+    </svg>
   );
 }
 
