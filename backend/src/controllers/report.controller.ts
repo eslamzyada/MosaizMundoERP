@@ -600,3 +600,194 @@ export async function getWaste(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+/**
+ * GET /api/reports/inventory-assets?from=&to=  (or ?days=30)
+ *
+ * Inventory read as an asset rather than as a shopping list: where the money is
+ * sitting, how long it has sat there, and how fast it is turning into sales.
+ *
+ * Stock is usually the largest number on a restaurant's balance sheet and the
+ * easiest to stop noticing. The dashboard already showed a single total; this
+ * answers the questions that make a total actionable — WHICH ingredient holds
+ * the capital, HOW LONG it has been held, and WHETHER it is moving at all.
+ *
+ * DEGRADES HONESTLY WHEN NOTHING MOVED. Turnover and days-of-cover are
+ * divisions by consumption. With no consumption in the window every item would
+ * come back as dead stock with infinite cover — technically true, uselessly
+ * alarming, and certain to be read as "the kitchen is idle" rather than "no
+ * sales have been recorded yet". Those figures are therefore null, and
+ * has_usage_data says why, instead of the report inventing a crisis.
+ *
+ * Value is always quantity_remaining * cost_at_purchase. The recorded invoice
+ * (0025) is deliberately not used: that is what a delivery cost, and the
+ * question here is what is still on the shelf.
+ */
+export async function getInventoryAssets(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  let range;
+  try {
+    range = parseDateRange(req);
+  } catch (err) {
+    if (err instanceof DateRangeError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+  const { from, until } = range;
+  const windowDays = Math.max(1, Math.round((until.getTime() - from.getTime()) / 86_400_000));
+
+  try {
+    const rows = await req.tx.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        unit_of_measure: string;
+        is_active: boolean;
+        on_hand: unknown;
+        capital: unknown;
+        oldest_received: Date | null;
+        consumed_qty: unknown;
+        consumed_cost: unknown;
+      }>
+    >`
+      WITH held AS (
+          SELECT b.raw_item_id,
+                 SUM(b.quantity_remaining)                      AS on_hand,
+                 SUM(b.quantity_remaining * b.cost_at_purchase) AS capital,
+                 MIN(b.received_at)                             AS oldest_received
+          FROM public.inventory_batches b
+          WHERE b.quantity_remaining > 0
+          GROUP BY b.raw_item_id
+      ),
+      -- Everything that took stock OFF the shelf in the window, by both routes:
+      -- sold through a dish, and discarded. Counting only sales would report a
+      -- heavily-wasted ingredient as slow-moving when it is in fact moving fast
+      -- in the wrong direction.
+      used AS (
+          SELECT raw_item_id, SUM(qty) AS qty, SUM(cost) AS cost
+          FROM (
+              SELECT c.raw_item_id,
+                     SUM(c.quantity)               AS qty,
+                     SUM(c.quantity * c.unit_cost) AS cost
+              FROM public.inventory_consumption c
+              WHERE c.created_at >= ${from} AND c.created_at < ${until}
+              GROUP BY c.raw_item_id
+              UNION ALL
+              SELECT w.raw_item_id,
+                     SUM(l.quantity)               AS qty,
+                     SUM(l.quantity * l.unit_cost) AS cost
+              FROM public.stock_write_off_lines l
+              JOIN public.stock_write_offs w ON w.id = l.write_off_id
+              WHERE w.created_at >= ${from} AND w.created_at < ${until}
+              GROUP BY w.raw_item_id
+          ) both_routes
+          GROUP BY raw_item_id
+      )
+      SELECT r.id,
+             r.name,
+             r.unit_of_measure,
+             r.is_active,
+             COALESCE(h.on_hand, 0) AS on_hand,
+             COALESCE(h.capital, 0) AS capital,
+             h.oldest_received,
+             COALESCE(u.qty, 0)     AS consumed_qty,
+             COALESCE(u.cost, 0)    AS consumed_cost
+      FROM public.raw_inventory_items r
+      LEFT JOIN held h ON h.raw_item_id = r.id
+      LEFT JOIN used u ON u.raw_item_id = r.id
+      -- An ingredient holding nothing and used for nothing is not an asset and
+      -- not a problem; it is just a name in the catalogue.
+      WHERE COALESCE(h.capital, 0) > 0 OR COALESCE(u.qty, 0) > 0
+      ORDER BY COALESCE(h.capital, 0) DESC
+      LIMIT ${ITEM_CAP}
+    `;
+
+    const totalCapital = rows.reduce((s, r) => s + num(r.capital), 0);
+    const totalUsedCost = rows.reduce((s, r) => s + num(r.consumed_cost), 0);
+    const hasUsage = totalUsedCost > 0;
+    const now = Date.now();
+
+    const items = rows.map((r) => {
+      const capital = num(r.capital);
+      const onHand = num(r.on_hand);
+      const usedQty = num(r.consumed_qty);
+      const perDay = usedQty / windowDays;
+
+      // How long the shelf would last at the rate it actually moved. Null
+      // rather than Infinity when nothing moved: a figure that cannot be
+      // compared or sorted is worse than an honest gap.
+      //
+      // The guard is deliberate even though res.json() would also turn Infinity
+      // into null — a counterfactual removing it did NOT fail the suite, because
+      // over HTTP the two are indistinguishable. Depending on that would mean
+      // depending on a quirk of JSON.stringify, and anything reading this value
+      // server-side (a future export, an aggregate) would get Infinity instead.
+      const daysOfCover = perDay > 0 ? Math.round((onHand / perDay) * 10) / 10 : null;
+
+      const heldDays = r.oldest_received
+        ? Math.floor((now - new Date(r.oldest_received).getTime()) / 86_400_000)
+        : null;
+
+      return {
+        id: r.id,
+        name: r.name,
+        unit_of_measure: r.unit_of_measure,
+        is_active: r.is_active,
+        on_hand: onHand,
+        /** Money sitting on the shelf as this ingredient. */
+        capital,
+        /** Its share of all capital tied up — what turns a big number into a decision. */
+        capital_share_pct: pct(capital, totalCapital),
+        /** Age of the OLDEST open lot: how long the earliest money has been stuck. */
+        days_held: heldDays,
+        consumed_quantity: usedQty,
+        consumed_cost: num(r.consumed_cost),
+        days_of_cover: daysOfCover,
+        /**
+         * Holds money and did not move at all in the window. Only meaningful
+         * when something else DID move — otherwise it means the period has no
+         * data, not that this ingredient is stuck.
+         */
+        is_dead_stock: hasUsage && capital > 0 && usedQty === 0,
+      };
+    });
+
+    const deadCapital = items.filter((i) => i.is_dead_stock).reduce((s, i) => s + i.capital, 0);
+
+    res.status(200).json({
+      ...range.label,
+      summary: {
+        /** Total money currently sitting as stock. */
+        capital_tied_up: totalCapital,
+        /** Cost of the stock that left the shelf in the window, sold or binned. */
+        stock_consumed_cost: totalUsedCost,
+        /**
+         * Times the shelf turned over in the window, against CURRENT stock
+         * value rather than an average across the period: the system keeps no
+         * historical valuation to average, and presenting one would dress an
+         * approximation up as an accounting figure.
+         */
+        turnover:
+          totalCapital > 0 && hasUsage
+            ? Math.round((totalUsedCost / totalCapital) * 100) / 100
+            : null,
+        dead_capital: deadCapital,
+        dead_capital_pct: hasUsage ? pct(deadCapital, totalCapital) : null,
+        /** False means the divisions above are ABSENT, not zero. */
+        has_usage_data: hasUsage,
+        window_days: windowDays,
+      },
+      by_item: items,
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[reports.inventoryAssets] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
