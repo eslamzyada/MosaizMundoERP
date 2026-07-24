@@ -111,6 +111,26 @@ export default function IngredientLotsModal({ item, onClose, loadLots, onCorrect
                     <span className="ms-2 text-slate-400">
                       · استُلمت {new Date(lot.received_at).toLocaleDateString('en-GB')}
                     </span>
+                    {/* The invoice figure, and whether the lot's own arithmetic
+                        still agrees with it. A gap means the rate was rounded,
+                        which is exactly what someone checking a supplier's bill
+                        is looking for — so it is shown rather than smoothed. */}
+                    {lot.total_cost !== null && (
+                      <span className="mt-0.5 block text-slate-500">
+                        الفاتورة{' '}
+                        <span className="font-numerals font-semibold">
+                          {money(lot.total_cost)}
+                        </span>{' '}
+                        ج.م
+                        {Math.abs(Number(lot.implied_total) - Number(lot.total_cost)) >= 0.01 && (
+                          <span className="ms-1 text-warning-strong">
+                            (حساب الدفعة{' '}
+                            <span className="font-numerals">{money(lot.implied_total)}</span> —
+                            فارق تقريب)
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </div>
 
                   {editing === lot.id ? (

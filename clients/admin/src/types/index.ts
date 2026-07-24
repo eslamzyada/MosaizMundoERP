@@ -91,10 +91,13 @@ export interface InventoryStock {
 export interface ReceiveStockPayload {
   raw_item_id: string;
   quantity_received: number;
-  cost_at_purchase: number;
+  /** Cost of ONE unit_of_measure. Send this OR total_cost, never both. */
+  cost_at_purchase?: number;
   expiry_date?: string | null;
   /** Who supplied it, when known. Optional by design — see migration 0020. */
   supplier_id?: string | null;
+  /** The invoice total. Send this OR cost_at_purchase, never both. */
+  total_cost?: number;
 }
 
 /** Payload for creating a raw ingredient (POST /api/inventory/items). */
@@ -200,6 +203,10 @@ export interface StockLot {
   quantity_received: number;
   quantity_remaining: number;
   cost_at_purchase: number;
+  /** What the supplier's invoice said this delivery cost. Null if never recorded. */
+  total_cost: number | null;
+  /** quantity_received x rate — differs from total_cost by the rate's rounding. */
+  implied_total: number;
   value_remaining: number;
   expiry_date: string | null;
   received_at: string;

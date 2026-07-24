@@ -12,6 +12,15 @@ import type {
   WriteOffPayload,
 } from '../types';
 
+/** Mirrors the server: either figure may be sent, the rate is what a lot holds. */
+function unitCostOf(p: ReceiveStockPayload): number {
+  if (typeof p.cost_at_purchase === 'number') return p.cost_at_purchase;
+  if (typeof p.total_cost === 'number' && p.quantity_received > 0) {
+    return p.total_cost / p.quantity_received;
+  }
+  return 0;
+}
+
 // Mock-first: hardcoded, realistic data. No network calls anywhere in the app.
 const MOCK_DEFICITS: InventoryDeficit[] = [
   {
@@ -147,7 +156,7 @@ export class MockInventoryRepository implements InventoryRepository {
     if (row) {
       row.on_hand += payload.quantity_received;
       row.open_batches += 1;
-      row.stock_value += payload.quantity_received * payload.cost_at_purchase;
+      row.stock_value += payload.quantity_received * unitCostOf(payload);
     }
     return new Promise((resolve) => {
       setTimeout(() => resolve(), 150);
@@ -268,6 +277,8 @@ export class MockInventoryRepository implements InventoryRepository {
             quantity_received: row.on_hand + 10,
             quantity_remaining: row.on_hand,
             cost_at_purchase: 12.5,
+            total_cost: (row.on_hand + 10) * 12.5,
+            implied_total: (row.on_hand + 10) * 12.5,
             value_remaining: row.on_hand * 12.5,
             expiry_date: row.earliest_expiry,
             received_at: '2026-07-12T09:00:00.000Z',
