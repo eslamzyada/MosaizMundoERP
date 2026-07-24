@@ -6,7 +6,14 @@ import { HttpReportRepository } from '../api/HttpReportRepository';
 import type { ReportRepository } from '../api/ReportRepository';
 import { useSession } from '../session/SessionProvider';
 import { voidReasonLabel } from '../lib/voidReasons';
-import type { CoverageGap, ProfitBucket, ProfitabilityReport, VoidsReport } from '../types';
+import { writeOffReasonLabel } from '../lib/writeOffReasons';
+import type {
+  CoverageGap,
+  ProfitBucket,
+  ProfitabilityReport,
+  VoidsReport,
+  WasteReport,
+} from '../types';
 
 const repository: ReportRepository = new HttpReportRepository();
 
@@ -33,6 +40,7 @@ export default function Reports() {
   const [days, setDays] = useState(30);
   const [report, setReport] = useState<ProfitabilityReport | null>(null);
   const [voids, setVoids] = useState<VoidsReport | null>(null);
+  const [wasteReport, setWasteReport] = useState<WasteReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -56,6 +64,12 @@ export default function Reports() {
       .getVoids(window)
       .then(setVoids)
       .catch(() => setVoids(null));
+
+    // Same treatment: a secondary panel must not take the profit figures down.
+    repository
+      .getWaste(window)
+      .then(setWasteReport)
+      .catch(() => setWasteReport(null));
   }, []);
 
   useEffect(() => {
@@ -150,6 +164,10 @@ export default function Reports() {
       {/* Outside the revenue guard on purpose: a window can hold voids and no
           completed sales, and that is precisely a period worth looking at. */}
       {voids && voids.summary.void_count > 0 && <VoidsPanel report={voids} />}
+
+      {wasteReport && wasteReport.summary.write_off_count > 0 && (
+        <WastePanel report={wasteReport} />
+      )}
     </div>
   );
 }
@@ -575,6 +593,178 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
         {value}
       </div>
     </div>
+  );
+}
+
+
+/**
+ * What the bin cost, by cause, by ingredient and by supplier (0023).
+ *
+ * Waste and total write-offs are shown as SEPARATE figures. A staff meal costs
+ * exactly as much as a spoiled crate and is not a problem to fix; adding them
+ * together would make a kitchen look worse the better it feeds its people.
+ *
+ * The headline is a PERCENTAGE, not the absolute figure, because the absolute
+ * figure invites both panic and complacency: 4,000 wasted means something very
+ * different against 20,000 of food sold than against 400,000. The denominator
+ * is waste plus the cost of what actually sold — total food cost.
+ */
+function WastePanel({ report }: { report: WasteReport }) {
+  const { summary } = report;
+  const share = summary.waste_share_pct;
+  // Trade rule of thumb: low single digits is healthy, ~10% is a problem worth
+  // stopping for. Shown as a colour rather than a verdict — the number is the
+  // claim, the tint is only emphasis.
+  const tone =
+    share === null
+      ? 'text-slate-400'
+      : share >= 10
+        ? 'text-destructive-strong'
+        : share >= 5
+          ? 'text-warning-strong'
+          : 'text-surface-dark';
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+      <div className="border-b border-surface-sand-border px-6 py-4">
+        <h2 className="text-sm font-bold text-surface-dark">الهدر وتكلفته</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          طعام أُتلف ولم يُبَع. وجبات الموظفين تُحتسب على حدة — لها تكلفة، لكنها ليست مشكلة
+          تُعالَج.
+        </p>
+      </div>
+
+      <div className="grid gap-px border-b border-surface-sand-border bg-surface-sand-border sm:grid-cols-4">
+        <div className="bg-white px-6 py-4">
+          <p className="text-xs font-semibold text-slate-500">الهدر</p>
+          <p className="mt-1 font-numerals text-lg font-bold text-surface-dark">
+            {money(summary.waste_cost)}
+            <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+          </p>
+        </div>
+        <div className="bg-white px-6 py-4">
+          <p className="text-xs font-semibold text-slate-500">نسبته من تكلفة الطعام</p>
+          <p className={`mt-1 font-numerals text-lg font-bold ${tone}`}>
+            {share === null ? '—' : `${share.toFixed(1)}%`}
+          </p>
+          {/* With no sales in the window the ratio is arithmetically 100% — all
+              food cost was waste — which is true but reads as an alarm rather
+              than as "there is nothing to compare against yet". Say which it is. */}
+          {summary.cogs === 0 && summary.waste_cost > 0 && (
+            <p className="mt-1 text-xs text-slate-400">لا مبيعات في هذه المدة للمقارنة.</p>
+          )}
+        </div>
+        <div className="bg-white px-6 py-4">
+          <p className="text-xs font-semibold text-slate-500">وجبات موظفين</p>
+          <p className="mt-1 font-numerals text-lg font-bold text-slate-600">
+            {money(summary.staff_meal_cost)}
+            <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+          </p>
+        </div>
+        <div className="bg-white px-6 py-4">
+          <p className="text-xs font-semibold text-slate-500">إجمالي ما أُخرج من المخزون</p>
+          <p className="mt-1 font-numerals text-lg font-bold text-slate-600">
+            {money(summary.write_off_cost)}
+            <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+          </p>
+        </div>
+      </div>
+
+      {summary.exceeded_recorded_stock_count > 0 && (
+        <p className="border-b border-surface-sand-border bg-warning-soft/30 px-6 py-3 text-xs text-surface-dark">
+          <span className="font-numerals font-bold">
+            {summary.exceeded_recorded_stock_count}
+          </span>{' '}
+          عملية إتلاف تجاوزت الرصيد المسجّل — أي أن الدفاتر كانت ناقصة قبل الإتلاف. الفارق
+          مُسجَّل كعجز يُسوّى في الجرد.
+        </p>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+          <thead className="bg-surface-sand-alt/60">
+            <tr>
+              <Th>السبب</Th>
+              <Th>عدد المرات</Th>
+              <Th>التكلفة</Th>
+              <Th>يُحتسب هدرًا</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-sand-border/70">
+            {report.by_reason.map((r) => (
+              <tr key={r.reason} className="transition-colors hover:bg-surface-sand/60">
+                <td className="px-6 py-3.5 font-semibold text-surface-dark">
+                  {writeOffReasonLabel(r.reason)}
+                </td>
+                <td className="px-6 py-3.5">
+                  <span className="font-numerals text-slate-600">{r.write_off_count}</span>
+                </td>
+                <td className="px-6 py-3.5">
+                  <span
+                    className={`font-numerals font-semibold ${
+                      r.is_waste ? 'text-destructive-strong' : 'text-slate-500'
+                    }`}
+                  >
+                    {money(r.cost)}
+                  </span>
+                </td>
+                <td className="px-6 py-3.5 text-xs text-slate-500">
+                  {r.is_waste ? 'نعم' : 'لا'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {report.by_item.length > 0 && (
+        <div className="border-t border-surface-sand-border px-6 py-4">
+          <p className="text-xs font-bold text-surface-dark">أكثر المكوّنات هدرًا</p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            مرتّبة بالتكلفة، فالأعلى هو أول ما يستحق المعالجة.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {report.by_item.slice(0, 8).map((i) => (
+              <li key={i.id} className="flex justify-between gap-4 text-xs text-slate-600">
+                <span>
+                  {i.name}{' '}
+                  <span className="text-slate-400">
+                    (<span className="font-numerals">{i.quantity}</span> {i.unit_of_measure})
+                  </span>
+                </span>
+                <span className="font-numerals font-semibold text-surface-dark">
+                  {money(i.cost)} ج.م
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {report.by_supplier.length > 0 && (
+        <div className="border-t border-surface-sand-border px-6 py-4">
+          <p className="text-xs font-bold text-surface-dark">حسب المورّد</p>
+          {/* Only lots whose supplier was recorded can appear, so this is a
+              lead to follow up, not a full accounting of the waste above. */}
+          <p className="mt-0.5 text-xs text-slate-400">
+            الدفعات التي سُجِّل مورّدها فقط — مؤشّر للمتابعة، لا حصر كامل.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {report.by_supplier.map((sup) => (
+              <li
+                key={sup.id ?? 'none'}
+                className="flex justify-between gap-4 text-xs text-slate-600"
+              >
+                <span>{sup.name ?? '—'}</span>
+                <span className="font-numerals font-semibold text-surface-dark">
+                  {money(sup.cost)} ج.م
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
 

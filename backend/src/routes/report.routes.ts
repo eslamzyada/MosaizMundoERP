@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { FINANCE_ROLES, requireRole } from '../middleware/requireRole';
-import { getProfitability, getVoids } from '../controllers/report.controller';
+import { getProfitability, getVoids, getWaste } from '../controllers/report.controller';
 
 // Financial reporting. authMiddleware applies to the whole router, so every
 // handler runs inside an authenticated, RLS-bound transaction.
@@ -18,5 +18,9 @@ router.get('/profitability', requireRole(...FINANCE_ROLES), getProfitability);
 // Voids by cause (0022). Same gate and the same reason: it reports lost revenue
 // and the cost of food written off, and it names who authorised each void.
 router.get('/voids', requireRole(...FINANCE_ROLES), getVoids);
+
+// What the bin costs (0023): waste by cause, by ingredient and by supplier, as
+// a share of total food cost. Money, so the same gate.
+router.get('/waste', requireRole(...FINANCE_ROLES), getWaste);
 
 export default router;
