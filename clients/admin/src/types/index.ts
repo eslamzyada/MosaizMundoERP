@@ -283,6 +283,42 @@ export type ReportWindow =
   | { kind: 'rolling'; days: number }
   | { kind: 'range'; from: string; to: string };
 
+
+// ---- Inventory as an asset -------------------------------------------------
+
+export interface AssetItem {
+  id: string;
+  name: string;
+  unit_of_measure: string;
+  is_active: boolean;
+  on_hand: number;
+  /** Money sitting on the shelf as this ingredient. */
+  capital: number;
+  capital_share_pct: number | null;
+  /** Age of the oldest open lot — how long the earliest money has been stuck. */
+  days_held: number | null;
+  consumed_quantity: number;
+  consumed_cost: number;
+  /** Null when nothing moved: a gap, not an infinity. */
+  days_of_cover: number | null;
+  is_dead_stock: boolean;
+}
+
+export interface InventoryAssetsReport extends ReportPeriod {
+  summary: {
+    capital_tied_up: number;
+    stock_consumed_cost: number;
+    /** Null when nothing moved — the division has no denominator. */
+    turnover: number | null;
+    dead_capital: number;
+    dead_capital_pct: number | null;
+    /** False means the figures above are ABSENT, not zero. */
+    has_usage_data: boolean;
+    window_days: number;
+  };
+  by_item: AssetItem[];
+}
+
 // ---- Waste report (0023) ---------------------------------------------------
 
 export interface WasteReasonRow {

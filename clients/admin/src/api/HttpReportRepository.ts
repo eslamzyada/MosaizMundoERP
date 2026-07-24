@@ -1,6 +1,12 @@
 import { apiClient } from './client';
 import type { ReportRepository } from './ReportRepository';
-import type { ProfitabilityReport, ReportWindow, VoidsReport, WasteReport } from '../types';
+import type {
+  InventoryAssetsReport,
+  ProfitabilityReport,
+  ReportWindow,
+  VoidsReport,
+  WasteReport,
+} from '../types';
 
 /**
  * A rolling window sends ?days, an explicit one sends ?from&to. Never both:
@@ -32,6 +38,14 @@ export class HttpReportRepository implements ReportRepository {
     const { data } = await apiClient.get<WasteReport>('/api/reports/waste', {
       params: windowParams(window),
     });
+    return data;
+  }
+
+  async getInventoryAssets(window: ReportWindow): Promise<InventoryAssetsReport> {
+    const { data } = await apiClient.get<InventoryAssetsReport>(
+      '/api/reports/inventory-assets',
+      { params: windowParams(window) },
+    );
     return data;
   }
 }

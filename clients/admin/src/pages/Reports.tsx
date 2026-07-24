@@ -9,6 +9,7 @@ import { voidReasonLabel } from '../lib/voidReasons';
 import { writeOffReasonLabel } from '../lib/writeOffReasons';
 import type {
   CoverageGap,
+  InventoryAssetsReport,
   ReportWindow,
   ProfitBucket,
   ProfitabilityReport,
@@ -46,6 +47,7 @@ export default function Reports() {
   const [report, setReport] = useState<ProfitabilityReport | null>(null);
   const [voids, setVoids] = useState<VoidsReport | null>(null);
   const [wasteReport, setWasteReport] = useState<WasteReport | null>(null);
+  const [assets, setAssets] = useState<InventoryAssetsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -75,6 +77,12 @@ export default function Reports() {
       .getWaste(w)
       .then(setWasteReport)
       .catch(() => setWasteReport(null));
+
+    // Same treatment again: a secondary panel must not take the page down.
+    repository
+      .getInventoryAssets(w)
+      .then(setAssets)
+      .catch(() => setAssets(null));
   }, []);
 
   useEffect(() => {
@@ -244,6 +252,11 @@ export default function Reports() {
       {wasteReport && wasteReport.summary.write_off_count > 0 && (
         <WastePanel report={wasteReport} />
       )}
+
+      {/* Shown whenever there is stock at all: "what am I holding" is a question
+          worth answering even in a period with no sales — arguably especially
+          then, since that is when capital sits still. */}
+      {assets && assets.summary.capital_tied_up > 0 && <AssetsPanel report={assets} />}
     </div>
   );
 }
@@ -840,6 +853,148 @@ function WastePanel({ report }: { report: WasteReport }) {
           </ul>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * Inventory read as an asset: where the money is sitting and whether it moves.
+ *
+ * Stock is usually the largest number on a restaurant's balance sheet and the
+ * easiest to stop noticing. A single total invites nodding at it; the share
+ * column and the dead-stock flag are what turn it into a decision about a
+ * particular ingredient.
+ *
+ * When nothing has been consumed in the window the panel says so plainly rather
+ * than showing every item as dead with infinite cover. That state means "no
+ * sales recorded yet", and dressing it up as an alarm would teach people to
+ * ignore the alarm.
+ */
+function AssetsPanel({ report }: { report: InventoryAssetsReport }) {
+  const { summary } = report;
+  const worst = report.by_item.find((i) => i.is_dead_stock);
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+      <div className="border-b border-surface-sand-border px-6 py-4">
+        <h2 className="text-sm font-bold text-surface-dark">المخزون كأصل</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          أين يقف رأس المال، ومنذ متى، وهل يتحرّك.
+        </p>
+      </div>
+
+      <div className="grid gap-px border-b border-surface-sand-border bg-surface-sand-border sm:grid-cols-3">
+        <div className="bg-white px-6 py-4">
+          <p className="text-xs font-semibold text-slate-500">رأس مال محتجز</p>
+          <p className="mt-1 font-numerals text-lg font-bold text-surface-dark">
+            {money(summary.capital_tied_up)}
+            <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+          </p>
+        </div>
+        <div className="bg-white px-6 py-4">
+          <p className="text-xs font-semibold text-slate-500">معدل الدوران</p>
+          <p className="mt-1 font-numerals text-lg font-bold text-surface-dark">
+            {summary.turnover === null ? '—' : `${summary.turnover.toFixed(2)}x`}
+          </p>
+          {!summary.has_usage_data && (
+            <p className="mt-1 text-xs text-slate-400">لا يوجد استهلاك مسجّل في هذه المدة.</p>
+          )}
+        </div>
+        <div className="bg-white px-6 py-4">
+          <p className="text-xs font-semibold text-slate-500">مخزون راكد</p>
+          <p
+            className={`mt-1 font-numerals text-lg font-bold ${
+              summary.dead_capital > 0 ? 'text-warning-strong' : 'text-slate-400'
+            }`}
+          >
+            {summary.has_usage_data ? money(summary.dead_capital) : '—'}
+            {summary.has_usage_data && (
+              <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+            )}
+          </p>
+          {summary.has_usage_data && summary.dead_capital_pct !== null && (
+            <p className="mt-1 text-xs text-slate-400">
+              <span className="font-numerals">{summary.dead_capital_pct.toFixed(1)}%</span> من
+              رأس المال
+            </p>
+          )}
+        </div>
+      </div>
+
+      {worst && (
+        <p className="border-b border-surface-sand-border bg-warning-soft/30 px-6 py-3 text-xs text-surface-dark">
+          <strong>{worst.name}</strong> لم يتحرّك إطلاقًا في هذه المدة ويحجز{' '}
+          <span className="font-numerals font-bold">{money(worst.capital)}</span> ج.م.
+        </p>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+          <thead className="bg-surface-sand-alt/60">
+            <tr>
+              <Th>المكوّن</Th>
+              <Th>المتوفر</Th>
+              <Th>رأس المال</Th>
+              <Th>الحصة</Th>
+              <Th>أقدم دفعة</Th>
+              <Th>يكفي لـ</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-sand-border/70">
+            {report.by_item.map((i) => (
+              <tr key={i.id} className="transition-colors hover:bg-surface-sand/60">
+                <td className="px-6 py-3.5 font-semibold text-surface-dark">
+                  {i.name}
+                  {i.is_dead_stock && (
+                    <span className="ms-2 rounded-md bg-warning-soft px-1.5 py-0.5 text-xs font-bold text-warning-strong">
+                      راكد
+                    </span>
+                  )}
+                  {!i.is_active && (
+                    <span className="ms-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-500">
+                      مؤرشف
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-3.5 text-slate-600">
+                  <span className="font-numerals">{i.on_hand}</span>{' '}
+                  <span className="text-xs text-slate-400">{i.unit_of_measure}</span>
+                </td>
+                <td className="px-6 py-3.5">
+                  <span className="font-numerals font-semibold text-surface-dark">
+                    {money(i.capital)}
+                  </span>
+                </td>
+                <td className="px-6 py-3.5 text-slate-500">
+                  <span className="font-numerals">
+                    {i.capital_share_pct === null ? '—' : `${i.capital_share_pct.toFixed(1)}%`}
+                  </span>
+                </td>
+                <td className="px-6 py-3.5 text-slate-500">
+                  {i.days_held === null ? (
+                    '—'
+                  ) : (
+                    <>
+                      <span className="font-numerals">{i.days_held}</span> يومًا
+                    </>
+                  )}
+                </td>
+                <td className="px-6 py-3.5 text-slate-500">
+                  {/* A gap, not an infinity: nothing moved, so there is no rate
+                      to divide by and no honest answer to give. */}
+                  {i.days_of_cover === null ? (
+                    <span className="text-slate-400">—</span>
+                  ) : (
+                    <>
+                      <span className="font-numerals">{i.days_of_cover}</span> يومًا
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

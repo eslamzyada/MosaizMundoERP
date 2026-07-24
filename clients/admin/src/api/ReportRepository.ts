@@ -1,4 +1,10 @@
-import type { ProfitabilityReport, ReportWindow, VoidsReport, WasteReport } from '../types';
+import type {
+  InventoryAssetsReport,
+  ProfitabilityReport,
+  ReportWindow,
+  VoidsReport,
+  WasteReport,
+} from '../types';
 
 // Data-access boundary for financial reporting. The API restricts this to
 // FINANCE_ROLES; the UI hiding the page is a courtesy, not the control.
@@ -9,4 +15,6 @@ export interface ReportRepository {
   getVoids(window: ReportWindow): Promise<VoidsReport>;
   /** What the bin cost over the last `days` days, by cause, item and supplier (0023). */
   getWaste(window: ReportWindow): Promise<WasteReport>;
+  /** Where capital is tied up in stock, how long it has sat, what is not moving. */
+  getInventoryAssets(window: ReportWindow): Promise<InventoryAssetsReport>;
 }
