@@ -200,6 +200,10 @@ export async function getReorderSuggestions(req: Request, res: Response): Promis
                    AS quantity_on_hand
           FROM public.raw_inventory_items ri
           LEFT JOIN public.inventory_batches b ON b.raw_item_id = ri.id
+          -- Retired ingredients are never suggested (0024): proposing a
+          -- purchase order for something deliberately taken out of use is the
+          -- clearest possible sign the suggestion engine is not to be trusted.
+          WHERE ri.is_active
           GROUP BY ri.id, ri.name, ri.unit_of_measure, ri.reorder_threshold
       ),
       -- What placed orders still owe. Netting this off is what stops a second

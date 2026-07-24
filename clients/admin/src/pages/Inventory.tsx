@@ -6,6 +6,8 @@ import Button from '../components/Button';
 import ReceiveStockModal from '../components/ReceiveStockModal';
 import IngredientModal from '../components/IngredientModal';
 import WriteOffModal from '../components/WriteOffModal';
+import IngredientLotsModal from '../components/IngredientLotsModal';
+import RemoveIngredientModal from '../components/RemoveIngredientModal';
 import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
 import type { InventoryRepository } from '../api/InventoryRepository';
 import { HttpSupplierRepository } from '../api/HttpSupplierRepository';
@@ -13,6 +15,7 @@ import type { SupplierRepository } from '../api/SupplierRepository';
 import { useSession } from '../session/SessionProvider';
 import type {
   ExpiringLot,
+  IngredientReferences,
   InventoryDeficit,
   InventoryStock,
   ReceiveStockPayload,
@@ -92,6 +95,12 @@ export default function Inventory() {
   // it is an advisory panel, and losing it must not take the stock table down.
   const [expiring, setExpiring] = useState<ExpiringLot[]>([]);
   const [writingOff, setWritingOff] = useState<ExpiringLot | null>(null);
+  const [viewingLots, setViewingLots] = useState<InventoryStock | null>(null);
+  const [removalNotice, setRemovalNotice] = useState<string | null>(null);
+  const [blockedRemoval, setBlockedRemoval] = useState<{
+    item: InventoryStock;
+    references: IngredientReferences;
+  } | null>(null);
 
   // One round trip for both tables rather than a waterfall.
   const load = useCallback(
@@ -121,6 +130,41 @@ export default function Inventory() {
       });
     loadExpiring();
   }, [load, loadExpiring]);
+
+  /**
+   * "Remove" means delete when there is nothing to protect, and offer archiving
+   * when there is. The API decides which — the foreign keys already encode the
+   * rule, so asking first would duplicate it and could disagree with it.
+   */
+  async function handleRemove(item: InventoryStock) {
+    setRemovalNotice(null);
+    const result = await repository.deleteIngredient(item.id);
+
+    if (result.outcome === 'deleted') {
+      setRemovalNotice(`تم حذف «${item.name}».`);
+      refresh();
+      return;
+    }
+
+    // It has history. Hand the counts to a modal rather than a browser confirm:
+    // this is the moment to explain WHY it cannot be deleted, and a one-line
+    // dialog cannot carry that.
+    setBlockedRemoval({ item, references: result.references });
+  }
+
+  async function archiveBlocked() {
+    if (!blockedRemoval) return;
+    await repository.setIngredientActive(blockedRemoval.item.id, false);
+    setRemovalNotice(`تمت أرشفة «${blockedRemoval.item.name}» — سجله محفوظ بالكامل.`);
+    setBlockedRemoval(null);
+    refresh();
+  }
+
+  async function handleRestore(item: InventoryStock) {
+    await repository.setIngredientActive(item.id, true);
+    setRemovalNotice(`تمت إعادة «${item.name}» إلى الاستخدام.`);
+    refresh();
+  }
 
   async function handleWriteOff(payload: WriteOffPayload) {
     await repository.createWriteOff(payload);
@@ -314,7 +358,18 @@ export default function Inventory() {
                     const meta = STATUS_META[statusOf(s)];
                     return (
                       <tr key={s.id} className="transition-colors hover:bg-surface-sand/60">
-                        <td className="px-6 py-4 font-semibold text-surface-dark">{s.name}</td>
+                        <td className="px-6 py-4 font-semibold text-surface-dark">
+                          {s.name}
+                          {/* A retired ingredient stays listed while it still
+                              holds stock — that stock is real and somebody has
+                              to sell, count or write it off. The badge is what
+                              stops its presence reading as "in use". */}
+                          {!s.is_active && (
+                            <span className="ms-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-500">
+                              مؤرشف
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-4">
                           <span className="font-numerals font-semibold text-surface-dark">
                             {qty(s.on_hand)}
@@ -358,6 +413,33 @@ export default function Inventory() {
                               >
                                 استلام
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => setViewingLots(s)}
+                                aria-label={`دفعات وتكاليف: ${s.name}`}
+                                className="rounded-lg px-2.5 py-1 text-xs font-bold text-slate-500 transition-colors hover:bg-black/5 hover:text-surface-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                              >
+                                الدفعات
+                              </button>
+                              {s.is_active ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemove(s)}
+                                  aria-label={`حذف المكوّن: ${s.name}`}
+                                  className="rounded-lg px-2.5 py-1 text-xs font-bold text-destructive-strong transition-colors hover:bg-destructive-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                                >
+                                  حذف
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRestore(s)}
+                                  aria-label={`إعادة المكوّن: ${s.name}`}
+                                  className="rounded-lg px-2.5 py-1 text-xs font-bold text-twilight-700 transition-colors hover:bg-twilight-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                                >
+                                  إعادة
+                                </button>
+                              )}
                             </div>
                           )}
                         </td>
@@ -443,10 +525,35 @@ export default function Inventory() {
         onSave={handleSaveIngredient}
       />
 
+      {removalNotice && (
+        <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-sm text-surface-dark">
+          {removalNotice}
+        </p>
+      )}
+
       <WriteOffModal
         lot={writingOff}
         onClose={() => setWritingOff(null)}
         onWriteOff={handleWriteOff}
+      />
+
+      <RemoveIngredientModal
+        blocked={blockedRemoval}
+        onClose={() => setBlockedRemoval(null)}
+        onArchive={archiveBlocked}
+      />
+
+      <IngredientLotsModal
+        item={viewingLots}
+        onClose={() => setViewingLots(null)}
+        loadLots={(id) => repository.getItemLots(id)}
+        onCorrect={async (lotId, cost) => {
+          const previous = await repository.correctLotCost(lotId, cost);
+          // Stock value is computed from lot costs, so the table behind the
+          // modal is stale the moment this succeeds.
+          refresh();
+          return previous;
+        }}
       />
     </div>
   );

@@ -116,6 +116,7 @@ export async function getStock(req: Request, res: Response): Promise<void> {
           ri.name,
           ri.unit_of_measure,
           ri.reorder_threshold,
+          ri.is_active,
           COALESCE(SUM(b.quantity_remaining), 0)                      AS on_hand,
           COUNT(b.id)::int                                            AS open_batches,
           MIN(b.expiry_date)                                          AS earliest_expiry,
@@ -125,7 +126,11 @@ export async function getStock(req: Request, res: Response): Promise<void> {
              ON b.raw_item_id       = ri.id
             AND b.organization_id   = ri.organization_id
             AND b.quantity_remaining > 0
-      GROUP BY ri.id, ri.name, ri.unit_of_measure, ri.reorder_threshold
+      GROUP BY ri.id, ri.name, ri.unit_of_measure, ri.reorder_threshold, ri.is_active
+      -- Retired ingredients drop off once they are empty. While they still hold
+      -- stock they stay listed and flagged, because that stock is real and
+      -- somebody has to sell, count or write it off.
+      HAVING ri.is_active OR COALESCE(SUM(b.quantity_remaining), 0) > 0
       ORDER BY ri.name ASC
       LIMIT ${SAFETY_CAP}
     `;
@@ -296,6 +301,7 @@ export async function createRawItem(req: Request, res: Response): Promise<void> 
     name?: unknown;
     unit_of_measure?: unknown;
     reorder_threshold?: unknown;
+    is_active?: unknown;
   };
 
   if (typeof body.name !== 'string' || body.name.trim().length === 0) {
@@ -371,8 +377,14 @@ export async function updateRawItem(req: Request, res: Response): Promise<void> 
     name?: unknown;
     unit_of_measure?: unknown;
     reorder_threshold?: unknown;
+    is_active?: unknown;
   };
-  const data: { name?: string; unit_of_measure?: string; reorder_threshold?: number } = {};
+  const data: {
+    name?: string;
+    unit_of_measure?: string;
+    reorder_threshold?: number;
+    is_active?: boolean;
+  } = {};
 
   if (body.name !== undefined) {
     if (typeof body.name !== 'string' || body.name.trim().length === 0) {
@@ -387,6 +399,17 @@ export async function updateRawItem(req: Request, res: Response): Promise<void> 
       return;
     }
     data.unit_of_measure = body.unit_of_measure.trim();
+  }
+  // Archiving (0024). An ingredient with history cannot be deleted — the
+  // foreign keys refuse it, deliberately, since cascading would erase recorded
+  // COGS and the consumption ledger. Retiring it is this flag: gone from every
+  // picker, still counted wherever it holds stock, still in every past record.
+  if (body.is_active !== undefined) {
+    if (typeof body.is_active !== 'boolean') {
+      res.status(400).json({ error: 'is_active must be true or false' });
+      return;
+    }
+    data.is_active = body.is_active;
   }
   if (body.reorder_threshold !== undefined) {
     if (typeof body.reorder_threshold !== 'number' || !(body.reorder_threshold >= 0)) {

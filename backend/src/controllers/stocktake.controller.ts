@@ -101,6 +101,10 @@ export async function createStocktake(req: Request, res: Response): Promise<void
             AND b.quantity_remaining > 0
       ) st ON true
       WHERE ri.organization_id = ${orgId}::uuid
+        -- A retired ingredient (0024) is still counted while it holds stock —
+        -- what is physically on the shelf does not care that it was archived —
+        -- but an empty retired one is not worth anyone's walk.
+        AND (ri.is_active OR COALESCE(st.on_hand, 0) > 0)
     `;
 
     res.status(201).json(stocktake);

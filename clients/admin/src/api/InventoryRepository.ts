@@ -1,6 +1,8 @@
 import type {
   CreateIngredientPayload,
+  DeleteIngredientResult,
   ExpiringLot,
+  StockLot,
   InventoryDeficit,
   InventoryStock,
   ReceiveStockPayload,
@@ -40,4 +42,20 @@ export interface InventoryRepository {
 
   /** The log of what has been discarded, newest first. */
   getWriteOffs(): Promise<WriteOff[]>;
+
+  /**
+   * Removes an ingredient that has never been used. One with history cannot be
+   * deleted — the foreign keys refuse it, deliberately — so the result reports
+   * `has_history` with what references it, and archiving is the answer instead.
+   */
+  deleteIngredient(id: string): Promise<DeleteIngredientResult>;
+
+  /** Retires or restores an ingredient: hidden from pickers, history intact. */
+  setIngredientActive(id: string, isActive: boolean): Promise<void>;
+
+  /** The lots behind one ingredient — a cost belongs to a lot, not an item. */
+  getItemLots(id: string): Promise<StockLot[]>;
+
+  /** Corrects a cost keyed in wrongly at receiving. Returns the previous value. */
+  correctLotCost(lotId: string, cost: number): Promise<number>;
 }
