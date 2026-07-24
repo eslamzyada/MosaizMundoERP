@@ -161,6 +161,7 @@ export async function receiveStock(req: Request, res: Response): Promise<void> {
     raw_item_id?: unknown;
     quantity_received?: unknown;
     cost_at_purchase?: unknown;
+    total_cost?: unknown;
     expiry_date?: unknown;
     supplier_id?: unknown;
   };
@@ -184,10 +185,53 @@ export async function receiveStock(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: 'quantity_received must be a positive number' });
     return;
   }
-  if (typeof body.cost_at_purchase !== 'number' || body.cost_at_purchase < 0) {
+  /*
+   * The cost may be stated either way, because a supplier's invoice states a
+   * TOTAL while the lot stores a RATE (currency per unit_of_measure — the FIFO
+   * walk multiplies it by the quantity drawn).
+   *
+   * Whichever arrives, both are recorded: the rate because costing needs it,
+   * and the total because it is the fact on the invoice and the only thing a
+   * reconciliation can compare against. Deriving the total later from
+   * rate x quantity is not the same number once the rate has been rounded,
+   * which is exactly the discrepancy worth keeping.
+   */
+  const hasUnit = typeof body.cost_at_purchase === 'number';
+  const hasTotal = typeof body.total_cost === 'number';
+
+  if (hasUnit === hasTotal) {
+    res.status(400).json({
+      error:
+        'Give exactly one of cost_at_purchase (per unit of measure) or total_cost (the invoice total)',
+    });
+    return;
+  }
+  if (hasUnit && (body.cost_at_purchase as number) < 0) {
     res.status(400).json({ error: 'cost_at_purchase must be a non-negative number' });
     return;
   }
+  if (hasTotal && (body.total_cost as number) < 0) {
+    res.status(400).json({ error: 'total_cost must be a non-negative number' });
+    return;
+  }
+  if (
+    (hasUnit && !Number.isFinite(body.cost_at_purchase as number)) ||
+    (hasTotal && !Number.isFinite(body.total_cost as number))
+  ) {
+    res.status(400).json({ error: 'The cost must be a finite number' });
+    return;
+  }
+
+  const quantity = body.quantity_received as number;
+  // Six decimals, matching the column: a per-gram rate is a fraction of a
+  // piastre, and rounding it here would put the loss back that 0025 removed.
+  const unitCost = hasUnit
+    ? (body.cost_at_purchase as number)
+    : Math.round(((body.total_cost as number) / quantity) * 1e6) / 1e6;
+  // Two decimals: this one IS a currency amount.
+  const totalCost = hasTotal
+    ? (body.total_cost as number)
+    : Math.round((body.cost_at_purchase as number) * quantity * 100) / 100;
 
   let expiry: Date | null = null;
   if (body.expiry_date !== undefined && body.expiry_date !== null) {
@@ -216,7 +260,8 @@ export async function receiveStock(req: Request, res: Response): Promise<void> {
         quantity_received: body.quantity_received,
         // A fresh lot starts fully available.
         quantity_remaining: body.quantity_received,
-        cost_at_purchase: body.cost_at_purchase,
+        cost_at_purchase: unitCost,
+        total_cost: totalCost,
         expiry_date: expiry,
         // The composite FK (supplier_id, organization_id) refuses a supplier
         // from another tenant, so this needs no separate ownership check —

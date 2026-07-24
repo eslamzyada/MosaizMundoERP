@@ -95,7 +95,13 @@ export default function ReceiveStockModal({
       await onReceive({
         raw_item_id: selected.id,
         quantity_received: qty,
-        cost_at_purchase: unitCost,
+        // Send whichever figure was actually typed and let the server derive
+        // the other. Dividing here and discarding the total is what made this
+        // choice cosmetic: the invoice number never reached the database, so
+        // nothing could ever be reconciled against the bill it came from.
+        ...(costMode === 'unit'
+          ? { cost_at_purchase: unitCost }
+          : { total_cost: Number(totalCost) }),
         // Empty date field means "no expiry", not "today".
         expiry_date: expiry ? new Date(expiry).toISOString() : null,
         // Attribution is optional: a delivery can be recorded now and

@@ -34,13 +34,14 @@ model inventory_batches {
   raw_item_id            String                  @db.Uuid
   quantity_received      Decimal                 @db.Decimal(10, 3)
   quantity_remaining     Decimal                 @db.Decimal(10, 3)
-  cost_at_purchase       Decimal                 @db.Decimal(10, 2)
+  cost_at_purchase       Decimal                 @db.Decimal(14, 6)
   expiry_date            DateTime?               @db.Timestamptz(6)
   received_at            DateTime                @default(now()) @db.Timestamptz(6)
   created_at             DateTime                @default(now()) @db.Timestamptz(6)
   updated_at             DateTime                @default(now()) @db.Timestamptz(6)
   supplier_id            String?                 @db.Uuid
   purchase_order_line_id String?                 @db.Uuid
+  total_cost             Decimal?                @db.Decimal(12, 2)
   purchase_order_lines   purchase_order_lines?   @relation(fields: [purchase_order_line_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_batches_po_line_fkey")
   raw_inventory_items    raw_inventory_items     @relation(fields: [raw_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_batches_raw_item_fkey")
   suppliers              suppliers?              @relation(fields: [supplier_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_batches_supplier_fkey")
@@ -268,7 +269,7 @@ model inventory_consumption {
   raw_item_id         String              @db.Uuid
   batch_id            String              @db.Uuid
   quantity            Decimal             @db.Decimal(10, 3)
-  unit_cost           Decimal             @db.Decimal(10, 2)
+  unit_cost           Decimal             @db.Decimal(14, 6)
   created_at          DateTime            @default(now()) @db.Timestamptz(6)
   updated_at          DateTime            @default(now()) @db.Timestamptz(6)
   inventory_batches   inventory_batches   @relation(fields: [batch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -351,7 +352,7 @@ model stock_write_off_lines {
   write_off_id      String            @db.Uuid
   batch_id          String            @db.Uuid
   quantity          Decimal           @db.Decimal(10, 3)
-  unit_cost         Decimal           @db.Decimal(10, 2)
+  unit_cost         Decimal           @db.Decimal(14, 6)
   created_at        DateTime          @default(now()) @db.Timestamptz(6)
   updated_at        DateTime          @default(now()) @db.Timestamptz(6)
   inventory_batches inventory_batches @relation(fields: [batch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)

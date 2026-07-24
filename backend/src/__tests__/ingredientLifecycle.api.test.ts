@@ -297,3 +297,67 @@ describe('Correcting a mis-keyed lot cost', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('Recording what the delivery cost (0025)', () => {
+  async function receive(body: Record<string, unknown>) {
+    return request(app)
+      .post('/api/inventory/receive')
+      .set('Authorization', `Bearer ${tokens.owner}`)
+      .send({ raw_item_id: usedId, quantity_received: 8000, ...body });
+  }
+
+  test('an invoice total is stored, and the rate keeps its precision', async () => {
+    // The reported case: 250.00 for 8000 g. At numeric(10,2) the rate rounded
+    // to 0.03 and the lot valued at 240.00 — 10.00 of real money gone.
+    const res = await receive({ total_cost: 250 });
+    expect(res.status).toBe(201);
+
+    const [lot] = await admin.$queryRaw<Array<{ rate: unknown; bill: unknown }>>`
+      SELECT cost_at_purchase AS rate, total_cost AS bill
+      FROM public.inventory_batches
+      WHERE raw_item_id = ${usedId}::uuid ORDER BY received_at DESC LIMIT 1`;
+
+    expect(Number(lot.rate)).toBeCloseTo(0.03125, 6);
+    expect(Number(lot.bill)).toBeCloseTo(250, 2);
+    // The whole point: the lot reconciles to the invoice.
+    expect(Number(lot.rate) * 8000).toBeCloseTo(250, 2);
+  });
+
+  test('a per-unit rate still works, and the bill is derived from it', async () => {
+    const res = await receive({ cost_at_purchase: 0.05 });
+    expect(res.status).toBe(201);
+
+    const [lot] = await admin.$queryRaw<Array<{ rate: unknown; bill: unknown }>>`
+      SELECT cost_at_purchase AS rate, total_cost AS bill
+      FROM public.inventory_batches
+      WHERE raw_item_id = ${usedId}::uuid ORDER BY received_at DESC LIMIT 1`;
+    expect(Number(lot.rate)).toBeCloseTo(0.05, 6);
+    expect(Number(lot.bill)).toBeCloseTo(400, 2); // 8000 x 0.05
+  });
+
+  test('exactly one of the two figures must be given', async () => {
+    // Both is ambiguous — which one wins? Neither leaves the lot uncosted.
+    expect((await receive({ cost_at_purchase: 1, total_cost: 8000 })).status).toBe(400);
+    expect((await receive({})).status).toBe(400);
+  });
+
+  test('neither figure may be negative', async () => {
+    expect((await receive({ total_cost: -1 })).status).toBe(400);
+    expect((await receive({ cost_at_purchase: -1 })).status).toBe(400);
+  });
+
+  test('the lots view shows the bill next to what the lot implies', async () => {
+    const res = await request(app)
+      .get(`/api/inventory/items/${usedId}/batches`)
+      .set('Authorization', `Bearer ${tokens.owner}`);
+    expect(res.status).toBe(200);
+
+    const lot = (res.body as Array<{ total_cost: number; implied_total: number }>).find(
+      (l) => Number(l.total_cost) === 400,
+    )!;
+    expect(lot).toBeDefined();
+    // Both are shown so a reconciliation can see any rounding gap rather than
+    // having it smoothed away.
+    expect(Number(lot.implied_total)).toBeCloseTo(400, 2);
+  });
+});

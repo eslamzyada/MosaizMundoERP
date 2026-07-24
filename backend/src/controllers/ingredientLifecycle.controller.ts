@@ -222,6 +222,11 @@ export async function listItemBatches(req: Request, res: Response): Promise<void
              b.quantity_received,
              b.quantity_remaining,
              b.cost_at_purchase,
+             b.total_cost,
+             -- What the lot's own arithmetic says it cost, so the two can be
+             -- compared. A gap means the rate was rounded — which is precisely
+             -- what a reconciliation against the supplier is looking for.
+             (b.quantity_received * b.cost_at_purchase)::numeric(12, 2) AS implied_total,
              (b.quantity_remaining * b.cost_at_purchase) AS value_remaining,
              b.expiry_date,
              b.received_at,
