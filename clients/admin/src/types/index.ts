@@ -233,6 +233,53 @@ export interface WriteOff {
   users: { email: string } | null;
 }
 
+// ---- Waste report (0023) ---------------------------------------------------
+
+export interface WasteReasonRow {
+  reason: string;
+  /** False for staff meals and 'other': real cost, but not food destroyed. */
+  is_waste: boolean;
+  write_off_count: number;
+  quantity: number;
+  cost: number;
+  /** Write-offs here that exceeded recorded stock — the books were already wrong. */
+  exceeded_recorded_stock_count: number;
+}
+
+export interface WasteItemRow {
+  id: string;
+  name: string;
+  unit_of_measure: string;
+  write_off_count: number;
+  quantity: number;
+  cost: number;
+}
+
+export interface WasteSupplierRow {
+  id: string | null;
+  name: string | null;
+  quantity: number;
+  cost: number;
+}
+
+export interface WasteReport {
+  days: number;
+  summary: {
+    write_off_cost: number;
+    waste_cost: number;
+    staff_meal_cost: number;
+    other_cost: number;
+    cogs: number;
+    /** Waste over total food cost (waste + COGS). Null when nothing moved. */
+    waste_share_pct: number | null;
+    write_off_count: number;
+    exceeded_recorded_stock_count: number;
+  };
+  by_reason: WasteReasonRow[];
+  by_item: WasteItemRow[];
+  by_supplier: WasteSupplierRow[];
+}
+
 // ---- Voids report (0022) ---------------------------------------------------
 
 export interface VoidReasonRow {

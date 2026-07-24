@@ -396,3 +396,179 @@ export async function getVoids(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+/**
+ * GET /api/reports/waste?days=30
+ *
+ * What the bin is costing, by cause, by ingredient, and by supplier (0023).
+ * Runs on req.tx so RLS scopes every figure; restricted to FINANCE_ROLES.
+ *
+ * WASTE IS NOT THE SAME AS EVERYTHING WRITTEN OFF. A staff meal costs exactly
+ * as much as a spoiled crate and is not a problem to fix — folding the two
+ * together would make a kitchen look worse the better it feeds its people. The
+ * four real waste causes are totalled separately from staff meals and from
+ * 'other', and the response reports all three.
+ *
+ * `waste_share_pct` is waste over TOTAL food cost — waste plus the COGS of what
+ * actually sold in the same window. That denominator is the point: 4,000 of
+ * waste means something very different in a month that sold 20,000 of food than
+ * in one that sold 400,000, and an absolute figure alone invites both panic and
+ * complacency. It is the ratio the trade benchmarks against (low single digits
+ * is healthy), which is why it is computed here rather than left to whoever
+ * reads the page.
+ *
+ * The by-supplier breakdown exists because stock_write_off_lines records the
+ * LOT, and a lot knows where it came from. "Whose deliveries keep spoiling" is
+ * otherwise unanswerable, and it is the question that turns a waste number into
+ * a conversation with a supplier.
+ */
+export async function getWaste(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  const days = parseDays(req.query.days);
+
+  try {
+    const byReason = await req.tx.$queryRaw<
+      Array<{
+        reason: string;
+        is_waste: boolean;
+        write_off_count: number;
+        quantity: unknown;
+        cost: unknown;
+        short_count: number;
+      }>
+    >`
+      SELECT w.reason,
+             -- Which causes count as waste. Kept in SQL alongside the figures
+             -- so the split cannot drift from the totals computed here.
+             (w.reason IN ('expired', 'spoiled', 'damaged', 'prep_error')) AS is_waste,
+             COUNT(*)::int                                    AS write_off_count,
+             COALESCE(SUM(w.quantity_written_off), 0)         AS quantity,
+             COALESCE(SUM(w.total_cost), 0)                   AS cost,
+             -- Write-offs that exceeded what the books held: each one is a sign
+             -- the records were already wrong before anything was discarded.
+             COUNT(*) FILTER (WHERE w.quantity_short > 0)::int AS short_count
+      FROM public.stock_write_offs w
+      WHERE w.created_at >= now() - make_interval(days => ${days}::int)
+      GROUP BY w.reason
+      ORDER BY 5 DESC
+    `;
+
+    // Which ingredients are actually going in the bin — the actionable list.
+    const byItem = await req.tx.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        unit_of_measure: string;
+        write_off_count: number;
+        quantity: unknown;
+        cost: unknown;
+      }>
+    >`
+      SELECT r.id,
+             r.name,
+             r.unit_of_measure,
+             COUNT(*)::int                            AS write_off_count,
+             COALESCE(SUM(w.quantity_written_off), 0) AS quantity,
+             COALESCE(SUM(w.total_cost), 0)           AS cost
+      FROM public.stock_write_offs w
+      JOIN public.raw_inventory_items r ON r.id = w.raw_item_id
+      WHERE w.created_at >= now() - make_interval(days => ${days}::int)
+        AND w.reason IN ('expired', 'spoiled', 'damaged', 'prep_error')
+      GROUP BY r.id, r.name, r.unit_of_measure
+      ORDER BY 6 DESC
+      LIMIT ${ITEM_CAP}
+    `;
+
+    // Whose stock it was. Costed from the LINES, since only they know the lot.
+    const bySupplier = await req.tx.$queryRaw<
+      Array<{ id: string | null; name: string | null; quantity: unknown; cost: unknown }>
+    >`
+      SELECT s.id,
+             s.name,
+             COALESCE(SUM(l.quantity), 0)                 AS quantity,
+             COALESCE(SUM(l.quantity * l.unit_cost), 0)   AS cost
+      FROM public.stock_write_off_lines l
+      JOIN public.stock_write_offs w ON w.id = l.write_off_id
+      JOIN public.inventory_batches b ON b.id = l.batch_id
+      JOIN public.suppliers s ON s.id = b.supplier_id
+      WHERE w.created_at >= now() - make_interval(days => ${days}::int)
+        AND w.reason IN ('expired', 'spoiled', 'damaged', 'prep_error')
+      GROUP BY s.id, s.name
+      ORDER BY 4 DESC
+      LIMIT ${ITEM_CAP}
+    `;
+
+    // The denominator: what the food that actually sold cost, same window, same
+    // basis as the profitability report (cost captured at the moment of sale).
+    const [sold] = await req.tx.$queryRaw<Array<{ cogs: unknown }>>`
+      SELECT COALESCE(SUM(oi.cost_at_sale) FILTER (WHERE oi.cost_is_complete), 0) AS cogs
+      FROM public.order_items oi
+      JOIN public.orders o ON o.id = oi.order_id
+      WHERE o.status = 'completed'
+        AND o.created_at >= now() - make_interval(days => ${days}::int)
+    `;
+
+    const rows = byReason.map((r) => ({
+      reason: r.reason,
+      is_waste: r.is_waste,
+      write_off_count: r.write_off_count,
+      quantity: num(r.quantity),
+      cost: num(r.cost),
+      /** Write-offs here that exceeded recorded stock — the books were already wrong. */
+      exceeded_recorded_stock_count: r.short_count,
+    }));
+
+    const sumWhere = (pred: (r: (typeof rows)[number]) => boolean) =>
+      rows.filter(pred).reduce((s, r) => s + r.cost, 0);
+
+    const wasteCost = sumWhere((r) => r.is_waste);
+    const staffMealCost = sumWhere((r) => r.reason === 'staff_meal');
+    const otherCost = sumWhere((r) => !r.is_waste && r.reason !== 'staff_meal');
+    const cogs = num(sold?.cogs);
+
+    res.status(200).json({
+      days,
+      summary: {
+        /** Everything discarded, whatever the cause. */
+        write_off_cost: wasteCost + staffMealCost + otherCost,
+        /** The four causes that represent food destroyed. */
+        waste_cost: wasteCost,
+        /** Real cost, but not a problem to fix. */
+        staff_meal_cost: staffMealCost,
+        other_cost: otherCost,
+        /** COGS of what sold in the window — the rest of the food cost. */
+        cogs,
+        /** Waste over total food cost (waste + COGS). Null when nothing moved. */
+        waste_share_pct: pct(wasteCost, wasteCost + cogs),
+        write_off_count: rows.reduce((s, r) => s + r.write_off_count, 0),
+        exceeded_recorded_stock_count: rows.reduce(
+          (s, r) => s + r.exceeded_recorded_stock_count,
+          0,
+        ),
+      },
+      by_reason: rows,
+      by_item: byItem.map((i) => ({
+        id: i.id,
+        name: i.name,
+        unit_of_measure: i.unit_of_measure,
+        write_off_count: i.write_off_count,
+        quantity: num(i.quantity),
+        cost: num(i.cost),
+      })),
+      by_supplier: bySupplier.map((s) => ({
+        id: s.id,
+        name: s.name,
+        quantity: num(s.quantity),
+        cost: num(s.cost),
+      })),
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[reports.waste] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
