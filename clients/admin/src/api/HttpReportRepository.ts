@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type { ReportRepository } from './ReportRepository';
 import type {
+  EmployeeReport,
   InventoryAssetsReport,
   ProfitabilityReport,
   ReportWindow,
@@ -46,6 +47,13 @@ export class HttpReportRepository implements ReportRepository {
       '/api/reports/inventory-assets',
       { params: windowParams(window) },
     );
+    return data;
+  }
+
+  async getEmployees(window: ReportWindow): Promise<EmployeeReport> {
+    const { data } = await apiClient.get<EmployeeReport>('/api/reports/employees', {
+      params: windowParams(window),
+    });
     return data;
   }
 }

@@ -319,6 +319,40 @@ export interface InventoryAssetsReport extends ReportPeriod {
   by_item: AssetItem[];
 }
 
+
+// ---- Employee performance (0026) -------------------------------------------
+
+export interface EmployeeRow {
+  user_id: string;
+  email: string | null;
+  role: string | null;
+  /** False once they have left; their record survives them. */
+  is_active: boolean | null;
+  orders_served: number;
+  revenue: number;
+  average_order_value: number | null;
+  /** THEIR sales that were voided — not voids they authorised. */
+  voided_orders: number;
+  voided_value: number;
+  void_rate_pct: number | null;
+  revenue_share_pct: number | null;
+}
+
+export interface EmployeeReport extends ReportPeriod {
+  team: {
+    headcount: number;
+    orders_served: number;
+    revenue: number;
+    average_orders_per_person: number | null;
+    average_revenue_per_person: number | null;
+    average_order_value: number | null;
+    void_rate_pct: number | null;
+  };
+  /** Sales with no recorded server — orders that predate attribution. */
+  unattributed: { orders_served: number; revenue: number; present: boolean };
+  employees: EmployeeRow[];
+}
+
 // ---- Waste report (0023) ---------------------------------------------------
 
 export interface WasteReasonRow {

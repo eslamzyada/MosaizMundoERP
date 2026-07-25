@@ -9,6 +9,7 @@ import { voidReasonLabel } from '../lib/voidReasons';
 import { writeOffReasonLabel } from '../lib/writeOffReasons';
 import type {
   CoverageGap,
+  EmployeeReport,
   InventoryAssetsReport,
   ReportWindow,
   ProfitBucket,
@@ -48,6 +49,7 @@ export default function Reports() {
   const [voids, setVoids] = useState<VoidsReport | null>(null);
   const [wasteReport, setWasteReport] = useState<WasteReport | null>(null);
   const [assets, setAssets] = useState<InventoryAssetsReport | null>(null);
+  const [employees, setEmployees] = useState<EmployeeReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -83,6 +85,11 @@ export default function Reports() {
       .getInventoryAssets(w)
       .then(setAssets)
       .catch(() => setAssets(null));
+
+    repository
+      .getEmployees(w)
+      .then(setEmployees)
+      .catch(() => setEmployees(null));
   }, []);
 
   useEffect(() => {
@@ -257,6 +264,13 @@ export default function Reports() {
           worth answering even in a period with no sales — arguably especially
           then, since that is when capital sits still. */}
       {assets && assets.summary.capital_tied_up > 0 && <AssetsPanel report={assets} />}
+
+      {/* Shown once anyone has served a sale. Before attribution existed
+          there is nothing to show, and an empty table would read as "the
+          staff did nothing" rather than "this was not recorded yet". */}
+      {employees && employees.employees.length > 0 && (
+        <EmployeePanel report={employees} />
+      )}
     </div>
   );
 }
@@ -995,6 +1009,129 @@ function AssetsPanel({ report }: { report: InventoryAssetsReport }) {
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+/**
+ * How each person performed, from what the till recorded (0026).
+ *
+ * Every column is an observed fact — orders served, money taken, how often
+ * their sales were voided. Nobody types an opinion here, so nothing can be
+ * shaded by who gets on with whom. That is the strength and the limit: it
+ * measures what a till can see, which is not the whole of anyone's job.
+ *
+ * Each figure is shown AGAINST THE TEAM AVERAGE, because "3 orders" means
+ * nothing alone and "3 against an average of 2" is a judgement someone can act
+ * on. The comparison is deliberately quiet — a number, not a verdict.
+ */
+function EmployeePanel({ report }: { report: EmployeeReport }) {
+  const { team } = report;
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+      <div className="border-b border-surface-sand-border px-6 py-4">
+        <h2 className="text-sm font-bold text-surface-dark">أداء الموظفين</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          أرقام مسجّلة من نقطة البيع — لا تقييم شخصي. نسبة الإلغاء تُحسب على مبيعات الموظف
+          نفسه، لا على الإلغاءات التي اعتمدها.
+        </p>
+      </div>
+
+      {/* Orders nobody can be credited with. Shown rather than dropped: without
+          it the per-person totals silently fail to add up to the takings. */}
+      {report.unattributed.present && report.unattributed.orders_served > 0 && (
+        <p className="border-b border-surface-sand-border bg-surface-sand-alt/60 px-6 py-3 text-xs text-slate-600">
+          <span className="font-numerals font-semibold">
+            {report.unattributed.orders_served}
+          </span>{' '}
+          طلب بقيمة{' '}
+          <span className="font-numerals font-semibold">
+            {money(report.unattributed.revenue)}
+          </span>{' '}
+          ج.م بلا موظف مسجّل — طلبات سابقة لتفعيل التسجيل، وليست محسوبة على أحد.
+        </p>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+          <thead className="bg-surface-sand-alt/60">
+            <tr>
+              <Th>الموظف</Th>
+              <Th>الطلبات</Th>
+              <Th>الإيراد</Th>
+              <Th>متوسط الطلب</Th>
+              <Th>نسبة الإلغاء</Th>
+              <Th>الحصة</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-sand-border/70">
+            {report.employees.map((e) => (
+              <tr key={e.user_id} className="transition-colors hover:bg-surface-sand/60">
+                <td className="px-6 py-3.5">
+                  <span className="font-semibold text-surface-dark">{e.email ?? '—'}</span>
+                  {e.role && <span className="ms-2 text-xs text-slate-400">{e.role}</span>}
+                  {e.is_active === false && (
+                    <span className="ms-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-500">
+                      غير نشط
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-3.5">
+                  <span className="font-numerals text-surface-dark">{e.orders_served}</span>
+                  {team.average_orders_per_person !== null && (
+                    <span className="ms-1 text-xs text-slate-400">
+                      (م {team.average_orders_per_person})
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-3.5">
+                  <span className="font-numerals font-semibold text-surface-dark">
+                    {money(e.revenue)}
+                  </span>
+                </td>
+                <td className="px-6 py-3.5">
+                  <span className="font-numerals text-slate-600">
+                    {e.average_order_value === null ? '—' : money(e.average_order_value)}
+                  </span>
+                  {team.average_order_value !== null && (
+                    <span className="ms-1 text-xs text-slate-400">
+                      (م {money(team.average_order_value)})
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-3.5">
+                  <span
+                    className={`font-numerals font-semibold ${
+                      e.void_rate_pct !== null &&
+                      team.void_rate_pct !== null &&
+                      e.void_rate_pct > team.void_rate_pct * 2
+                        ? 'text-warning-strong'
+                        : 'text-slate-600'
+                    }`}
+                  >
+                    {e.void_rate_pct === null ? '—' : `${e.void_rate_pct.toFixed(1)}%`}
+                  </span>
+                  {team.void_rate_pct !== null && (
+                    <span className="ms-1 text-xs text-slate-400">
+                      (م {team.void_rate_pct.toFixed(1)}%)
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-3.5 text-slate-500">
+                  <span className="font-numerals">
+                    {e.revenue_share_pct === null ? '—' : `${e.revenue_share_pct.toFixed(1)}%`}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="border-t border-surface-sand-border px-6 py-3 text-xs text-slate-400">
+        «م» = متوسط الفريق. الأرقام تقيس ما تراه نقطة البيع فقط.
+      </p>
     </section>
   );
 }
