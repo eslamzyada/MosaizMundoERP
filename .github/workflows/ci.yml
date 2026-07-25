@@ -191,6 +191,14 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/cost_precision_verification.sql
 
+      # Who rang up each sale (0026). Runs late: it makes new sales, and the
+      # earlier suites pin exact stock levels that new sales would move.
+      - name: Sale attribution verification — who served, and who did not (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/sale_attribution_verification.sql
+
       # ---- API integration tests against the migrated container DB ----------
       # The app connects as the RLS-constrained mosaiz_app_user; the test
       # harness seeds/tears down via the postgres superuser (ADMIN_DATABASE_URL).

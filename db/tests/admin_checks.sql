@@ -20,6 +20,19 @@ BEGIN
 END;
 $$;
 
+-- A deleted employee's SALES are not deleted with them (0026).
+--
+-- orders.served_by is ON DELETE NO ACTION, deliberately: a sale is a financial
+-- record and revenue does not stop having happened because the person who rang
+-- it up left. So the sales are unstitched from the identity first — the same
+-- decision archiving makes for ingredients, applied to people.
+--
+-- This suite is about the users -> memberships cascade, and that is what it
+-- still proves; without this line it would fail on an unrelated foreign key and
+-- report a cascade problem that does not exist.
+UPDATE public.orders SET served_by = NULL
+WHERE served_by = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
 -- FK cascade: wiping the identity scrubs its memberships automatically;
 -- the organizations themselves remain (ownerless, but intact).
 DELETE FROM public.users WHERE id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';

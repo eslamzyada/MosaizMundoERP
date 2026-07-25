@@ -91,22 +91,24 @@ model order_items {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model orders {
-  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id       String                  @db.Uuid
-  client_offline_id     String                  @db.Uuid
-  status                String                  @default("completed")
-  total_amount          Decimal                 @db.Decimal(10, 2)
-  created_at            DateTime                @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
-  voided_at             DateTime?               @db.Timestamptz(6)
-  voided_by             String?                 @db.Uuid
-  stock_restored        Boolean?
-  void_reason           String?
-  void_note             String?
-  inventory_consumption inventory_consumption[]
-  order_items           order_items[]
-  organizations         organizations           @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users                 users?                  @relation(fields: [voided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id               String                  @db.Uuid
+  client_offline_id             String                  @db.Uuid
+  status                        String                  @default("completed")
+  total_amount                  Decimal                 @db.Decimal(10, 2)
+  created_at                    DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime                @default(now()) @db.Timestamptz(6)
+  voided_at                     DateTime?               @db.Timestamptz(6)
+  voided_by                     String?                 @db.Uuid
+  stock_restored                Boolean?
+  void_reason                   String?
+  void_note                     String?
+  served_by                     String?                 @db.Uuid
+  inventory_consumption         inventory_consumption[]
+  order_items                   order_items[]
+  organizations                 organizations           @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_orders_served_byTousers users?                  @relation("orders_served_byTousers", fields: [served_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                         users?                  @relation(fields: [voided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([id, organization_id])
   @@unique([organization_id, client_offline_id])
@@ -232,14 +234,15 @@ model stocktakes {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model users {
-  id                       String                     @id @db.Uuid
-  email                    String                     @unique
-  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
-  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
-  orders                   orders[]
-  organization_invitations organization_invitations[]
-  organization_memberships organization_memberships[]
-  stock_write_offs         stock_write_offs[]
+  id                             String                     @id @db.Uuid
+  email                          String                     @unique
+  created_at                     DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime                   @default(now()) @db.Timestamptz(6)
+  orders_orders_served_byTousers orders[]                   @relation("orders_served_byTousers")
+  orders                         orders[]
+  organization_invitations       organization_invitations[]
+  organization_memberships       organization_memberships[]
+  stock_write_offs               stock_write_offs[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { FINANCE_ROLES, requireRole } from '../middleware/requireRole';
 import {
+  getEmployeePerformance,
   getInventoryAssets,
   getProfitability,
   getVoids,
@@ -31,5 +32,10 @@ router.get('/waste', requireRole(...FINANCE_ROLES), getWaste);
 // Inventory read as an asset: where capital is tied up, how long it has sat,
 // and what is not moving. Money, so the same gate.
 router.get('/inventory-assets', requireRole(...FINANCE_ROLES), getInventoryAssets);
+
+// How each person performed (0026). FINANCE_ROLES rather than a wider gate:
+// this reports revenue per head, and one employee's takings are not another
+// employee's business.
+router.get('/employees', requireRole(...FINANCE_ROLES), getEmployeePerformance);
 
 export default router;

@@ -791,3 +791,159 @@ export async function getInventoryAssets(req: Request, res: Response): Promise<v
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+/**
+ * GET /api/reports/employees?from=&to=  (or ?days=30)
+ *
+ * How each person actually performed, from what the till recorded (0026).
+ *
+ * Every figure here is a fact the system observed — orders served, money taken,
+ * average order value, how often their sales were voided. Nobody types an
+ * opinion, so nothing here can be shaded by who gets on with whom. That is the
+ * strength and also the limit: it measures what a till can see, which is not
+ * the whole of anyone's job. A manager's judgement lives beside these numbers
+ * (phase 3), never averaged into them — combining a fact and an opinion into
+ * one score hides which of the two moved it.
+ *
+ * RANKED AGAINST THE TEAM, NOT AN ABSOLUTE BAR. "142 orders" means nothing on
+ * its own; "142 against a team average of 118" is a judgement someone can act
+ * on. Every metric therefore carries the team average alongside it.
+ *
+ * UNATTRIBUTED SALES ARE REPORTED, NOT HIDDEN. Orders placed before 0026 have
+ * no server and never will — that information was not captured. They are
+ * counted and surfaced as `unattributed`, because a performance report whose
+ * per-person totals quietly fail to add up to the business total is worse than
+ * one that explains the gap.
+ *
+ * VOID RATE IS OVER SALES SERVED, not over voids authorised. A manager who
+ * authorises many voids is doing their job; a cashier whose OWN sales are
+ * frequently voided is the signal worth seeing. voided_by (0018) answers the
+ * first question and is deliberately not what this measures.
+ */
+export async function getEmployeePerformance(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  let range;
+  try {
+    range = parseDateRange(req);
+  } catch (err) {
+    if (err instanceof DateRangeError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+  const { from, until } = range;
+
+  try {
+    const rows = await req.tx.$queryRaw<
+      Array<{
+        user_id: string | null;
+        email: string | null;
+        role: string | null;
+        is_active: boolean | null;
+        orders_served: number;
+        revenue: unknown;
+        voided_orders: number;
+        voided_value: unknown;
+      }>
+    >`
+      SELECT o.served_by                                            AS user_id,
+             u.email,
+             m.role,
+             m.is_active,
+             COUNT(*) FILTER (WHERE o.status = 'completed')::int    AS orders_served,
+             COALESCE(SUM(o.total_amount)
+                      FILTER (WHERE o.status = 'completed'), 0)     AS revenue,
+             -- Their OWN sales that ended up voided — not voids they authorised.
+             COUNT(*) FILTER (WHERE o.status = 'voided')::int       AS voided_orders,
+             COALESCE(SUM(o.total_amount)
+                      FILTER (WHERE o.status = 'voided'), 0)        AS voided_value
+      FROM public.orders o
+      LEFT JOIN public.users u ON u.id = o.served_by
+      LEFT JOIN public.organization_memberships m
+             ON m.user_id = o.served_by AND m.organization_id = o.organization_id
+      WHERE o.created_at >= ${from} AND o.created_at < ${until}
+      GROUP BY o.served_by, u.email, m.role, m.is_active
+      ORDER BY 6 DESC
+      LIMIT ${ITEM_CAP}
+    `;
+
+    const attributed = rows.filter((r) => r.user_id !== null);
+    const unattributedRow = rows.find((r) => r.user_id === null);
+
+    const teamOrders = attributed.reduce((s, r) => s + r.orders_served, 0);
+    const teamRevenue = attributed.reduce((s, r) => s + num(r.revenue), 0);
+    const teamVoids = attributed.reduce((s, r) => s + r.voided_orders, 0);
+    const headcount = attributed.length;
+
+    // The yardstick each person is measured against. Per-head averages need a
+    // head: with nobody attributed there is no team to compare to, and dividing
+    // by zero would print a comparison that means nothing.
+    const avgOrders = headcount > 0 ? teamOrders / headcount : null;
+    const avgRevenue = headcount > 0 ? teamRevenue / headcount : null;
+    const avgOrderValue = teamOrders > 0 ? teamRevenue / teamOrders : null;
+    const teamVoidRate = pct(teamVoids, teamOrders + teamVoids);
+
+    const employees = attributed.map((r) => {
+      const orders = r.orders_served;
+      const revenue = num(r.revenue);
+      const voided = r.voided_orders;
+
+      return {
+        user_id: r.user_id,
+        email: r.email,
+        role: r.role,
+        /** A former employee still has a record; the flag says they have left. */
+        is_active: r.is_active,
+        orders_served: orders,
+        revenue,
+        /** What a typical order they served was worth. */
+        average_order_value: orders > 0 ? Math.round((revenue / orders) * 100) / 100 : null,
+        voided_orders: voided,
+        voided_value: num(r.voided_value),
+        /**
+         * Share of THEIR sales that were voided. Denominator includes the voids
+         * themselves: a void was still an order they rang up.
+         */
+        void_rate_pct: pct(voided, orders + voided),
+        /** Share of the team's takings that came through this person. */
+        revenue_share_pct: pct(revenue, teamRevenue),
+      };
+    });
+
+    res.status(200).json({
+      ...range.label,
+      team: {
+        headcount,
+        orders_served: teamOrders,
+        revenue: teamRevenue,
+        average_orders_per_person: avgOrders === null ? null : Math.round(avgOrders * 10) / 10,
+        average_revenue_per_person:
+          avgRevenue === null ? null : Math.round(avgRevenue * 100) / 100,
+        average_order_value:
+          avgOrderValue === null ? null : Math.round(avgOrderValue * 100) / 100,
+        void_rate_pct: teamVoidRate,
+      },
+      /**
+       * Sales with no recorded server. Always present as a figure, so the
+       * per-person totals can be reconciled against the business total rather
+       * than silently differing from it.
+       */
+      unattributed: {
+        orders_served: unattributedRow ? unattributedRow.orders_served : 0,
+        revenue: unattributedRow ? num(unattributedRow.revenue) : 0,
+        /** True while any sale in the window predates attribution (0026). */
+        present: unattributedRow !== undefined,
+      },
+      employees,
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[reports.employees] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}

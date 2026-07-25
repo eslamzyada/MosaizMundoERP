@@ -1,4 +1,5 @@
 import type {
+  EmployeeReport,
   InventoryAssetsReport,
   ProfitabilityReport,
   ReportWindow,
@@ -17,4 +18,6 @@ export interface ReportRepository {
   getWaste(window: ReportWindow): Promise<WasteReport>;
   /** Where capital is tied up in stock, how long it has sat, what is not moving. */
   getInventoryAssets(window: ReportWindow): Promise<InventoryAssetsReport>;
+  /** How each person performed, from what the till recorded (0026). */
+  getEmployees(window: ReportWindow): Promise<EmployeeReport>;
 }
