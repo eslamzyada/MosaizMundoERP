@@ -3,12 +3,15 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import { HttpReportRepository } from '../api/HttpReportRepository';
+import { HttpRatingRepository } from '../api/HttpRatingRepository';
+import StarRating from '../components/StarRating';
 import type { ReportRepository } from '../api/ReportRepository';
 import { useSession } from '../session/SessionProvider';
 import { voidReasonLabel } from '../lib/voidReasons';
 import { writeOffReasonLabel } from '../lib/writeOffReasons';
 import type {
   CoverageGap,
+  EmployeeRating,
   EmployeeReport,
   InventoryAssetsReport,
   ReportWindow,
@@ -19,6 +22,7 @@ import type {
 } from '../types';
 
 const repository: ReportRepository = new HttpReportRepository();
+const ratingRepository = new HttpRatingRepository();
 
 const WINDOWS = [
   { days: 7, label: '٧ أيام' },
@@ -50,6 +54,8 @@ export default function Reports() {
   const [wasteReport, setWasteReport] = useState<WasteReport | null>(null);
   const [assets, setAssets] = useState<InventoryAssetsReport | null>(null);
   const [employees, setEmployees] = useState<EmployeeReport | null>(null);
+  const [ratings, setRatings] = useState<EmployeeRating[]>([]);
+  const [currentMonth, setCurrentMonth] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -90,6 +96,17 @@ export default function Reports() {
       .getEmployees(w)
       .then(setEmployees)
       .catch(() => setEmployees(null));
+
+    // Ratings are not part of the report: they are a separate record, fetched
+    // separately and shown beside it. A cashier gets 403 here, which is the
+    // point — the catch leaves the column simply absent for them.
+    ratingRepository
+      .list()
+      .then((r) => {
+        setRatings(r.ratings);
+        setCurrentMonth(r.current_month);
+      })
+      .catch(() => setRatings([]));
   }, []);
 
   useEffect(() => {
@@ -269,7 +286,20 @@ export default function Reports() {
           there is nothing to show, and an empty table would read as "the
           staff did nothing" rather than "this was not recorded yet". */}
       {employees && employees.employees.length > 0 && (
-        <EmployeePanel report={employees} />
+        <EmployeePanel
+          report={employees}
+          ratings={ratings}
+          currentMonth={currentMonth}
+          onRate={async (employeeId, score) => {
+            await ratingRepository.save({
+              employee_id: employeeId,
+              period_month: currentMonth,
+              score,
+            });
+            const fresh = await ratingRepository.list();
+            setRatings(fresh.ratings);
+          }}
+        />
       )}
     </div>
   );
@@ -1025,16 +1055,29 @@ function AssetsPanel({ report }: { report: InventoryAssetsReport }) {
  * nothing alone and "3 against an average of 2" is a judgement someone can act
  * on. The comparison is deliberately quiet — a number, not a verdict.
  */
-function EmployeePanel({ report }: { report: EmployeeReport }) {
+function EmployeePanel({
+  report,
+  ratings,
+  currentMonth,
+  onRate,
+}: {
+  report: EmployeeReport;
+  ratings: EmployeeRating[];
+  currentMonth: string;
+  onRate: (employeeId: string, score: number) => Promise<void>;
+}) {
   const { team } = report;
+  // This month's rating for each person, if one exists yet.
+  const ratingFor = (id: string) =>
+    ratings.find((r) => r.employee_id === id && r.period_month.startsWith(currentMonth));
 
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
       <div className="border-b border-surface-sand-border px-6 py-4">
         <h2 className="text-sm font-bold text-surface-dark">أداء الموظفين</h2>
         <p className="mt-1 text-xs text-slate-500">
-          أرقام مسجّلة من نقطة البيع — لا تقييم شخصي. نسبة الإلغاء تُحسب على مبيعات الموظف
-          نفسه، لا على الإلغاءات التي اعتمدها.
+          أرقام مسجّلة من نقطة البيع، وتقييم المدير بجانبها — لا يُدمجان في رقم واحد.
+          نسبة الإلغاء تُحسب على مبيعات الموظف نفسه، لا على الإلغاءات التي اعتمدها.
         </p>
       </div>
 
@@ -1063,6 +1106,7 @@ function EmployeePanel({ report }: { report: EmployeeReport }) {
               <Th>متوسط الطلب</Th>
               <Th>نسبة الإلغاء</Th>
               <Th>الحصة</Th>
+              <Th>تقييم المدير</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-sand-border/70">
@@ -1123,6 +1167,26 @@ function EmployeePanel({ report }: { report: EmployeeReport }) {
                     {e.revenue_share_pct === null ? '—' : `${e.revenue_share_pct.toFixed(1)}%`}
                   </span>
                 </td>
+                {/* Deliberately the LAST column and visually separate: a
+                    judgement sits beside the measurements, never averaged into
+                    them. Combining a fact and an opinion into one score hides
+                    which of the two produced it. */}
+                <td className="border-s border-surface-sand-border px-6 py-3.5">
+                  <StarRating
+                    value={ratingFor(e.user_id)?.score ?? null}
+                    onChange={
+                      currentMonth ? (score) => void onRate(e.user_id, score) : undefined
+                    }
+                  />
+                  {ratingFor(e.user_id)?.note && (
+                    <span
+                      title={ratingFor(e.user_id)!.note ?? undefined}
+                      className="mt-0.5 block max-w-[12rem] truncate text-xs text-slate-400"
+                    >
+                      {ratingFor(e.user_id)!.note}
+                    </span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1130,7 +1194,8 @@ function EmployeePanel({ report }: { report: EmployeeReport }) {
       </div>
 
       <p className="border-t border-surface-sand-border px-6 py-3 text-xs text-slate-400">
-        «م» = متوسط الفريق. الأرقام تقيس ما تراه نقطة البيع فقط.
+        «م» = متوسط الفريق. الأرقام تقيس ما تراه نقطة البيع فقط؛ التقييم رأي المدير عن الشهر
+        الحالي ولا يمكن تعديله بعد انتهائه.
       </p>
     </section>
   );
