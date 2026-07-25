@@ -41,9 +41,14 @@ fun PosApp(viewModel: PosViewModel) {
             BackHandler { viewModel.backToMenu() }
             CartScreen(
                 cart = cart,
-                onIncrement = viewModel::addToCart,
+                // incrementLine, not addToCart: pressing + on a line that says
+                // "بدون بصل" means another one of THAT, whereas tapping the
+                // dish on the menu means an ordinary one.
+                onIncrement = viewModel::incrementLine,
                 onDecrement = viewModel::decrement,
                 onRemove = viewModel::removeLine,
+                onLineNote = viewModel::setLineNote,
+                onOrderNote = viewModel::setOrderNote,
                 onClear = viewModel::clearCart,
                 onProceed = viewModel::openCheckout,
                 onBack = viewModel::backToMenu,

@@ -1,6 +1,7 @@
 package com.mosaizmundo.pos.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,15 +14,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -29,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mosaizmundo.pos.domain.CartItem
 import com.mosaizmundo.pos.domain.OrderState
-import com.mosaizmundo.pos.domain.SellableItem
 import java.util.Locale
 
 /**
@@ -40,14 +46,20 @@ import java.util.Locale
 @Composable
 fun CartScreen(
     cart: OrderState,
-    onIncrement: (SellableItem) -> Unit,
-    onDecrement: (SellableItem) -> Unit,
-    onRemove: (SellableItem) -> Unit,
+    // Addressed by lineId, not by item: two lines can hold the same dish with
+    // different instructions, so "increment the burger" is ambiguous.
+    onIncrement: (String) -> Unit,
+    onDecrement: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onLineNote: (String, String) -> Unit,
+    onOrderNote: (String) -> Unit,
     onClear: () -> Unit,
     onProceed: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The line whose instruction is being written, if any.
+    var editingLine by remember { mutableStateOf<CartItem?>(null) }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
             title = "السلة",
@@ -75,17 +87,29 @@ fun CartScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(cart.items, key = { it.sellableItem.id }) { line ->
+                items(cart.items, key = { it.lineId }) { line ->
                     CartLineCard(
                         line = line,
-                        onIncrement = { onIncrement(line.sellableItem) },
-                        onDecrement = { onDecrement(line.sellableItem) },
-                        onRemove = { onRemove(line.sellableItem) },
+                        onIncrement = { onIncrement(line.lineId) },
+                        onDecrement = { onDecrement(line.lineId) },
+                        onRemove = { onRemove(line.lineId) },
+                        onEditNote = { editingLine = line },
                     )
                 }
             }
         }
 
+        Spacer(Modifier.height(12.dp))
+        // Context for the whole order, kept separate from the per-dish
+        // instructions above: a cook reading one line should not have to read
+        // this to know how that dish is wanted.
+        OutlinedTextField(
+            value = cart.note ?: "",
+            onValueChange = onOrderNote,
+            label = { Text("ملاحظة على الطلب (طاولة، تيك أواي، حساسية)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(Modifier.height(12.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
         Spacer(Modifier.height(12.dp))
@@ -115,6 +139,60 @@ fun CartScreen(
             Text("المتابعة إلى الدفع", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
+
+    editingLine?.let { line ->
+        LineNoteDialog(
+            line = line,
+            onSave = { text ->
+                onLineNote(line.lineId, text)
+                editingLine = null
+            },
+            onDismiss = { editingLine = null },
+        )
+    }
+}
+
+/**
+ * Writes the instruction for one line.
+ *
+ * Deliberately a dialog rather than an inline field: the cashier is repeating
+ * something a customer just said, and a focused box with the dish named at the
+ * top is easier to get right in a queue than a small field in a list.
+ */
+@Composable
+private fun LineNoteDialog(
+    line: CartItem,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember(line.lineId) { mutableStateOf(line.note ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(line.sellableItem.nameAr) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    // The database bounds a line note at 200 characters; stop
+                    // here rather than let the till compose a checkout the
+                    // server will refuse.
+                    onValueChange = { if (it.length <= 200) text = it },
+                    label = { Text("تعليمات التحضير") },
+                    placeholder = { Text("بدون بصل، حار جدًا…") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "تُطبع بجانب هذا الصنف في تذكرة المطبخ.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("حفظ") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("تراجع") } },
+    )
 }
 
 @Composable
@@ -123,6 +201,7 @@ private fun CartLineCard(
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     onRemove: () -> Unit,
+    onEditNote: () -> Unit,
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -147,6 +226,23 @@ private fun CartLineCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                 )
+                // The instruction is shown ON the line it belongs to, and is
+                // what the cashier reads back to the customer. An empty note is
+                // an invitation to write one rather than a blank space.
+                Spacer(Modifier.height(4.dp))
+                TextButton(
+                    onClick = onEditNote,
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                ) {
+                    Text(
+                        text = line.note ?: "+ إضافة تعليمات",
+                        color = if (line.note != null) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontWeight = if (line.note != null) FontWeight.SemiBold
+                                     else FontWeight.Normal,
+                    )
+                }
             }
 
             QuantityStepper(

@@ -101,7 +101,7 @@ private fun OrderReview(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(cart.items, key = { it.sellableItem.id }) { line ->
+                    items(cart.items, key = { it.lineId }) { line ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
