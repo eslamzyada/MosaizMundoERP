@@ -353,6 +353,36 @@ export interface EmployeeReport extends ReportPeriod {
   employees: EmployeeRow[];
 }
 
+
+// ---- Employee ratings (0027) -----------------------------------------------
+
+export interface EmployeeRating {
+  id: string;
+  employee_id: string;
+  employee_email: string;
+  period_month: string;
+  /** 1..5. A small scale on purpose — nobody can defend a 6 versus a 7. */
+  score: number;
+  note: string | null;
+  rated_by: string | null;
+  rated_by_email: string | null;
+  updated_at: string;
+  /** False once the month has closed; the server decides, not the UI. */
+  is_editable: boolean;
+}
+
+export interface RatingsResponse {
+  current_month: string;
+  ratings: EmployeeRating[];
+}
+
+export interface RatingPayload {
+  employee_id: string;
+  period_month: string;
+  score: number;
+  note?: string;
+}
+
 // ---- Waste report (0023) ---------------------------------------------------
 
 export interface WasteReasonRow {

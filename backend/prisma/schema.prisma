@@ -143,6 +143,7 @@ model organizations {
   is_active                Boolean                    @default(true)
   created_at               DateTime                   @default(now()) @db.Timestamptz(6)
   updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  employee_ratings         employee_ratings[]
   orders                   orders[]
   organization_invitations organization_invitations[]
   organization_memberships organization_memberships[]
@@ -234,15 +235,17 @@ model stocktakes {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model users {
-  id                             String                     @id @db.Uuid
-  email                          String                     @unique
-  created_at                     DateTime                   @default(now()) @db.Timestamptz(6)
-  updated_at                     DateTime                   @default(now()) @db.Timestamptz(6)
-  orders_orders_served_byTousers orders[]                   @relation("orders_served_byTousers")
-  orders                         orders[]
-  organization_invitations       organization_invitations[]
-  organization_memberships       organization_memberships[]
-  stock_write_offs               stock_write_offs[]
+  id                                                   String                     @id @db.Uuid
+  email                                                String                     @unique
+  created_at                                           DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at                                           DateTime                   @default(now()) @db.Timestamptz(6)
+  employee_ratings_employee_ratings_employee_idTousers employee_ratings[]         @relation("employee_ratings_employee_idTousers")
+  employee_ratings_employee_ratings_rated_byTousers    employee_ratings[]         @relation("employee_ratings_rated_byTousers")
+  orders_orders_served_byTousers                       orders[]                   @relation("orders_served_byTousers")
+  orders                                               orders[]
+  organization_invitations                             organization_invitations[]
+  organization_memberships                             organization_memberships[]
+  stock_write_offs                                     stock_write_offs[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -388,4 +391,26 @@ model stock_write_offs {
   @@unique([id, organization_id], map: "stock_write_offs_org_unique")
   @@index([raw_item_id], map: "stock_write_offs_raw_item_idx")
   @@index([organization_id, created_at(sort: Desc), reason], map: "stock_write_offs_reporting_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model employee_ratings {
+  id                                        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id                           String        @db.Uuid
+  employee_id                               String        @db.Uuid
+  rated_by                                  String?       @db.Uuid
+  period_month                              DateTime      @db.Date
+  score                                     Int           @db.SmallInt
+  note                                      String?
+  created_at                                DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at                                DateTime      @default(now()) @db.Timestamptz(6)
+  users_employee_ratings_employee_idTousers users         @relation("employee_ratings_employee_idTousers", fields: [employee_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  organizations                             organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_employee_ratings_rated_byTousers    users?        @relation("employee_ratings_rated_byTousers", fields: [rated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([organization_id, employee_id, period_month], map: "employee_ratings_unique_period")
+  @@index([organization_id, employee_id, period_month(sort: Desc)], map: "employee_ratings_employee_idx")
+  @@index([organization_id, period_month(sort: Desc)], map: "employee_ratings_period_idx")
 }
