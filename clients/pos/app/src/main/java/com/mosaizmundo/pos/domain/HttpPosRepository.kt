@@ -107,8 +107,12 @@ class HttpPosRepository(
                     sellable_item_id = line.sellableItem.id,
                     quantity = line.quantity,
                     unit_price = line.sellableItem.price,
+                    // Blank is not a note. Sending "" would reach a CHECK that
+                    // rejects it, so an empty field becomes an absent one here.
+                    note = line.note?.trim()?.ifBlank { null },
                 )
             },
+            note = orderState.note?.trim()?.ifBlank { null },
         )
 
         val response = try {

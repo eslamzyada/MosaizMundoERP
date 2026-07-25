@@ -71,7 +71,7 @@ fun CartPanel(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(cart.items, key = { it.sellableItem.id }) { line ->
+                    items(cart.items, key = { it.lineId }) { line ->
                         CartRow(line)
                     }
                 }
@@ -127,6 +127,16 @@ private fun CartRow(line: CartItem) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
+            // Read-only here: this panel sits beside the menu as a running
+            // summary, and instructions are written on the cart screen. But a
+            // cashier glancing at it must still see that one exists.
+            line.note?.let { note ->
+                Text(
+                    text = note,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 12.sp,
+                )
+            }
         }
         Text(
             text = "%.2f".format(Locale.US, line.sellableItem.price * line.quantity),

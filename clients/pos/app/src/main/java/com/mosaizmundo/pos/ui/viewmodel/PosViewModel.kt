@@ -252,12 +252,22 @@ class PosViewModel(
 
     // --- Cart editing -------------------------------------------------------
 
-    /** Adds one of [item] to the cart (incrementing if already present). */
+    /**
+     * Adds one of [item] to the cart.
+     *
+     * It merges into an existing line ONLY when that line carries no
+     * instruction. Once a cashier has written "بدون بصل" on a burger, tapping
+     * burger again means another, ordinary burger — not another one without
+     * onions — so it starts a new line. Merging on item id alone (which is what
+     * this did before notes existed) would have quietly discarded one of the
+     * two instructions, and the one that disappears could be the allergy.
+     */
     fun addToCart(item: SellableItem) {
         val current = _cartState.value.items
-        val updated = if (current.any { it.sellableItem.id == item.id }) {
+        val plainLine = current.firstOrNull { it.sellableItem.id == item.id && it.note == null }
+        val updated = if (plainLine != null) {
             current.map { line ->
-                if (line.sellableItem.id == item.id) line.copy(quantity = line.quantity + 1) else line
+                if (line.lineId == plainLine.lineId) line.copy(quantity = line.quantity + 1) else line
             }
         } else {
             current + CartItem(sellableItem = item, quantity = 1)
@@ -265,20 +275,57 @@ class PosViewModel(
         _cartState.value = recompute(updated)
     }
 
-    /** Removes one of [item]; drops the line entirely when it hits zero. */
-    fun decrement(item: SellableItem) {
+    /**
+     * Adds one unit to a specific LINE, keeping its instruction.
+     *
+     * Distinct from [addToCart]: pressing + on "برجر — بدون بصل" means a second
+     * burger without onions, whereas tapping the burger on the menu means an
+     * ordinary one. Routing both through addToCart would attach the instruction
+     * to a dish nobody asked it for, or drop it from one that did.
+     */
+    fun incrementLine(lineId: String) {
+        val updated = _cartState.value.items.map { line ->
+            if (line.lineId == lineId) line.copy(quantity = line.quantity + 1) else line
+        }
+        _cartState.value = recompute(updated)
+    }
+
+    /**
+     * Removes one unit from a specific LINE; drops the line when it hits zero.
+     *
+     * Keyed by lineId rather than by item, because two lines can now hold the
+     * same dish and decrementing "the burger" would be ambiguous.
+     */
+    fun decrement(lineId: String) {
         val updated = _cartState.value.items
-            .map { line ->
-                if (line.sellableItem.id == item.id) line.copy(quantity = line.quantity - 1) else line
-            }
+            .map { line -> if (line.lineId == lineId) line.copy(quantity = line.quantity - 1) else line }
             .filter { it.quantity > 0 }
         _cartState.value = recompute(updated)
     }
 
-    /** Removes [item]'s line from the cart regardless of quantity. */
-    fun removeLine(item: SellableItem) {
-        val updated = _cartState.value.items.filterNot { it.sellableItem.id == item.id }
+    /** Removes one line from the cart regardless of quantity. */
+    fun removeLine(lineId: String) {
+        val updated = _cartState.value.items.filterNot { it.lineId == lineId }
         _cartState.value = recompute(updated)
+    }
+
+    /**
+     * Attaches (or clears) the instruction on one line.
+     *
+     * Blank clears it rather than storing an empty string, so the line becomes
+     * mergeable again and the kitchen ticket does not print an empty bullet.
+     */
+    fun setLineNote(lineId: String, note: String) {
+        val clean = note.trim().ifBlank { null }
+        val updated = _cartState.value.items.map { line ->
+            if (line.lineId == lineId) line.copy(note = clean) else line
+        }
+        _cartState.value = recompute(updated)
+    }
+
+    /** Context for the whole order: table number, takeaway, an allergy warning. */
+    fun setOrderNote(note: String) {
+        _cartState.value = _cartState.value.copy(note = note.trim().ifBlank { null })
     }
 
     /** Empties the cart. */
@@ -316,8 +363,11 @@ class PosViewModel(
         _checkoutStatus.value = CheckoutStatus.IDLE
     }
 
+    // Carries the order note forward. Building a fresh OrderState here would
+    // drop it every time a line changed — so typing "طاولة ٥" and then adding
+    // one more drink would silently lose the table number.
     private fun recompute(items: List<CartItem>): OrderState =
-        OrderState(
+        _cartState.value.copy(
             items = items,
             totalAmount = items.sumOf { it.sellableItem.price * it.quantity },
         )
