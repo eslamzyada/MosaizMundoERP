@@ -1,0 +1,60 @@
+package com.mosaizmundo.pos.api
+
+/**
+ * Wire types for open tabs (migration 0029).
+ *
+ * A tab is an order a table is still adding to. It is NOT a sale until it is
+ * settled, and no ingredient moves until its lines are fired to the kitchen —
+ * both of those facts live in the database, and nothing here is allowed to
+ * assume otherwise.
+ *
+ * No price appears in any request below. The server reads prices from the
+ * catalogue (0012); a till that could name a price could discount at will.
+ */
+
+/**
+ * POST /api/pos/orders/open.
+ *
+ * [items] is nullable because a table is seated and handed menus before it
+ * orders anything, and an empty tab is the honest record of that.
+ *
+ * [client_offline_id] makes opening idempotent, exactly as it does for
+ * checkout: a till that retries a request it never saw the answer to must not
+ * end up with two tabs for one table.
+ */
+data class OpenOrderPayload(
+    val organization_id: String,
+    val client_offline_id: String,
+    val note: String?,
+    val items: List<OpenOrderItemPayload>?,
+)
+
+data class OpenOrderItemPayload(
+    val sellable_item_id: String,
+    val quantity: Int,
+    /** How this one line is wanted — "no onions". Prints beside its own item. */
+    val note: String?,
+)
+
+/** POST /api/pos/orders/{id}/items — a later course on a running tab. */
+data class AddItemsPayload(
+    val items: List<OpenOrderItemPayload>,
+)
+
+data class OpenOrderResult(
+    val order_id: String?,
+)
+
+data class AddItemsResult(
+    val added: Int,
+    val total_amount: Double?,
+)
+
+/** How many lines this call actually sent to the kitchen. */
+data class FireResult(
+    val fired: Int,
+)
+
+data class SettleResult(
+    val total_amount: Double?,
+)

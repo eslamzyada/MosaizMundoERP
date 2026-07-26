@@ -38,6 +38,33 @@ interface PosRepository {
         managerToken: String?,
     )
 
+    // ---- Open tabs (0029) ---------------------------------------------------
+    //
+    // These are deliberately ONLINE-ONLY, unlike checkout. A tab is shared state
+    // that a kitchen and possibly a second till are both acting on: queueing
+    // "fire table 5" on a device with no signal would tell a server the food is
+    // on its way when nothing has reached the kitchen. Checkout can be queued
+    // because a completed sale is a fact about the past; a tab is a claim about
+    // right now.
+
+    /** Every tab currently running, oldest first — longest wait comes first. */
+    suspend fun openTabs(): List<OpenTab>
+
+    /** Opens a tab. [items] may be empty: a table is seated before it orders. */
+    suspend fun openTab(note: String, items: List<CartItem>): String
+
+    /** Adds a later course. The lines land UNFIRED. */
+    suspend fun addTabItems(orderId: String, items: List<CartItem>)
+
+    /** Removes a line. Fails if it has already gone to the kitchen. */
+    suspend fun removeTabLine(lineId: String)
+
+    /** Sends everything unfired to the kitchen; returns how many lines went. */
+    suspend fun fireTab(orderId: String): Int
+
+    /** Takes the money; returns the settled total. Refused while anything is unfired. */
+    suspend fun settleTab(orderId: String): Double
+
     /**
      * Live count of queued offline orders the server PERMANENTLY rejected. These
      * are held (not discarded) so the cashier can be alerted a sale needs

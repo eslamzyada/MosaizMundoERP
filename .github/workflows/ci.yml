@@ -215,6 +215,15 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/order_comment_verification.sql
 
+      # Open tabs (0029). The assertion that matters most is that an open order
+      # never reaches a revenue figure — otherwise every table still eating
+      # inflates the day's takings.
+      - name: Open order verification — tab lifecycle, stock at fire, cancellation (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/open_order_verification.sql
+
       # ---- API integration tests against the migrated container DB ----------
       # The app connects as the RLS-constrained mosaiz_app_user; the test
       # harness seeds/tears down via the postgres superuser (ADMIN_DATABASE_URL).

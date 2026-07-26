@@ -56,6 +56,18 @@ fun CartScreen(
     onClear: () -> Unit,
     onProceed: () -> Unit,
     onBack: () -> Unit,
+    /**
+     * Opens this cart as a TAB instead of ringing it up (0029). A table that is
+     * going to order again should not become four separate sales.
+     */
+    onOpenTab: () -> Unit,
+    /**
+     * True when the cart is being added to an existing tab. The whole screen
+     * stays the same — a later course is entered exactly like a first order —
+     * only the action at the bottom changes.
+     */
+    addingToTab: Boolean,
+    onConfirmAddToTab: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // The line whose instruction is being written, if any.
@@ -131,12 +143,35 @@ fun CartScreen(
             )
         }
         Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = onProceed,
-            enabled = cart.items.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-        ) {
-            Text("المتابعة إلى الدفع", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+
+        if (addingToTab) {
+            // One action only. Paying for a course mid-meal is not a thing a
+            // server does, so offering "pay now" here would be offering a
+            // mistake.
+            Button(
+                onClick = onConfirmAddToTab,
+                enabled = cart.items.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+            ) {
+                Text("أضف إلى الطاولة", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Button(
+                onClick = onProceed,
+                enabled = cart.items.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+            ) {
+                Text("المتابعة إلى الدفع", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(8.dp))
+            // Opening a tab with nothing in it is legitimate — a table is seated
+            // before it orders — so this stays enabled on an empty cart.
+            OutlinedButton(
+                onClick = onOpenTab,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+            ) {
+                Text("افتح طاولة بدلاً من الدفع", fontSize = 15.sp)
+            }
         }
     }
 

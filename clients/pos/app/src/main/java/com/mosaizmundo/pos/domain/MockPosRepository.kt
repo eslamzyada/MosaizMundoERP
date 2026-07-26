@@ -42,6 +42,106 @@ class MockPosRepository : PosRepository {
 
     override suspend fun recentOrders(): List<PosOrder> = orders.toList()
 
+    // Two tabs covering the states the screen has to render: one with food
+    // already at the kitchen AND a course still unsent (so "send" is offered and
+    // "settle" is refused), and one wholly unsent.
+    private val tabs = mutableListOf(
+        OpenTab(
+            id = "t-0001",
+            note = "طاولة ٥ — حساسية مكسرات",
+            totalAmount = 140.0,
+            openedAt = "2026-07-26T18:05:00Z",
+            lines = listOf(
+                OpenTabLine("l-1", "شاورما دجاج", 2, 45.0, "بدون بصل", "2026-07-26T18:07:00Z"),
+                OpenTabLine("l-2", "كولا", 1, 15.0, null, "2026-07-26T18:07:00Z"),
+                OpenTabLine("l-3", "بطاطس مقلية", 1, 20.0, null, null),
+            ),
+        ),
+        OpenTab(
+            id = "t-0002",
+            note = "تيك أواي",
+            totalAmount = 65.0,
+            openedAt = "2026-07-26T18:20:00Z",
+            lines = listOf(OpenTabLine("l-4", "برجر لحم", 1, 65.0, "ويل دن", null)),
+        ),
+    )
+
+    override suspend fun openTabs(): List<OpenTab> {
+        delay(200)
+        return tabs.toList()
+    }
+
+    override suspend fun openTab(note: String, items: List<CartItem>): String {
+        val id = "t-${(tabs.size + 1).toString().padStart(4, '0')}"
+        tabs += OpenTab(
+            id = id,
+            note = note.trim().ifBlank { null },
+            totalAmount = items.sumOf { it.sellableItem.price * it.quantity },
+            openedAt = "2026-07-26T18:30:00Z",
+            lines = items.map(::mockLine),
+        )
+        return id
+    }
+
+    override suspend fun addTabItems(orderId: String, items: List<CartItem>) {
+        replaceTab(orderId) { tab ->
+            val lines = tab.lines + items.map(::mockLine)
+            tab.copy(lines = lines, totalAmount = lines.sumOf { it.lineTotal })
+        }
+    }
+
+    override suspend fun removeTabLine(lineId: String) {
+        val tab = tabs.firstOrNull { t -> t.lines.any { it.id == lineId } } ?: return
+        val line = tab.lines.first { it.id == lineId }
+        // The mock enforces this too. A mock that allowed what the server
+        // refuses would teach the UI a rule that does not exist.
+        if (line.isFired) {
+            throw TabRefusedException(409, "هذا الصنف أُرسل للمطبخ ولا يمكن حذفه")
+        }
+        replaceTab(tab.id) { t ->
+            val lines = t.lines.filterNot { it.id == lineId }
+            t.copy(lines = lines, totalAmount = lines.sumOf { it.lineTotal })
+        }
+    }
+
+    override suspend fun fireTab(orderId: String): Int {
+        val tab = tabs.first { it.id == orderId }
+        if (!tab.hasUnfired) {
+            throw TabRefusedException(409, "لا يوجد ما يُرسل للمطبخ")
+        }
+        val fired = tab.unfiredCount
+        replaceTab(orderId) { t ->
+            t.copy(lines = t.lines.map { if (it.isFired) it else it.copy(firedAt = "2026-07-26T18:35:00Z") })
+        }
+        return fired
+    }
+
+    override suspend fun settleTab(orderId: String): Double {
+        val tab = tabs.first { it.id == orderId }
+        if (tab.hasUnfired) {
+            throw TabRefusedException(
+                409,
+                "${tab.unfiredCount} صنف لم يُرسل للمطبخ؛ أرسله أو احذفه قبل التحصيل",
+            )
+        }
+        tabs.removeAll { it.id == orderId }
+        return tab.totalAmount
+    }
+
+    private fun mockLine(line: CartItem) = OpenTabLine(
+        id = "l-${line.lineId.take(8)}",
+        name = line.sellableItem.nameAr,
+        quantity = line.quantity,
+        unitPrice = line.sellableItem.price,
+        note = line.note?.trim()?.ifBlank { null },
+        firedAt = null,
+    )
+
+    private fun replaceTab(orderId: String, transform: (OpenTab) -> OpenTab) {
+        val index = tabs.indexOfFirst { it.id == orderId }
+        if (index >= 0) tabs[index] = transform(tabs[index])
+    }
+
     override suspend fun voidOrder(
         orderId: String,
         restoreStock: Boolean,

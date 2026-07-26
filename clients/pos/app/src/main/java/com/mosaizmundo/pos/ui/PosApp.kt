@@ -8,6 +8,7 @@ import com.mosaizmundo.pos.ui.screens.CartScreen
 import com.mosaizmundo.pos.ui.screens.CheckoutScreen
 import com.mosaizmundo.pos.ui.screens.MenuScreen
 import com.mosaizmundo.pos.ui.screens.OrdersScreen
+import com.mosaizmundo.pos.ui.screens.TabsScreen
 import com.mosaizmundo.pos.ui.viewmodel.PosDestination
 import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 
@@ -22,14 +23,29 @@ fun PosApp(viewModel: PosViewModel) {
     val destination by viewModel.destination.collectAsState()
     val cart by viewModel.cartState.collectAsState()
     val checkoutStatus by viewModel.checkoutStatus.collectAsState()
+    // Non-null while a later course is being added to an existing tab. The menu
+    // and cart do double duty in that mode rather than there being a second set
+    // of screens to keep in step with these.
+    val activeTabId by viewModel.activeTabId.collectAsState()
 
     when (destination) {
         PosDestination.MENU -> {
+            // While adding to a tab, back goes to the tabs list and abandons the
+            // addition — not to a counter sale the server never asked for.
+            if (activeTabId != null) {
+                BackHandler { viewModel.cancelAddToTab() }
+            }
             MenuScreen(
                 viewModel = viewModel,
                 onProceed = viewModel::openCart,
                 onOpenOrders = viewModel::openOrders,
+                onOpenTabs = viewModel::openTabs,
             )
+        }
+
+        PosDestination.TABS -> {
+            BackHandler { viewModel.backToMenu() }
+            TabsScreen(viewModel = viewModel, onBack = viewModel::backToMenu)
         }
 
         PosDestination.ORDERS -> {
@@ -52,6 +68,9 @@ fun PosApp(viewModel: PosViewModel) {
                 onClear = viewModel::clearCart,
                 onProceed = viewModel::openCheckout,
                 onBack = viewModel::backToMenu,
+                onOpenTab = viewModel::openTabFromCart,
+                addingToTab = activeTabId != null,
+                onConfirmAddToTab = viewModel::confirmAddToTab,
             )
         }
 
