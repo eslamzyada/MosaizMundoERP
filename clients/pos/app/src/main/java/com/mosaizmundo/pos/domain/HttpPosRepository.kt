@@ -152,6 +152,17 @@ class HttpPosRepository(
     override suspend fun settleTab(orderId: String): Double =
         api.settleTab(orderId).bodyOrRefusal()?.total_amount ?: 0.0
 
+    override suspend fun printers(): List<ConfiguredPrinter> =
+        api.getPrinters()
+            .filter { it.is_active }
+            .mapNotNull { p ->
+                // An unrecognised role is skipped, not fatal: a newer backend
+                // may know roles this build does not.
+                PrinterRole.from(p.role)?.let {
+                    ConfiguredPrinter(p.id, p.name, it, p.host, p.port)
+                }
+            }
+
     // Blank is not a note: sending "" would reach a CHECK that rejects it, so an
     // empty field becomes an absent one here rather than a refusal at the till.
     private fun toItemPayload(line: CartItem) = OpenOrderItemPayload(

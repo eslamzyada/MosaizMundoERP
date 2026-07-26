@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mosaizmundo.pos.domain.CartItem
 import com.mosaizmundo.pos.domain.OpenTab
+import com.mosaizmundo.pos.domain.PrinterRole
+import com.mosaizmundo.pos.printing.Ticket
+import com.mosaizmundo.pos.printing.TicketPrinter
+import com.mosaizmundo.pos.printing.Tickets
 import com.mosaizmundo.pos.domain.TabRefusedException
 import com.mosaizmundo.pos.domain.OrderState
 import com.mosaizmundo.pos.domain.PosRepository
@@ -75,6 +79,11 @@ class PosViewModel(
     private val managerAuth: ManagerAuth? = null,
     /** The signed-in user's role; a manager skips the authorisation step. */
     roleFlow: Flow<String?> = flowOf(null),
+    /**
+     * Injected so a test can substitute one that records what it was asked to
+     * print without opening a socket.
+     */
+    private val ticketPrinter: TicketPrinter = TicketPrinter(),
 ) : ViewModel() {
 
     private val currentRole: StateFlow<String?> =
@@ -119,6 +128,26 @@ class PosViewModel(
      */
     private val _activeTabId = MutableStateFlow<String?>(null)
     val activeTabId: StateFlow<String?> = _activeTabId.asStateFlow()
+
+    // --- Printing (0031) ----------------------------------------------------
+
+    /**
+     * A ticket the kitchen never got.
+     *
+     * Held separately from [tabMessage] and NOT cleared by the next successful
+     * action, because it is the one message that must not scroll away: the food
+     * is being cooked and nothing on paper says so. Dismissing it is an
+     * explicit act, and the reprint button lives beside it.
+     */
+    private val _printWarning = MutableStateFlow<String?>(null)
+    val printWarning: StateFlow<String?> = _printWarning.asStateFlow()
+
+    /**
+     * The last kitchen ticket built, kept so "reprint" reproduces what should
+     * have come out. It cannot be rebuilt from the tab afterwards: firing marks
+     * those lines fired, so a fresh kitchen ticket would be empty.
+     */
+    private var lastKitchenTicket: Ticket? = null
 
     private val _checkoutStatus = MutableStateFlow(CheckoutStatus.IDLE)
     val checkoutStatus: StateFlow<CheckoutStatus> = _checkoutStatus.asStateFlow()
@@ -259,27 +288,92 @@ class PosViewModel(
         }
     }
 
-    /** Sends the unfired lines to the kitchen. This is where stock moves. */
+    /**
+     * Sends the unfired lines to the kitchen. This is where stock moves.
+     *
+     * The ticket is built from a SNAPSHOT taken before firing, and printed
+     * after. Both halves of that matter: after firing, those lines are no
+     * longer unfired and the ticket would come out empty; and printing before
+     * the server has agreed would put a ticket in the kitchen for food that was
+     * never fired if the call then failed.
+     */
     fun fireTab(tabId: String) {
+        val snapshot = _tabs.value.firstOrNull { it.id == tabId }
         viewModelScope.launch {
-            try {
-                val fired = repository.fireTab(tabId)
-                _tabMessage.value = "أُرسل $fired صنف إلى المطبخ"
+            val fired = try {
+                repository.fireTab(tabId)
             } catch (e: Exception) {
                 _tabMessage.value = messageFor(e, "تعذّر الإرسال للمطبخ")
+                refreshTabs()
+                return@launch
+            }
+
+            _tabMessage.value = "أُرسل $fired صنف إلى المطبخ"
+            if (snapshot != null) {
+                val ticket = Tickets.kitchen(snapshot, timestamp())
+                lastKitchenTicket = ticket
+                printTicket(ticket, PrinterRole.KITCHEN)
             }
             refreshTabs()
         }
     }
 
+    /**
+     * Prints the last kitchen ticket again, after a jam or a switched-off
+     * printer. Not a fresh build — see [lastKitchenTicket].
+     */
+    fun reprintKitchenTicket() {
+        val ticket = lastKitchenTicket ?: return
+        viewModelScope.launch { printTicket(ticket, PrinterRole.KITCHEN) }
+    }
+
+    fun dismissPrintWarning() { _printWarning.value = null }
+
+    /**
+     * A print never fails an order. The order is already fired or settled by
+     * the time this runs; all that is left is to say clearly whether paper came
+     * out, so somebody can walk to the kitchen if it did not.
+     */
+    private suspend fun printTicket(ticket: Ticket, role: PrinterRole) {
+        val printers = try {
+            repository.printers()
+        } catch (e: Exception) {
+            _printWarning.value = "لم تُطبع التذكرة: تعذّر قراءة إعدادات الطابعة"
+            return
+        }
+
+        when (val outcome = ticketPrinter.print(ticket, role, printers)) {
+            is TicketPrinter.Outcome.Printed -> _printWarning.value = null
+            // Silence is correct: a restaurant with no printer configured is
+            // using the app exactly as it worked before, and a warning on every
+            // order would train people to ignore the one that matters.
+            TicketPrinter.Outcome.NotConfigured -> Unit
+            is TicketPrinter.Outcome.Failed ->
+                _printWarning.value = "لم تُطبع التذكرة (${outcome.printerName}): ${outcome.message}"
+        }
+    }
+
+    /** Local wall-clock, which is what a kitchen ticket is read against. */
+    private fun timestamp(): String =
+        java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
+
     /** Takes the money. Only now does the tab count as revenue. */
     fun settleTab(tabId: String) {
+        // Snapshotted for the same reason as firing: a settled tab leaves the
+        // open list, so there would be nothing left to build a bill from.
+        val snapshot = _tabs.value.firstOrNull { it.id == tabId }
         viewModelScope.launch {
-            try {
-                val total = repository.settleTab(tabId)
-                _tabMessage.value = "تم تحصيل ${"%.2f".format(total)} ج.م"
+            val total = try {
+                repository.settleTab(tabId)
             } catch (e: Exception) {
                 _tabMessage.value = messageFor(e, "تعذّر التحصيل")
+                refreshTabs()
+                return@launch
+            }
+
+            _tabMessage.value = "تم تحصيل ${"%.2f".format(total)} ج.م"
+            if (snapshot != null) {
+                printTicket(Tickets.receipt(snapshot, timestamp(), total), PrinterRole.RECEIPT)
             }
             refreshTabs()
         }
