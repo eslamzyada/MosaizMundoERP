@@ -12,6 +12,7 @@ import catalogRoutes from './routes/catalog.routes';
 import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
 import supplierRoutes from './routes/supplier.routes';
+import printerRoutes from './routes/printer.routes';
 import purchaseOrderRoutes from './routes/purchaseOrder.routes';
 import webhookRoutes from './routes/webhook.routes';
 
@@ -138,6 +139,10 @@ app.use('/api/suppliers', supplierRoutes);
 
 // Purchase orders: what is on order, and what has actually been delivered.
 app.use('/api/purchase-orders', purchaseOrderRoutes);
+
+// Where a ticket physically prints. The gateway only holds the address — the
+// printer is on the restaurant's LAN and the till is what opens the socket.
+app.use('/api/printers', printerRoutes);
 
 // Supabase identity webhooks. Guarded by HMAC signature (webhookAuth), NOT the
 // JWT middleware — Supabase calls these, not a logged-in user.

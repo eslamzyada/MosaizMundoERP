@@ -128,6 +128,13 @@ class MockPosRepository : PosRepository {
         return tab.totalAmount
     }
 
+    // A kitchen printer that is configured but not reachable, which is the
+    // state the warning path has to handle.
+    override suspend fun printers(): List<ConfiguredPrinter> = listOf(
+        ConfiguredPrinter("p-1", "المطبخ", PrinterRole.KITCHEN, "192.168.1.50", 9100),
+        ConfiguredPrinter("p-2", "الكاشير", PrinterRole.RECEIPT, "192.168.1.51", 9100),
+    )
+
     private fun mockLine(line: CartItem) = OpenTabLine(
         id = "l-${line.lineId.take(8)}",
         name = line.sellableItem.nameAr,

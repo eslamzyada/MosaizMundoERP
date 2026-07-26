@@ -64,6 +64,7 @@ fun TabsScreen(
     val tabs by viewModel.tabs.collectAsState()
     val loading by viewModel.tabsLoading.collectAsState()
     val message by viewModel.tabMessage.collectAsState()
+    val printWarning by viewModel.printWarning.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -84,6 +85,41 @@ fun TabsScreen(
         }
 
         Spacer(Modifier.height(12.dp))
+
+        // A ticket the kitchen never got. Kept ABOVE the ordinary message and
+        // styled as an error, because the food is being cooked and nothing on
+        // paper says so — somebody has to walk to the kitchen. It is not
+        // cleared by the next successful action; dismissing it is deliberate.
+        printWarning?.let { text ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text(
+                        text = text,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "الطلب أُرسل للمطبخ فعليًا — التذكرة وحدها لم تُطبع.",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontSize = 12.sp,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = viewModel::reprintKitchenTicket) {
+                            Text("إعادة الطباعة")
+                        }
+                        TextButton(onClick = viewModel::dismissPrintWarning) { Text("إخفاء") }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
 
         // The server's own words, kept until dismissed. A refusal mid-service is
         // information ("3 items have not been sent yet"), not an error to hide.

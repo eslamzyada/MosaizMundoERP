@@ -65,6 +65,9 @@ interface PosRepository {
     /** Takes the money; returns the settled total. Refused while anything is unfired. */
     suspend fun settleTab(orderId: String): Double
 
+    /** The printers configured for this organization (0031). */
+    suspend fun printers(): List<ConfiguredPrinter>
+
     /**
      * Live count of queued offline orders the server PERMANENTLY rejected. These
      * are held (not discarded) so the cashier can be alerted a sale needs

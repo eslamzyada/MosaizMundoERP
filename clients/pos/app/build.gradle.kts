@@ -80,7 +80,14 @@ android {
     }
 }
 
+// JVM unit tests. The ESC/POS encoder, the ticket content and the socket
+// transport are deliberately free of Android types so they can be tested here
+// rather than on a device — the byte stream is exactly the part where a
+// mistake produces a metre of garbage instead of a ticket.
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")

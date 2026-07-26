@@ -40,6 +40,15 @@ SELECT '0d4e4000-000f-400f-800f-00000000000f', o.id,
 FROM public.organizations o
 WHERE o.slug = 'ci-bistro-cairo';
 
+-- A PRINTER owned by the other organization. Same reasoning as the order: the
+-- printer suite quotes this id literally, because a row it cannot see is a row
+-- it cannot look up, and a lookup that finds nothing asserts nothing.
+INSERT INTO public.printers (id, organization_id, name, role, host)
+SELECT '9111e400-000f-400f-800f-00000000000f', o.id, 'Foreign Tenant Printer',
+       'kitchen', '10.99.99.99'
+FROM public.organizations o
+WHERE o.slug = 'ci-bistro-cairo';
+
 -- These are all INSERT ... SELECT ... WHERE slug = '...', which insert ZERO
 -- rows — silently, without error — if that organization is ever missing. Every
 -- cross-tenant assertion downstream would then be testing against nothing and
@@ -58,6 +67,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM public.orders
                    WHERE id = '0d4e4000-000f-400f-800f-00000000000f') THEN
         missing := missing || 'order'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.printers
+                   WHERE id = '9111e400-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'printer'; END IF;
 
     IF array_length(missing, 1) > 0 THEN
         RAISE EXCEPTION
@@ -68,4 +80,4 @@ BEGIN
 END;
 $$;
 
-SELECT 'cross_tenant_fixture: seeded another organization''s supplier, ingredient and order' AS result;
+SELECT 'cross_tenant_fixture: seeded another organization''s supplier, ingredient, order and printer' AS result;

@@ -733,3 +733,40 @@ export interface ReorderSuggestion {
   suggested_supplier_name: string | null;
   suggested_unit_price: number | null;
 }
+
+// --- Printers (0031) --------------------------------------------------------
+
+/** What a printer is FOR — the only thing routing has to decide. */
+export type PrinterRole = 'kitchen' | 'receipt';
+
+export interface Printer {
+  id: string;
+  organization_id: string;
+  name: string;
+  role: PrinterRole;
+  /** IP or hostname on the restaurant's LAN. The till connects; the API never does. */
+  host: string;
+  port: number;
+  /**
+   * At most one ACTIVE printer per role. A printer is replaced by deactivating
+   * the old row and adding a new one, so what was replaced stays visible.
+   */
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePrinterPayload {
+  name: string;
+  role: PrinterRole;
+  host: string;
+  port?: number;
+}
+
+/** role is absent on purpose: changing it would silently redirect every ticket. */
+export interface UpdatePrinterPayload {
+  name?: string;
+  host?: string;
+  port?: number;
+  is_active?: boolean;
+}
