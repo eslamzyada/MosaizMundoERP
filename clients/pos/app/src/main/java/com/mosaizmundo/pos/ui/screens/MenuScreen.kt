@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -24,10 +25,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mosaizmundo.pos.domain.SellableItem
+import com.mosaizmundo.pos.ui.viewmodel.MenuState
 import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 import java.util.Locale
 
@@ -54,10 +57,11 @@ fun MenuScreen(
         // panel's action advances to the dedicated Cart screen (onProceed).
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             MenuGrid(
-                items = menu,
+                state = menu,
                 onItemClick = viewModel::addToCart,
                 onOpenOrders = onOpenOrders,
                 onOpenTabs = onOpenTabs,
+                onRetry = viewModel::loadMenu,
                 modifier = Modifier.weight(0.65f).fillMaxHeight(),
             )
             CartPanel(
@@ -89,10 +93,11 @@ private fun FailedSyncBanner(count: Int) {
 
 @Composable
 private fun MenuGrid(
-    items: List<SellableItem>,
+    state: MenuState,
     onItemClick: (SellableItem) -> Unit,
     onOpenOrders: () -> Unit,
     onOpenTabs: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.padding(16.dp)) {
@@ -112,15 +117,80 @@ private fun MenuGrid(
             TextButton(onClick = onOpenTabs) { Text("الطاولات المفتوحة") }
         }
         Spacer(Modifier.height(16.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 168.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(items, key = { it.id }) { item ->
-                MenuItemCard(item = item, onClick = { onItemClick(item) })
+
+        // A till with no food on it is the most alarming thing this app can
+        // show. Every branch below says which of the four situations it is,
+        // because three of them are things the person holding it can act on.
+        when (state) {
+            MenuState.Loading -> CentredNotice(text = "جارٍ تحميل القائمة…")
+
+            MenuState.Empty -> CentredNotice(
+                text = "لا توجد أصناف في القائمة بعد.",
+                detail = "أضِف الأصناف من لوحة الإدارة، ثم أعد المحاولة.",
+                actionLabel = "إعادة المحاولة",
+                onAction = onRetry,
+            )
+
+            is MenuState.Failed -> CentredNotice(
+                text = state.message,
+                isError = true,
+                // Retry is offered only when it could work. On an expired
+                // session it would fail again and teach the server to distrust
+                // the button.
+                actionLabel = if (state.canRetry) "إعادة المحاولة" else null,
+                onAction = onRetry,
+            )
+
+            is MenuState.Loaded -> LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 168.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(state.items, key = { it.id }) { item ->
+                    MenuItemCard(item = item, onClick = { onItemClick(item) })
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun CentredNotice(
+    text: String,
+    detail: String? = null,
+    isError: Boolean = false,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = text,
+            color = if (isError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onBackground
+            },
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+        detail?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onAction) { Text(actionLabel) }
         }
     }
 }

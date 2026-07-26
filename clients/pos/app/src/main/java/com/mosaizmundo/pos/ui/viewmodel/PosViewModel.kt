@@ -23,10 +23,36 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import java.io.IOException
 
 /** The screen currently shown in the authenticated POS flow. */
 enum class PosDestination { MENU, CART, CHECKOUT, ORDERS, TABS }
+
+/**
+ * Why the menu is not on screen.
+ *
+ * The menu used to fail SILENTLY — every exception was swallowed and the grid
+ * was left empty — so a dead backend, an expired session and a restaurant that
+ * has entered no dishes all looked identical: a blank screen with nothing to
+ * press. A till showing no food is the most alarming thing this app can do, and
+ * it has to say which of those it is, because the person holding it can fix two
+ * of the three.
+ */
+sealed interface MenuState {
+    data object Loading : MenuState
+
+    data class Loaded(val items: List<SellableItem>) : MenuState
+
+    /** Loaded fine, but the restaurant has no dishes yet. Not a failure. */
+    data object Empty : MenuState
+
+    /**
+     * [canRetry] separates "try again" from "somebody has to do something
+     * first". Offering retry on an expired session would just fail again.
+     */
+    data class Failed(val message: String, val canRetry: Boolean) : MenuState
+}
 
 /** Lifecycle of a checkout submission, observed by the CheckoutScreen. */
 enum class CheckoutStatus { IDLE, SUBMITTING, SUCCESS, ERROR }
@@ -89,8 +115,8 @@ class PosViewModel(
     private val currentRole: StateFlow<String?> =
         roleFlow.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    private val _menuState = MutableStateFlow<List<SellableItem>>(emptyList())
-    val menuState: StateFlow<List<SellableItem>> = _menuState.asStateFlow()
+    private val _menuState = MutableStateFlow<MenuState>(MenuState.Loading)
+    val menuState: StateFlow<MenuState> = _menuState.asStateFlow()
 
     private val _cartState = MutableStateFlow(OrderState())
     val cartState: StateFlow<OrderState> = _cartState.asStateFlow()
@@ -170,12 +196,48 @@ class PosViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     init {
+        loadMenu()
+    }
+
+    /**
+     * Fetches the menu, saying what happened either way.
+     *
+     * Public and re-callable: the first version ran once in init, so a till that
+     * started while the network was down stayed blank until the app was killed
+     * and reopened — which is not something to ask of somebody mid-shift.
+     */
+    fun loadMenu() {
         viewModelScope.launch {
-            try {
-                _menuState.value = repository.getMenu()
-            } catch (_: Exception) {
-                // Backend unreachable / unauthorized: leave the menu empty
-                // rather than crash. A proper error state comes with POS auth.
+            _menuState.value = MenuState.Loading
+            _menuState.value = try {
+                val items = repository.getMenu()
+                if (items.isEmpty()) MenuState.Empty else MenuState.Loaded(items)
+            } catch (e: IOException) {
+                // The device cannot reach the server at all. Retrying is exactly
+                // the right thing to offer: the network may come back on its own.
+                MenuState.Failed(
+                    "لا يمكن الوصول إلى الخادم. تحقّق من الشبكة ثم أعد المحاولة.",
+                    canRetry = true,
+                )
+            } catch (e: HttpException) {
+                when (e.code()) {
+                    // Retrying cannot fix either of these, so it is not offered:
+                    // somebody has to sign in again, or be given the role.
+                    401 -> MenuState.Failed(
+                        "انتهت صلاحية الجلسة. سجّل الخروج ثم الدخول مرة أخرى.",
+                        canRetry = false,
+                    )
+                    403 -> MenuState.Failed(
+                        "هذا الحساب لا يملك صلاحية عرض القائمة.",
+                        canRetry = false,
+                    )
+                    else -> MenuState.Failed(
+                        "تعذّر تحميل القائمة (خطأ ${e.code()}).",
+                        canRetry = true,
+                    )
+                }
+            } catch (e: Exception) {
+                MenuState.Failed("تعذّر تحميل القائمة.", canRetry = true)
             }
         }
     }
@@ -239,6 +301,27 @@ class PosViewModel(
                 _tabMessage.value = messageFor(e, "تعذّر فتح الطاولة")
                 _destination.value = PosDestination.TABS
             }
+        }
+    }
+
+    /**
+     * Opens an EMPTY tab — a table seated before it has ordered anything.
+     *
+     * This is the ordinary way a restaurant starts a table, and until now there
+     * was no way to do it: the only route to opening a tab was the cart screen,
+     * which cannot be reached without items in the cart. The database, the
+     * procedure and the API all allowed an empty tab from the start; the till
+     * simply never offered one.
+     */
+    fun openEmptyTab(note: String) {
+        viewModelScope.launch {
+            try {
+                repository.openTab(note, emptyList())
+                _tabMessage.value = null
+            } catch (e: Exception) {
+                _tabMessage.value = messageFor(e, "تعذّر فتح الطاولة")
+            }
+            refreshTabs()
         }
     }
 

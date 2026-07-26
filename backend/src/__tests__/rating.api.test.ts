@@ -211,3 +211,68 @@ describe('Who may see a rating', () => {
     expect((await request(app).put('/api/ratings').send({})).status).toBe(401);
   });
 });
+
+describe('the history window (for drawing a trend)', () => {
+  it('returns several months, newest first', async () => {
+    // Seeded directly: only the current month is writable through the API, so
+    // history cannot be created by calling it.
+    const older = new Date();
+    older.setMonth(older.getMonth() - 2);
+    const olderMonth = `${older.getFullYear()}-${String(older.getMonth() + 1).padStart(2, '0')}-01`;
+
+    // The month-lock trigger (0027) refuses a write to a closed month — which
+    // is the point of it, and means past months cannot be created through any
+    // normal path, superuser or not. Disabling it for this one insert is the
+    // honest way to manufacture the history a trend needs; re-enabled below so
+    // nothing after this runs without the lock.
+    await admin.$executeRaw`ALTER TABLE public.employee_ratings DISABLE TRIGGER trg_employee_ratings_month_lock`;
+    try {
+      await admin.$executeRaw`
+        INSERT INTO public.employee_ratings
+          (organization_id, employee_id, rated_by, period_month, score, note)
+        VALUES (${orgId}::uuid, ${cashierId}::uuid, ${managerId}::uuid,
+                ${olderMonth}::date, 3, ${'شهر سابق'})
+        ON CONFLICT (organization_id, employee_id, period_month) DO NOTHING`;
+    } finally {
+      await admin.$executeRaw`ALTER TABLE public.employee_ratings ENABLE TRIGGER trg_employee_ratings_month_lock`;
+    }
+
+    const res = await request(app).get('/api/ratings?months=12').set('Authorization', `Bearer ${tokens.manager}`);
+    expect(res.status).toBe(200);
+    expect(res.body.months_returned).toBe(12);
+
+    const months: string[] = res.body.ratings.map((r: { period_month: string }) =>
+      r.period_month.slice(0, 7),
+    );
+    expect(new Set(months).size).toBeGreaterThan(1);
+    // Newest first, so a chart can read the window without re-sorting.
+    expect([...months].sort().reverse()).toEqual(months);
+  });
+
+  it('months=1 means this month only', async () => {
+    const res = await request(app).get('/api/ratings?months=1').set('Authorization', `Bearer ${tokens.manager}`);
+    expect(res.status).toBe(200);
+    const months = new Set(
+      res.body.ratings.map((r: { period_month: string }) => r.period_month.slice(0, 7)),
+    );
+    expect(months.size).toBeLessThanOrEqual(1);
+    if (months.size === 1) {
+      expect([...months][0]).toBe(res.body.current_month);
+    }
+  });
+
+  it('refuses a window that is not a sensible number of months', async () => {
+    for (const bad of ['0', '-1', '37', 'abc', '1.5']) {
+      const res = await request(app).get(`/api/ratings?months=${bad}`).set('Authorization', `Bearer ${tokens.manager}`);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('an explicit month still wins, and reports itself as one month', async () => {
+    const res = await request(app)
+      .get('/api/ratings?months=12&month=' + new Date().toISOString().slice(0, 7))
+      .set('Authorization', `Bearer ${tokens.manager}`);
+    expect(res.status).toBe(200);
+    expect(res.body.months_returned).toBe(1);
+  });
+});

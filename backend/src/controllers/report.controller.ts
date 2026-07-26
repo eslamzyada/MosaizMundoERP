@@ -851,24 +851,52 @@ export async function getEmployeePerformance(req: Request, res: Response): Promi
         voided_value: unknown;
       }>
     >`
-      SELECT o.served_by                                            AS user_id,
+      -- Built from the ROSTER outwards, not from the orders inwards.
+      --
+      -- This used to read FROM public.orders, so a person appeared only if they
+      -- had served something inside the window — and in a quiet week nobody
+      -- appeared at all, which made the whole employee panel disappear from the
+      -- report. That took the manager's RATINGS with it, and ratings have
+      -- nothing to do with whether anyone sold anything: a quiet week is
+      -- exactly when somebody sits down to do them.
+      --
+      -- Now every active member is a row, with zeros where there were no sales.
+      WITH sales AS (
+        SELECT o.served_by                                          AS user_id,
+               COUNT(*) FILTER (WHERE o.status = 'completed')::int  AS orders_served,
+               COALESCE(SUM(o.total_amount)
+                        FILTER (WHERE o.status = 'completed'), 0)   AS revenue,
+               -- Their OWN sales that ended up voided — not voids they authorised.
+               COUNT(*) FILTER (WHERE o.status = 'voided')::int     AS voided_orders,
+               COALESCE(SUM(o.total_amount)
+                        FILTER (WHERE o.status = 'voided'), 0)      AS voided_value
+        FROM public.orders o
+        WHERE o.created_at >= ${from} AND o.created_at < ${until}
+        GROUP BY o.served_by
+      )
+      SELECT m.user_id,
              u.email,
              m.role,
              m.is_active,
-             COUNT(*) FILTER (WHERE o.status = 'completed')::int    AS orders_served,
-             COALESCE(SUM(o.total_amount)
-                      FILTER (WHERE o.status = 'completed'), 0)     AS revenue,
-             -- Their OWN sales that ended up voided — not voids they authorised.
-             COUNT(*) FILTER (WHERE o.status = 'voided')::int       AS voided_orders,
-             COALESCE(SUM(o.total_amount)
-                      FILTER (WHERE o.status = 'voided'), 0)        AS voided_value
-      FROM public.orders o
-      LEFT JOIN public.users u ON u.id = o.served_by
-      LEFT JOIN public.organization_memberships m
-             ON m.user_id = o.served_by AND m.organization_id = o.organization_id
-      WHERE o.created_at >= ${from} AND o.created_at < ${until}
-      GROUP BY o.served_by, u.email, m.role, m.is_active
-      ORDER BY 6 DESC
+             COALESCE(s.orders_served, 0)  AS orders_served,
+             COALESCE(s.revenue, 0)        AS revenue,
+             COALESCE(s.voided_orders, 0)  AS voided_orders,
+             COALESCE(s.voided_value, 0)   AS voided_value
+      FROM public.organization_memberships m
+      JOIN public.users u ON u.id = m.user_id
+      LEFT JOIN sales s ON s.user_id = m.user_id
+      WHERE m.is_active
+
+      UNION ALL
+
+      -- Sales nobody is credited with (pre-0026 history). Kept as its own row
+      -- with a NULL user so the per-person totals still reconcile.
+      SELECT NULL, NULL, NULL, NULL,
+             s.orders_served, s.revenue, s.voided_orders, s.voided_value
+      FROM sales s
+      WHERE s.user_id IS NULL
+
+      ORDER BY 6 DESC, 2 ASC
       LIMIT ${ITEM_CAP}
     `;
 
@@ -878,7 +906,14 @@ export async function getEmployeePerformance(req: Request, res: Response): Promi
     const teamOrders = attributed.reduce((s, r) => s + r.orders_served, 0);
     const teamRevenue = attributed.reduce((s, r) => s + num(r.revenue), 0);
     const teamVoids = attributed.reduce((s, r) => s + r.voided_orders, 0);
-    const headcount = attributed.length;
+
+    // Everyone on the roster is now a ROW, but the yardstick still counts only
+    // the people who actually served in the window. A manager and an owner who
+    // never ring up sales would otherwise be averaged in as two zeros, dragging
+    // "م" down and flattering every cashier measured against it.
+    const headcount = attributed.filter(
+      (r) => r.orders_served > 0 || r.voided_orders > 0,
+    ).length;
 
     // The yardstick each person is measured against. Per-head averages need a
     // head: with nobody attributed there is no team to compare to, and dividing
