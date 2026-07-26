@@ -8,7 +8,10 @@ package com.mosaizmundo.pos.api
  */
 data class OrderResponse(
     val id: String,
+    /** 'open' while a table is still eating, then 'completed' or 'voided' (0029). */
     val status: String,
+    /** Context for the whole order: table number, takeaway, an allergy (0028). */
+    val note: String?,
     val total_amount: Double,
     val created_at: String,
     val stock_restored: Boolean?,
@@ -18,9 +21,20 @@ data class OrderResponse(
 )
 
 data class OrderLineResponse(
+    /** Needed to delete this specific line off a tab (0029). */
+    val id: String,
     val sellable_item_id: String,
     val quantity: Int,
     val unit_price: Double,
+    /** How this line is wanted — "no onions" (0028). */
+    val note: String?,
+    /**
+     * When this line went to the kitchen (0029). NULL means it has not been
+     * sent, which is the ONLY thing that decides whether a server may still
+     * take it off the tab: once it is fired the food exists, its ingredients
+     * are gone, and removing it is a void rather than a delete.
+     */
+    val fired_at: String?,
     val sellable_items: OrderLineItem?,
 )
 

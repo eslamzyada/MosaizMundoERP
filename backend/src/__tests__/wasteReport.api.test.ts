@@ -79,7 +79,7 @@ beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.sellable_items (id, organization_id, name, sku, price) VALUES (${dishId}::uuid, ${orgId}::uuid, ${'Waste Dish'}, ${'WASTE-1'}, 50)`;
   const orderId = randomUUID();
   await admin.$executeRaw`INSERT INTO public.orders (id, organization_id, client_offline_id, total_amount) VALUES (${orderId}::uuid, ${orgId}::uuid, ${randomUUID()}::uuid, 200)`;
-  await admin.$executeRaw`INSERT INTO public.order_items (order_id, organization_id, sellable_item_id, quantity, unit_price, cost_at_sale, cost_is_complete) VALUES (${orderId}::uuid, ${orgId}::uuid, ${dishId}::uuid, 4, 50, 100, true)`;
+  await admin.$executeRaw`INSERT INTO public.order_items (order_id, organization_id, sellable_item_id, quantity, unit_price, cost_at_sale, cost_is_complete, fired_at) VALUES (${orderId}::uuid, ${orgId}::uuid, ${dishId}::uuid, 4, 50, 100, true, (SELECT created_at FROM public.orders WHERE id = ${orderId}::uuid))`;
 });
 
 afterAll(async () => {

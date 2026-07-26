@@ -8,8 +8,11 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
+import com.mosaizmundo.pos.api.AddItemsPayload
 import com.mosaizmundo.pos.api.CheckoutItemPayload
 import com.mosaizmundo.pos.api.CheckoutPayload
+import com.mosaizmundo.pos.api.OpenOrderItemPayload
+import com.mosaizmundo.pos.api.OpenOrderPayload
 import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.api.PosApiService
 import com.mosaizmundo.pos.api.VoidOrderPayload
@@ -92,6 +95,70 @@ class HttpPosRepository(
             throw HttpException(response)
         }
     }
+
+    // ---- Open tabs (0029) ---------------------------------------------------
+
+    override suspend fun openTabs(): List<OpenTab> =
+        api.getOpenTabs().map { order ->
+            OpenTab(
+                id = order.id,
+                note = order.note,
+                totalAmount = order.total_amount,
+                openedAt = order.created_at,
+                lines = order.order_items.map { line ->
+                    OpenTabLine(
+                        id = line.id,
+                        name = line.sellable_items?.name ?: "صنف",
+                        quantity = line.quantity,
+                        unitPrice = line.unit_price,
+                        note = line.note,
+                        firedAt = line.fired_at,
+                    )
+                },
+            )
+        }
+
+    override suspend fun openTab(note: String, items: List<CartItem>): String {
+        val organizationId = sessionManager.getOrganizationId().first() ?: FALLBACK_ORGANIZATION_ID
+
+        val response = api.openTab(
+            OpenOrderPayload(
+                organization_id = organizationId,
+                // A fresh key per tab. Opening is idempotent on it, so a retry
+                // of a request whose answer was lost reopens nothing.
+                client_offline_id = UUID.randomUUID().toString(),
+                note = note.trim().ifBlank { null },
+                items = items.map(::toItemPayload).ifEmpty { null },
+            ),
+        )
+        val body = response.bodyOrRefusal()
+        return body?.order_id
+            // A 2xx with no id is not something the till can carry on from: it
+            // would leave a tab open on the server that this device cannot name.
+            ?: throw TabRefusedException(response.code(), "تعذّر فتح الطاولة")
+    }
+
+    override suspend fun addTabItems(orderId: String, items: List<CartItem>) {
+        api.addTabItems(orderId, AddItemsPayload(items.map(::toItemPayload))).bodyOrRefusal()
+    }
+
+    override suspend fun removeTabLine(lineId: String) {
+        api.removeTabItem(lineId).bodyOrRefusal()
+    }
+
+    override suspend fun fireTab(orderId: String): Int =
+        api.fireTab(orderId).bodyOrRefusal()?.fired ?: 0
+
+    override suspend fun settleTab(orderId: String): Double =
+        api.settleTab(orderId).bodyOrRefusal()?.total_amount ?: 0.0
+
+    // Blank is not a note: sending "" would reach a CHECK that rejects it, so an
+    // empty field becomes an absent one here rather than a refusal at the till.
+    private fun toItemPayload(line: CartItem) = OpenOrderItemPayload(
+        sellable_item_id = line.sellableItem.id,
+        quantity = line.quantity,
+        note = line.note?.trim()?.ifBlank { null },
+    )
 
     override suspend fun submitOrder(orderState: OrderState) {
         // The real organization resolved at login (GET /api/me). Falls back to

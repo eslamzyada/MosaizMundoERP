@@ -3,6 +3,8 @@ package com.mosaizmundo.pos.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mosaizmundo.pos.domain.CartItem
+import com.mosaizmundo.pos.domain.OpenTab
+import com.mosaizmundo.pos.domain.TabRefusedException
 import com.mosaizmundo.pos.domain.OrderState
 import com.mosaizmundo.pos.domain.PosRepository
 import com.mosaizmundo.pos.domain.SellableItem
@@ -17,9 +19,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 /** The screen currently shown in the authenticated POS flow. */
-enum class PosDestination { MENU, CART, CHECKOUT, ORDERS }
+enum class PosDestination { MENU, CART, CHECKOUT, ORDERS, TABS }
 
 /** Lifecycle of a checkout submission, observed by the CheckoutScreen. */
 enum class CheckoutStatus { IDLE, SUBMITTING, SUCCESS, ERROR }
@@ -86,6 +89,37 @@ class PosViewModel(
     private val _destination = MutableStateFlow(PosDestination.MENU)
     val destination: StateFlow<PosDestination> = _destination.asStateFlow()
 
+    // --- Open tabs (0029) ---------------------------------------------------
+
+    private val _tabs = MutableStateFlow<List<OpenTab>>(emptyList())
+    val tabs: StateFlow<List<OpenTab>> = _tabs.asStateFlow()
+
+    private val _tabsLoading = MutableStateFlow(false)
+    val tabsLoading: StateFlow<Boolean> = _tabsLoading.asStateFlow()
+
+    /**
+     * The last refusal, shown until it is dismissed or another action succeeds.
+     *
+     * These are not crashes: "that is already with the kitchen" is a normal
+     * answer during service. Kept as the SERVER's wording, because it is more
+     * specific than anything phrasable here — it can name how many items are
+     * still unsent, and when a line was fired.
+     */
+    private val _tabMessage = MutableStateFlow<String?>(null)
+    val tabMessage: StateFlow<String?> = _tabMessage.asStateFlow()
+
+    /**
+     * The tab the cart is currently being built for, or null for an ordinary
+     * counter sale.
+     *
+     * This is what makes the menu and cart do double duty. With a tab selected,
+     * "confirm" adds the cart to THAT tab instead of ringing up a new sale — so
+     * a server adds a second course through the same screens they take the
+     * first order on, rather than a parallel set that has to be kept in step.
+     */
+    private val _activeTabId = MutableStateFlow<String?>(null)
+    val activeTabId: StateFlow<String?> = _activeTabId.asStateFlow()
+
     private val _checkoutStatus = MutableStateFlow(CheckoutStatus.IDLE)
     val checkoutStatus: StateFlow<CheckoutStatus> = _checkoutStatus.asStateFlow()
 
@@ -130,6 +164,138 @@ class PosViewModel(
     fun openOrders() {
         _destination.value = PosDestination.ORDERS
         refreshOrders()
+    }
+
+    fun openTabs() {
+        _destination.value = PosDestination.TABS
+        refreshTabs()
+    }
+
+    // --- Open tabs ----------------------------------------------------------
+
+    fun dismissTabMessage() { _tabMessage.value = null }
+
+    fun refreshTabs() {
+        viewModelScope.launch {
+            _tabsLoading.value = true
+            try {
+                _tabs.value = repository.openTabs()
+            } catch (e: Exception) {
+                // Unlike the orders list, say so. A stale tab list is dangerous
+                // in a way a stale history is not: a server would fire or settle
+                // against lines that are no longer what they see.
+                _tabMessage.value = messageFor(e, "تعذّر تحديث الطاولات المفتوحة")
+            } finally {
+                _tabsLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Turns the cart into a new tab.
+     *
+     * The cart is cleared only on success — the same rule checkout follows, so a
+     * refusal never costs a server the order they just keyed in.
+     */
+    fun openTabFromCart() {
+        val cart = _cartState.value
+        viewModelScope.launch {
+            try {
+                repository.openTab(cart.note.orEmpty(), cart.items)
+                clearCart()
+                _tabMessage.value = null
+                _destination.value = PosDestination.TABS
+                refreshTabs()
+            } catch (e: Exception) {
+                _tabMessage.value = messageFor(e, "تعذّر فتح الطاولة")
+                _destination.value = PosDestination.TABS
+            }
+        }
+    }
+
+    /** Picks a tab to add to, then sends the server back to the menu. */
+    fun addToTab(tabId: String) {
+        _activeTabId.value = tabId
+        _destination.value = PosDestination.MENU
+    }
+
+    fun cancelAddToTab() {
+        _activeTabId.value = null
+        _destination.value = PosDestination.TABS
+    }
+
+    /** Commits the cart to the tab chosen by [addToTab]. */
+    fun confirmAddToTab() {
+        val tabId = _activeTabId.value ?: return
+        val cart = _cartState.value
+        if (cart.items.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                repository.addTabItems(tabId, cart.items)
+                clearCart()
+                _activeTabId.value = null
+                _tabMessage.value = null
+            } catch (e: Exception) {
+                _tabMessage.value = messageFor(e, "تعذّر إضافة الأصناف")
+            }
+            _destination.value = PosDestination.TABS
+            refreshTabs()
+        }
+    }
+
+    /**
+     * Takes a line off a tab. Refused by the server once the line is fired —
+     * the food exists by then, and removing it is a void, not a delete.
+     */
+    fun removeTabLine(lineId: String) {
+        viewModelScope.launch {
+            try {
+                repository.removeTabLine(lineId)
+                _tabMessage.value = null
+            } catch (e: Exception) {
+                _tabMessage.value = messageFor(e, "تعذّر حذف الصنف")
+            }
+            refreshTabs()
+        }
+    }
+
+    /** Sends the unfired lines to the kitchen. This is where stock moves. */
+    fun fireTab(tabId: String) {
+        viewModelScope.launch {
+            try {
+                val fired = repository.fireTab(tabId)
+                _tabMessage.value = "أُرسل $fired صنف إلى المطبخ"
+            } catch (e: Exception) {
+                _tabMessage.value = messageFor(e, "تعذّر الإرسال للمطبخ")
+            }
+            refreshTabs()
+        }
+    }
+
+    /** Takes the money. Only now does the tab count as revenue. */
+    fun settleTab(tabId: String) {
+        viewModelScope.launch {
+            try {
+                val total = repository.settleTab(tabId)
+                _tabMessage.value = "تم تحصيل ${"%.2f".format(total)} ج.م"
+            } catch (e: Exception) {
+                _tabMessage.value = messageFor(e, "تعذّر التحصيل")
+            }
+            refreshTabs()
+        }
+    }
+
+    /**
+     * The server's own wording where there is one, a plain fallback otherwise.
+     *
+     * A refusal is deliberately distinguished from a network failure: the first
+     * means the request was understood and declined and the server should read
+     * it, the second means try again.
+     */
+    private fun messageFor(e: Exception, fallback: String): String = when (e) {
+        is TabRefusedException -> e.message
+        is IOException -> "لا يوجد اتصال بالخادم — الطاولات تحتاج اتصالاً"
+        else -> fallback
     }
 
     // --- Voiding ------------------------------------------------------------

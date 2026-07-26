@@ -28,4 +28,44 @@ SELECT 'a11cf00d-000f-400f-800f-00000000000f', o.id, 'Foreign Tenant Ingredient'
 FROM public.organizations o
 WHERE o.slug = 'ci-bistro-cairo';
 
-SELECT 'cross_tenant_fixture: seeded another organization''s supplier and ingredient' AS result;
+-- An ORDER owned by the other organization, so the open-order suite has
+-- something real to be refused. Its id is FIXED and quoted literally there:
+-- the app role cannot look this row up, because RLS hides other tenants' orders
+-- from it entirely — a suite that SELECTed for it would find nothing, skip
+-- itself, and report a pass. That is exactly what happened before this row
+-- existed.
+INSERT INTO public.orders (id, organization_id, client_offline_id, status, total_amount)
+SELECT '0d4e4000-000f-400f-800f-00000000000f', o.id,
+       '0d4e4000-000f-400f-800f-0000000000ff', 'open', 0
+FROM public.organizations o
+WHERE o.slug = 'ci-bistro-cairo';
+
+-- These are all INSERT ... SELECT ... WHERE slug = '...', which insert ZERO
+-- rows — silently, without error — if that organization is ever missing. Every
+-- cross-tenant assertion downstream would then be testing against nothing and
+-- passing. Checked here because here is the only place with the visibility to
+-- check it.
+DO $$
+DECLARE
+    missing text[] := '{}';
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.suppliers
+                   WHERE id = '5099117e-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'supplier'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.raw_inventory_items
+                   WHERE id = 'a11cf00d-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'ingredient'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.orders
+                   WHERE id = '0d4e4000-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'order'; END IF;
+
+    IF array_length(missing, 1) > 0 THEN
+        RAISE EXCEPTION
+            'cross-tenant fixture seeded nothing for %: the ci-bistro-cairo '
+            'organization is missing, and every cross-tenant assertion would '
+            'have passed against an absent row', array_to_string(missing, ', ');
+    END IF;
+END;
+$$;
+
+SELECT 'cross_tenant_fixture: seeded another organization''s supplier, ingredient and order' AS result;

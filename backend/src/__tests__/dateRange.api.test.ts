@@ -38,8 +38,10 @@ async function sale(at: Date, revenue: number, cost: number) {
     VALUES (${orderId}::uuid, ${orgId}::uuid, ${randomUUID()}::uuid, 'completed', ${revenue}, ${at})`;
   await admin.$executeRaw`
     INSERT INTO public.order_items
-      (order_id, organization_id, sellable_item_id, quantity, unit_price, cost_at_sale, cost_is_complete)
-    VALUES (${orderId}::uuid, ${orgId}::uuid, ${dishId}::uuid, 1, ${revenue}, ${cost}, true)`;
+      (order_id, organization_id, sellable_item_id, quantity, unit_price, cost_at_sale, cost_is_complete,
+       fired_at)
+    VALUES (${orderId}::uuid, ${orgId}::uuid, ${dishId}::uuid, 1, ${revenue}, ${cost}, true,
+            (SELECT created_at FROM public.orders WHERE id = ${orderId}::uuid))`;
 }
 
 async function profitability(query: string) {

@@ -33,6 +33,18 @@ INSERT INTO public.organization_memberships (organization_id, user_id, role)
 VALUES ('c0570000-0000-4000-8000-000000000000',
         'c0570002-0000-4000-8000-000000000002', 'branch_manager');
 
+-- An ACCOUNTANT, for open_order_verification (0029): serving a table is a sales
+-- act, and a read-only finance role must be refused it. The suite needs a real
+-- MEMBER of this organization to prove that — an unknown user is refused for
+-- belonging nowhere, which says nothing about roles and is what the accountant
+-- assertion was accidentally testing before this row existed.
+INSERT INTO public.users (id, email)
+VALUES ('c0570003-0000-4000-8000-000000000003', 'cogs-accountant@ci.test');
+
+INSERT INTO public.organization_memberships (organization_id, user_id, role)
+VALUES ('c0570000-0000-4000-8000-000000000000',
+        'c0570003-0000-4000-8000-000000000003', 'accountant');
+
 -- Ingredients ---------------------------------------------------------------
 INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure)
 VALUES ('c057f00d-0000-4000-8000-000000000001',

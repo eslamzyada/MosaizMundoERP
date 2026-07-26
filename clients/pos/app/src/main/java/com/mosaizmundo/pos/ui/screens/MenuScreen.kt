@@ -32,7 +32,12 @@ import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 import java.util.Locale
 
 @Composable
-fun MenuScreen(viewModel: PosViewModel, onProceed: () -> Unit, onOpenOrders: () -> Unit) {
+fun MenuScreen(
+    viewModel: PosViewModel,
+    onProceed: () -> Unit,
+    onOpenOrders: () -> Unit,
+    onOpenTabs: () -> Unit,
+) {
     val menu by viewModel.menuState.collectAsState()
     val cart by viewModel.cartState.collectAsState()
     val failedCount by viewModel.failedOrderCount.collectAsState()
@@ -52,6 +57,7 @@ fun MenuScreen(viewModel: PosViewModel, onProceed: () -> Unit, onOpenOrders: () 
                 items = menu,
                 onItemClick = viewModel::addToCart,
                 onOpenOrders = onOpenOrders,
+                onOpenTabs = onOpenTabs,
                 modifier = Modifier.weight(0.65f).fillMaxHeight(),
             )
             CartPanel(
@@ -86,6 +92,7 @@ private fun MenuGrid(
     items: List<SellableItem>,
     onItemClick: (SellableItem) -> Unit,
     onOpenOrders: () -> Unit,
+    onOpenTabs: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.padding(16.dp)) {
@@ -102,6 +109,7 @@ private fun MenuGrid(
             )
             // Corrections happen at the till now, not on a manager's laptop.
             TextButton(onClick = onOpenOrders) { Text("الطلبات الأخيرة") }
+            TextButton(onClick = onOpenTabs) { Text("الطاولات المفتوحة") }
         }
         Spacer(Modifier.height(16.dp))
         LazyVerticalGrid(

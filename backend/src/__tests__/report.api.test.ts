@@ -96,9 +96,11 @@ async function seedSale(opts: {
             ${status === 'voided' ? true : null})`;
   await admin.$executeRaw`
     INSERT INTO public.order_items
-      (order_id, organization_id, sellable_item_id, quantity, unit_price, cost_at_sale, cost_is_complete)
+      (order_id, organization_id, sellable_item_id, quantity, unit_price, cost_at_sale, cost_is_complete,
+       fired_at)
     VALUES (${orderId}::uuid, ${opts.org}::uuid, ${opts.item}::uuid,
-            ${opts.qty}, ${opts.price}, ${opts.cost}, ${opts.complete})`;
+            ${opts.qty}, ${opts.price}, ${opts.cost}, ${opts.complete},
+            (SELECT created_at FROM public.orders WHERE id = ${orderId}::uuid))`;
 }
 
 beforeAll(async () => {
