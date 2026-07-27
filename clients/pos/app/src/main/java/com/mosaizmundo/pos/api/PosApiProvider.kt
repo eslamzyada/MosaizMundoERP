@@ -41,6 +41,10 @@ object PosApiProvider {
                 val explicitAuth = chain.request().header("Authorization") != null
                 val token = runBlocking { tokenManager.getToken().first() }
                 val builder = chain.request().newBuilder()
+                // Marks a per-call token so SessionAuthenticator does not treat
+                // a manager's one-off authorisation as this shift's session and
+                // sign the cashier out when it is refused.
+                if (explicitAuth) builder.addHeader("X-Explicit-Auth", "true")
                     // ngrok's free tier returns an HTML interstitial to non-browser
                     // clients unless this header is present; without it the JSON
                     // parser would receive HTML. Harmless against a non-ngrok host.
@@ -50,6 +54,9 @@ object PosApiProvider {
                 }
                 chain.proceed(builder.build())
             }
+            // Fires only on 401: renews the session and retries, or clears it
+            // so the app returns to the login screen on its own.
+            .authenticator(SessionAuthenticator(tokenManager, SupabaseApiProvider.create()))
             .build()
 
         return Retrofit.Builder()

@@ -19,7 +19,7 @@ import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
  * (it's in the ViewModel). Hardware back mirrors the in-screen back buttons.
  */
 @Composable
-fun PosApp(viewModel: PosViewModel) {
+fun PosApp(viewModel: PosViewModel, onSignOut: () -> Unit) {
     val destination by viewModel.destination.collectAsState()
     val cart by viewModel.cartState.collectAsState()
     val checkoutStatus by viewModel.checkoutStatus.collectAsState()
@@ -40,6 +40,7 @@ fun PosApp(viewModel: PosViewModel) {
                 onProceed = viewModel::openCart,
                 onOpenOrders = viewModel::openOrders,
                 onOpenTabs = viewModel::openTabs,
+                onSignOut = onSignOut,
             )
         }
 
