@@ -40,6 +40,7 @@ fun MenuScreen(
     onProceed: () -> Unit,
     onOpenOrders: () -> Unit,
     onOpenTabs: () -> Unit,
+    onSignOut: () -> Unit,
 ) {
     val menu by viewModel.menuState.collectAsState()
     val cart by viewModel.cartState.collectAsState()
@@ -62,6 +63,7 @@ fun MenuScreen(
                 onOpenOrders = onOpenOrders,
                 onOpenTabs = onOpenTabs,
                 onRetry = viewModel::loadMenu,
+                onSignOut = onSignOut,
                 modifier = Modifier.weight(0.65f).fillMaxHeight(),
             )
             CartPanel(
@@ -98,6 +100,7 @@ private fun MenuGrid(
     onOpenOrders: () -> Unit,
     onOpenTabs: () -> Unit,
     onRetry: () -> Unit,
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.padding(16.dp)) {
@@ -115,6 +118,10 @@ private fun MenuGrid(
             // Corrections happen at the till now, not on a manager's laptop.
             TextButton(onClick = onOpenOrders) { Text("الطلبات الأخيرة") }
             TextButton(onClick = onOpenTabs) { Text("الطاولات المفتوحة") }
+            // A shift ends, and a terminal changes hands. There was no way to
+            // sign out at all before this, so an expired session left the app
+            // holding a dead token with no escape but clearing its data.
+            TextButton(onClick = onSignOut) { Text("تسجيل الخروج") }
         }
         Spacer(Modifier.height(16.dp))
 
@@ -131,14 +138,17 @@ private fun MenuGrid(
                 onAction = onRetry,
             )
 
+            // The action offered is the one that can actually fix it. When
+            // retrying cannot — an expired session, a role without access —
+            // that action is signing out, because the message says to sign out
+            // and a message telling somebody to do something the screen does
+            // not offer is worse than no message at all. That exact dead end is
+            // what this branch exists to close.
             is MenuState.Failed -> CentredNotice(
                 text = state.message,
                 isError = true,
-                // Retry is offered only when it could work. On an expired
-                // session it would fail again and teach the server to distrust
-                // the button.
-                actionLabel = if (state.canRetry) "إعادة المحاولة" else null,
-                onAction = onRetry,
+                actionLabel = if (state.canRetry) "إعادة المحاولة" else "تسجيل الخروج",
+                onAction = if (state.canRetry) onRetry else onSignOut,
             )
 
             is MenuState.Loaded -> LazyVerticalGrid(

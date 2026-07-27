@@ -40,6 +40,9 @@ class AuthViewModel(
                     payload = SupabaseAuthPayload(email.trim(), password),
                 )
                 tokenManager.saveToken(response.access_token)
+                // Without this the session simply ends when the access token
+                // expires, roughly an hour later, with no way to renew it.
+                response.refresh_token?.let { tokenManager.saveRefreshToken(it) }
 
                 // Token is stored, so the OkHttp interceptor now authenticates
                 // this call. Resolve and persist the caller's organization.
@@ -55,6 +58,23 @@ class AuthViewModel(
             } finally {
                 isLoading = false
             }
+        }
+    }
+
+    /**
+     * Ends the shift.
+     *
+     * There was no way to do this at all: clearToken() was only ever called
+     * after a FAILED login, so once a session expired the app held a dead token
+     * forever and the only escape was clearing the app's data. The screen even
+     * told people to sign out, which they could not do.
+     *
+     * Clearing the token is the whole action — MainActivity watches it and
+     * shows the login screen the moment it disappears.
+     */
+    fun logout() {
+        viewModelScope.launch {
+            tokenManager.clearToken()
         }
     }
 }

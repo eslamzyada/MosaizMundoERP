@@ -13,6 +13,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,7 +94,15 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                 )
-                                PosApp(posViewModel)
+                                // Signing out is just clearing the session:
+                                // the `token == null` branch above is watching
+                                // it and shows the login screen the moment it
+                                // goes, so nothing has to navigate anywhere.
+                                val scope = rememberCoroutineScope()
+                                PosApp(
+                                    viewModel = posViewModel,
+                                    onSignOut = { scope.launch { tokenManager.clearToken() } },
+                                )
                             }
                         }
                     }
