@@ -135,7 +135,15 @@ describe('Employee performance', () => {
     // 1 void out of 2 orders rung up.
     expect(quiet.void_rate_pct).toBeCloseTo(50, 1);
     // The owner served nothing, so they should not appear at all.
-    expect(owner).toBeUndefined();
+    // The owner now APPEARS, with zeros — the panel is built from the roster
+    // so that a quiet week still shows the team (and the manager's ratings
+    // beside them) rather than vanishing entirely.
+    expect(owner).toBeDefined();
+    expect(owner!.orders_served).toBe(0);
+    expect(owner!.revenue).toBe(0);
+    // But a rate over no sales is null, not 0%: they did not have a perfect
+    // record, they simply were not selling.
+    expect(owner!.void_rate_pct).toBeNull();
   });
 
   test('every figure is ranked against the team, not an absolute bar', async () => {
@@ -181,7 +189,11 @@ describe('Employee performance', () => {
       WHERE organization_id = ${orgId}::uuid AND served_by = ${busyId}::uuid`;
 
     const near = await report('owner', 'days=30');
-    expect((near.body.employees as EmployeeRow[]).find((r) => r.user_id === busyId)).toBeUndefined();
+    // Present as a row, but with nothing in the window — which is the honest
+    // answer to "how did they do this week?" when they did not work it.
+    const nearRow = (near.body.employees as EmployeeRow[]).find((r) => r.user_id === busyId);
+    expect(nearRow).toBeDefined();
+    expect(nearRow!.orders_served).toBe(0);
 
     const far = await report('owner', 'days=180');
     expect((far.body.employees as EmployeeRow[]).find((r) => r.user_id === busyId)).toBeDefined();

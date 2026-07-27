@@ -156,12 +156,19 @@ export async function upsertRating(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * GET /api/ratings?month=YYYY-MM
+ * GET /api/ratings?month=YYYY-MM | ?months=N
  *
- * Ratings for one month, or the most recent per employee when no month is
- * given. Manager-only — the RESTRICTIVE policy means a cashier requesting this
- * would see an empty list rather than their own rating, but the route is gated
- * too so they get an honest 403 instead of a confusing blank.
+ * One month, or a WINDOW of recent months for drawing a trend.
+ *
+ * The window is bounded by TIME, not by a row cap. This used to return
+ * everything under `LIMIT 500`, which for twenty employees is a little under
+ * two years — and the failure was silent: a chart built from a truncated
+ * history simply shows a shorter, wrong trend with no indication that months
+ * were dropped. Asking for N months means the caller knows exactly what it got.
+ *
+ * Manager-only — the RESTRICTIVE policy means a cashier requesting this would
+ * see an empty list rather than their own rating, but the route is gated too so
+ * they get an honest 403 instead of a confusing blank.
  */
 export async function listRatings(req: Request, res: Response): Promise<void> {
   if (!req.tx) {
@@ -173,6 +180,18 @@ export async function listRatings(req: Request, res: Response): Promise<void> {
   if (month !== undefined && (typeof month !== 'string' || !MONTH_RE.test(month))) {
     res.status(400).json({ error: 'month must be in YYYY-MM form' });
     return;
+  }
+
+  // A year by default: long enough to show a direction, short enough that a
+  // long-running restaurant does not send a thousand rows to draw a sparkline.
+  let months = 12;
+  if (req.query.months !== undefined) {
+    const parsed = Number(req.query.months);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 36) {
+      res.status(400).json({ error: 'months must be a whole number between 1 and 36' });
+      return;
+    }
+    months = parsed;
   }
 
   try {
@@ -195,12 +214,21 @@ export async function listRatings(req: Request, res: Response): Promise<void> {
       ${
         typeof month === 'string'
           ? Prisma.sql`WHERE r.period_month = ${monthStart(month)}::date`
-          : Prisma.empty
+          : // Inclusive of the current month, so months=1 means "this month".
+            // The ::int cast is required, not cosmetic: Prisma binds a JS
+            // number as bigint and make_interval has no bigint overload.
+            Prisma.sql`WHERE r.period_month >= (date_trunc('month', now()) -
+                         make_interval(months => ${months}::int - 1))::date`
       }
-      ORDER BY r.period_month DESC, u.email ASC
-      LIMIT 500`;
+      ORDER BY r.period_month DESC, u.email ASC`;
 
-    res.status(200).json({ current_month: currentMonth(), ratings });
+    res.status(200).json({
+      current_month: currentMonth(),
+      // Echoed so a caller drawing a trend knows how far back the data it has
+      // actually reaches, rather than inferring it from the rows present.
+      months_returned: typeof month === 'string' ? 1 : months,
+      ratings,
+    });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[ratings.list] failed:', err);

@@ -20,6 +20,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -65,6 +70,7 @@ fun TabsScreen(
     val loading by viewModel.tabsLoading.collectAsState()
     val message by viewModel.tabMessage.collectAsState()
     val printWarning by viewModel.printWarning.collectAsState()
+    var newTableOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -79,6 +85,10 @@ fun TabsScreen(
                 fontWeight = FontWeight.Bold,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Seating a table is the FIRST thing that happens to it, so it
+                // belongs here rather than behind a cart that has to be filled
+                // before it can be reached.
+                Button(onClick = { newTableOpen = true }) { Text("طاولة جديدة") }
                 OutlinedButton(onClick = viewModel::refreshTabs) { Text("تحديث") }
                 OutlinedButton(onClick = onBack) { Text("رجوع") }
             }
@@ -156,7 +166,7 @@ fun TabsScreen(
             )
 
             tabs.isEmpty() -> Text(
-                text = "لا توجد طاولات مفتوحة. افتح طاولة من سلة الطلب.",
+                text = "لا توجد طاولات مفتوحة. اضغط «طاولة جديدة» لفتح واحدة.",
                 color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 16.sp,
             )
@@ -174,6 +184,52 @@ fun TabsScreen(
             }
         }
     }
+
+    if (newTableOpen) {
+        NewTableDialog(
+            onDismiss = { newTableOpen = false },
+            onConfirm = { note ->
+                viewModel.openEmptyTab(note)
+                newTableOpen = false
+            },
+        )
+    }
+}
+
+/**
+ * Asks what to call the table.
+ *
+ * The description is OPTIONAL — a tab with no note is still a real tab, and
+ * refusing to open one until something is typed would stand between a server
+ * and a table that is already sitting down. It is strongly encouraged, though,
+ * because the note is the only thing that identifies a tab in the list.
+ */
+@Composable
+private fun NewTableDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var note by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("طاولة جديدة") },
+        text = {
+            Column {
+                Text(
+                    text = "اكتب رقم الطاولة أو وصفها — هو ما سيميّزها في القائمة.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    singleLine = true,
+                    placeholder = { Text("طاولة ٥") },
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(note) }) { Text("افتح") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } },
+    )
 }
 
 @Composable

@@ -5,6 +5,7 @@ import Button from '../components/Button';
 import { HttpReportRepository } from '../api/HttpReportRepository';
 import { HttpRatingRepository } from '../api/HttpRatingRepository';
 import StarRating from '../components/StarRating';
+import { RatingSparkline, TeamRatingTrend } from '../components/RatingHistory';
 import type { ReportRepository } from '../api/ReportRepository';
 import { useSession } from '../session/SessionProvider';
 import { voidReasonLabel } from '../lib/voidReasons';
@@ -282,9 +283,11 @@ export default function Reports() {
           then, since that is when capital sits still. */}
       {assets && assets.summary.capital_tied_up > 0 && <AssetsPanel report={assets} />}
 
-      {/* Shown once anyone has served a sale. Before attribution existed
-          there is nothing to show, and an empty table would read as "the
-          staff did nothing" rather than "this was not recorded yet". */}
+      {/* Shown whenever there is a team, NOT only when somebody sold something.
+          This used to be gated on sales in the window, which meant a quiet week
+          hid the whole panel — and took the manager's ratings with it, though
+          ratings have nothing to do with the week's takings. A quiet week is
+          exactly when somebody sits down to do them. */}
       {employees && employees.employees.length > 0 && (
         <EmployeePanel
           report={employees}
@@ -1071,6 +1074,9 @@ function EmployeePanel({
   const ratingFor = (id: string) =>
     ratings.find((r) => r.employee_id === id && r.period_month.startsWith(currentMonth));
 
+  /** Everything on record for one person, for the sparkline. */
+  const ratingsFor = (id: string) => ratings.filter((r) => r.employee_id === id);
+
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
       <div className="border-b border-surface-sand-border px-6 py-4">
@@ -1107,6 +1113,7 @@ function EmployeePanel({
               <Th>نسبة الإلغاء</Th>
               <Th>الحصة</Th>
               <Th>تقييم المدير</Th>
+              <Th>آخر ١٢ شهرًا</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-sand-border/70">
@@ -1187,10 +1194,26 @@ function EmployeePanel({
                     </span>
                   )}
                 </td>
+                {/* The history the API was already returning and the table
+                    used to discard. Without it a rating could be recorded
+                    every month for a year and never once be looked at, which
+                    is the only thing a rating is for. */}
+                <td className="px-6 py-3.5">
+                  <RatingSparkline ratings={ratingsFor(e.user_id)} />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="border-t border-surface-sand-border px-6 py-5">
+        <h3 className="text-sm font-bold text-surface-dark">متوسط تقييم الفريق شهريًا</h3>
+        <p className="mb-3 mt-1 text-xs text-slate-500">
+          متوسط تقييمات الموظفين في كل شهر. الأشهر التي لم يُقيَّم فيها أحد تظهر كفجوة، لا
+          كخط متصل — حتى لا يبدو الشهر المنسيّ وكأنه شهر مُقيَّم.
+        </p>
+        <TeamRatingTrend ratings={ratings} />
       </div>
 
       <p className="border-t border-surface-sand-border px-6 py-3 text-xs text-slate-400">
