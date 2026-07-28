@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import LoadError from '../components/LoadError';
+import { classifyLoadFailure } from '../lib/loadFailure';
+import type { LoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
 import Badge from '../components/ui/Badge';
 import VoidOrderModal from '../components/VoidOrderModal';
@@ -19,20 +22,20 @@ export default function Orders() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<LoadFailure | null>(null);
   const [voiding, setVoiding] = useState<Order | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
-    setError(false);
+    setError(null);
     repository
       .getOrders()
       .then((data) => {
         setOrders(data);
         setLoading(false);
       })
-      .catch(() => {
-        setError(true);
+      .catch((e) => {
+        setError(classifyLoadFailure(e));
         setLoading(false);
       });
   }, []);
@@ -78,8 +81,8 @@ export default function Orders() {
             <tbody className="divide-y divide-surface-sand-border/70">
               {error ? (
                 <tr>
-                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14 text-center text-destructive-strong">
-                    تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14">
+                    <LoadError failure={error} onRetry={load} />
                   </td>
                 </tr>
               ) : loading ? (

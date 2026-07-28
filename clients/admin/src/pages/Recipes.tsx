@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import LoadError from '../components/LoadError';
+import { classifyLoadFailure } from '../lib/loadFailure';
+import type { LoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
 import axios from 'axios';
 import Button from '../components/Button';
@@ -22,7 +25,7 @@ export default function Recipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [ingredients, setIngredients] = useState<RawInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<LoadFailure | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   // Removal is two-step rather than a browser confirm(): the row itself asks.
@@ -40,9 +43,9 @@ export default function Recipes() {
         setSelectedId(recipeData[0]?.sellable_item.id ?? null);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
         if (!active) return;
-        setError(true);
+        setError(classifyLoadFailure(e));
         setLoading(false);
       });
     return () => {
@@ -118,8 +121,8 @@ export default function Recipes() {
               القائمة
             </div>
             {error ? (
-              <div className="px-4 py-10 text-center text-sm text-destructive-strong">
-                تعذّر تحميل البيانات.
+              <div className="px-4 py-6">
+                <LoadError failure={error} />
               </div>
             ) : loading ? (
               <div className="px-4 py-10 text-center text-sm text-slate-400">جارٍ التحميل…</div>
@@ -160,7 +163,7 @@ export default function Recipes() {
         <section className="min-w-0 flex-1">
           {error ? (
             <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-destructive-strong">
-              تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+              <LoadError failure={error} />
             </div>
           ) : loading || !selected ? (
             <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-slate-400">

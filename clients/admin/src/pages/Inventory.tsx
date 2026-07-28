@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import LoadError from '../components/LoadError';
+import { classifyLoadFailure } from '../lib/loadFailure';
+import type { LoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
 import Badge from '../components/ui/Badge';
 import type { BadgeVariant } from '../components/ui/Badge';
@@ -86,7 +89,7 @@ export default function Inventory() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [deficits, setDeficits] = useState<InventoryDeficit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<LoadFailure | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [preselected, setPreselected] = useState<string | undefined>(undefined);
   const [ingredientModalOpen, setIngredientModalOpen] = useState(false);
@@ -117,15 +120,15 @@ export default function Inventory() {
 
   const refresh = useCallback(() => {
     setLoading(true);
-    setError(false);
+    setError(null);
     load()
       .then(([stockData, deficitData]) => {
         setStock(stockData);
         setDeficits(deficitData);
         setLoading(false);
       })
-      .catch(() => {
-        setError(true);
+      .catch((e) => {
+        setError(classifyLoadFailure(e));
         setLoading(false);
       });
     loadExpiring();
@@ -189,9 +192,9 @@ export default function Inventory() {
         setDeficits(deficitData);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
         if (!active) return;
-        setError(true);
+        setError(classifyLoadFailure(e));
         setLoading(false);
       });
     return () => {
@@ -245,7 +248,7 @@ export default function Inventory() {
   );
   const expiringCount = useMemo(() => stock.filter(isExpiringSoon).length, [stock]);
 
-  const busy = loading || error;
+  const busy = loading || error !== null;
 
   return (
     <div className="p-8">
@@ -332,13 +335,8 @@ export default function Inventory() {
               <tbody className="divide-y divide-surface-sand-border/70">
                 {error ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
-                      <p className="mb-3 text-destructive-strong">
-                        تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
-                      </p>
-                      <Button variant="secondary" onClick={refresh}>
-                        إعادة المحاولة
-                      </Button>
+                    <td colSpan={8} className="px-6 py-12">
+                      <LoadError failure={error} onRetry={refresh} />
                     </td>
                   </tr>
                 ) : loading ? (

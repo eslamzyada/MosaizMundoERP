@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { classifyLoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
 import axios from 'axios';
 import Badge from '../components/ui/Badge';
@@ -51,7 +52,7 @@ export default function Members() {
         setLoading(false);
       })
       .catch((err) => {
-        setError(serverMessage(err, 'تعذّر تحميل الفريق. تأكّد من تشغيل الخادم.'));
+        setError(serverMessage(err, classifyLoadFailure(err).message));
         setLoading(false);
       });
   }, [load]);
@@ -67,7 +68,7 @@ export default function Members() {
       })
       .catch((err) => {
         if (!active) return;
-        setError(serverMessage(err, 'تعذّر تحميل الفريق. تأكّد من تشغيل الخادم.'));
+        setError(serverMessage(err, classifyLoadFailure(err).message));
         setLoading(false);
       });
     return () => {

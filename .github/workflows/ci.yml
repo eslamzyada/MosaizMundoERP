@@ -450,6 +450,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # The admin had no runtime tests until now, which is how a blank screen,
+      # a status the UI did not recognise and a hidden ratings panel all reached
+      # a real device with this job green: tsc only ever checked types, and API
+      # responses are cast rather than validated, so the types could be wrong
+      # and still compile.
+      - name: Admin unit tests
+        run: npm test
+
       - name: Build (tsc + vite build)
         run: npm run build
 
