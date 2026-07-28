@@ -176,7 +176,13 @@ export interface OrderItem {
 // Mirrors the database CHECK (orders_status_check): 'completed' | 'voided'.
 // 'refunded' was rendered by the UI but the DB rejects it (analysis F-12) — a
 // refund flow must add the status via migration before the type can grow.
-export type OrderStatus = 'completed' | 'voided';
+/**
+ * 'open' is a tab a table is still adding to (migration 0029). It was missing
+ * here long after the database could produce it, and because API responses are
+ * CAST to these types rather than validated, the compiler happily checked every
+ * status lookup against a union that no longer matched reality.
+ */
+export type OrderStatus = 'open' | 'completed' | 'voided';
 
 export interface Order {
   id: string;

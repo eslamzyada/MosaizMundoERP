@@ -4,7 +4,7 @@ import MetricWidget from '../components/MetricWidget';
 import Badge from '../components/ui/Badge';
 import { HttpOrderRepository } from '../api/HttpOrderRepository';
 import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
-import { ORDER_STATUS_META } from '../lib/orderStatus';
+import { orderStatusMeta } from '../lib/orderStatus';
 import type { InventoryDeficit, InventoryStock, Order } from '../types';
 
 const orderRepository = new HttpOrderRepository();
@@ -193,7 +193,7 @@ export default function Dashboard() {
                   </tr>
                 ) : (
                   recentOrders.map((o) => {
-                    const meta = ORDER_STATUS_META[o.status];
+                    const meta = orderStatusMeta(o.status);
                     return (
                       <tr key={o.id} className="transition-colors hover:bg-surface-sand/60">
                         <td className="px-6 py-4">
