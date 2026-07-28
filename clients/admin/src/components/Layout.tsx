@@ -1,3 +1,4 @@
+import ErrorBoundary from './ErrorBoundary';
 import { NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS, useSession } from '../session/SessionProvider';
@@ -99,7 +100,12 @@ export default function Layout() {
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        <Outlet />
+        {/* Wrapped INSIDE the layout, not around it: a page that throws
+            leaves the sidebar and navigation intact, so you can walk away from
+            the broken screen instead of staring at a black one. */}
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

@@ -4,7 +4,7 @@ import Badge from '../components/ui/Badge';
 import VoidOrderModal from '../components/VoidOrderModal';
 import { HttpOrderRepository } from '../api/HttpOrderRepository';
 import type { OrderRepository } from '../api/OrderRepository';
-import { ORDER_STATUS_META } from '../lib/orderStatus';
+import { orderStatusMeta } from '../lib/orderStatus';
 import { voidReasonLabel, type VoidReasonCode } from '../lib/voidReasons';
 import { useSession } from '../session/SessionProvider';
 import type { Order } from '../types';
@@ -96,7 +96,7 @@ export default function Orders() {
                 </tr>
               ) : (
                 orders.map((o) => {
-                  const meta = ORDER_STATUS_META[o.status];
+                  const meta = orderStatusMeta(o.status);
                   const itemCount = o.order_items.reduce((sum, it) => sum + it.quantity, 0);
                   return (
                     <tr key={o.id} className="transition-colors hover:bg-surface-sand/60">
