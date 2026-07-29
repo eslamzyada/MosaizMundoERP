@@ -13,6 +13,7 @@ import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
 import supplierRoutes from './routes/supplier.routes';
 import printerRoutes from './routes/printer.routes';
+import { brandingRouter, preferencesRouter } from './routes/preferences.routes';
 import purchaseOrderRoutes from './routes/purchaseOrder.routes';
 import webhookRoutes from './routes/webhook.routes';
 
@@ -143,6 +144,12 @@ app.use('/api/purchase-orders', purchaseOrderRoutes);
 // Where a ticket physically prints. The gateway only holds the address — the
 // printer is on the restaurant's LAN and the till is what opens the socket.
 app.use('/api/printers', printerRoutes);
+
+// Appearance (0032). Mounted at their own nouns, NOT at '/api': a router
+// mounted there receives every /api/* request and its authMiddleware runs for
+// all of them, which breaks the webhook route that authenticates by HMAC.
+app.use('/api/preferences', preferencesRouter);
+app.use('/api/branding', brandingRouter);
 
 // Supabase identity webhooks. Guarded by HMAC signature (webhookAuth), NOT the
 // JWT middleware — Supabase calls these, not a logged-in user.
