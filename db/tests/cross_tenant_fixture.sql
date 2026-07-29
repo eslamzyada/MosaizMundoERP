@@ -49,6 +49,15 @@ SELECT '9111e400-000f-400f-800f-00000000000f', o.id, 'Foreign Tenant Printer',
 FROM public.organizations o
 WHERE o.slug = 'ci-bistro-cairo';
 
+-- BRANDING owned by the other organization (0032). Without this row the
+-- preferences suite's cross-tenant count has nothing to find, so it reports
+-- zero whether or not the policy holds — the same vacuous pass that hid the
+-- cross-tenant order check until a real row existed.
+INSERT INTO public.organization_branding (organization_id, display_name)
+SELECT o.id, 'Foreign Tenant Restaurant'
+FROM public.organizations o
+WHERE o.slug = 'ci-bistro-cairo';
+
 -- These are all INSERT ... SELECT ... WHERE slug = '...', which insert ZERO
 -- rows — silently, without error — if that organization is ever missing. Every
 -- cross-tenant assertion downstream would then be testing against nothing and
@@ -70,6 +79,10 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM public.printers
                    WHERE id = '9111e400-000f-400f-800f-00000000000f') THEN
         missing := missing || 'printer'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.organization_branding b
+                   JOIN public.organizations o ON o.id = b.organization_id
+                   WHERE o.slug = 'ci-bistro-cairo') THEN
+        missing := missing || 'branding'; END IF;
 
     IF array_length(missing, 1) > 0 THEN
         RAISE EXCEPTION
@@ -80,4 +93,4 @@ BEGIN
 END;
 $$;
 
-SELECT 'cross_tenant_fixture: seeded another organization''s supplier, ingredient, order and printer' AS result;
+SELECT 'cross_tenant_fixture: seeded another organization''s supplier, ingredient, order, printer and branding' AS result;
