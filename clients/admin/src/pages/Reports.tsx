@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import LoadError from '../components/LoadError';
+import { classifyLoadFailure } from '../lib/loadFailure';
+import type { LoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import Button from '../components/Button';
 import { HttpReportRepository } from '../api/HttpReportRepository';
 import { HttpRatingRepository } from '../api/HttpRatingRepository';
 import StarRating from '../components/StarRating';
@@ -58,19 +60,19 @@ export default function Reports() {
   const [ratings, setRatings] = useState<EmployeeRating[]>([]);
   const [currentMonth, setCurrentMonth] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<LoadFailure | null>(null);
 
   const load = useCallback((w: ReportWindow) => {
     setLoading(true);
-    setError(false);
+    setError(null);
     repository
       .getProfitability(w)
       .then((data) => {
         setReport(data);
         setLoading(false);
       })
-      .catch(() => {
-        setError(true);
+      .catch((e) => {
+        setError(classifyLoadFailure(e));
         setLoading(false);
       });
 
@@ -231,13 +233,8 @@ export default function Reports() {
       </header>
 
       {error ? (
-        <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center">
-          <p className="mb-3 text-sm text-destructive-strong">
-            تعذّر تحميل التقرير. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
-          </p>
-          <Button variant="secondary" onClick={() => load(window)}>
-            إعادة المحاولة
-          </Button>
+        <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12">
+          <LoadError failure={error} onRetry={() => load(window)} />
         </div>
       ) : loading || !summary || !report ? (
         <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-slate-400">

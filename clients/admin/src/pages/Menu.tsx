@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import LoadError from '../components/LoadError';
+import { classifyLoadFailure } from '../lib/loadFailure';
+import type { LoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
 import Button from '../components/Button';
 import MenuItemModal from '../components/MenuItemModal';
@@ -19,21 +22,21 @@ export default function Menu() {
 
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<LoadFailure | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogItem | null>(null);
 
   const refresh = useCallback(() => {
     setLoading(true);
-    setError(false);
+    setError(null);
     repository
       .getItems()
       .then((data) => {
         setItems(data);
         setLoading(false);
       })
-      .catch(() => {
-        setError(true);
+      .catch((e) => {
+        setError(classifyLoadFailure(e));
         setLoading(false);
       });
   }, []);
@@ -47,9 +50,9 @@ export default function Menu() {
         setItems(data);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
         if (!active) return;
-        setError(true);
+        setError(classifyLoadFailure(e));
         setLoading(false);
       });
     return () => {
@@ -76,7 +79,7 @@ export default function Menu() {
     refresh();
   }
 
-  const busy = loading || error;
+  const busy = loading || error !== null;
 
   return (
     <div className="p-8">
@@ -123,13 +126,8 @@ export default function Menu() {
             <tbody className="divide-y divide-surface-sand-border/70">
               {error ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <p className="mb-3 text-destructive-strong">
-                      تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
-                    </p>
-                    <Button variant="secondary" onClick={refresh}>
-                      إعادة المحاولة
-                    </Button>
+                  <td colSpan={6} className="px-6 py-12">
+                    <LoadError failure={error} onRetry={refresh} />
                   </td>
                 </tr>
               ) : loading ? (

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import LoadError from '../components/LoadError';
+import { classifyLoadFailure } from '../lib/loadFailure';
+import type { LoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
 import MetricWidget from '../components/MetricWidget';
 import Badge from '../components/ui/Badge';
@@ -15,13 +18,13 @@ export default function Dashboard() {
   const [deficits, setDeficits] = useState<InventoryDeficit[]>([]);
   const [stock, setStock] = useState<InventoryStock[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<LoadFailure | null>(null);
   /** When these figures were actually read. A dashboard that cannot say how old
    *  it is invites you to trust a number from an hour ago. */
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
-    setError(false);
+    setError(null);
     try {
       const [orderData, deficitData, stockData] = await Promise.all([
         orderRepository.getOrders(),
@@ -32,8 +35,8 @@ export default function Dashboard() {
       setDeficits(deficitData);
       setStock(stockData);
       setFetchedAt(new Date());
-    } catch {
-      setError(true);
+    } catch (e) {
+      setError(classifyLoadFailure(e));
     } finally {
       setLoading(false);
     }
@@ -126,21 +129,21 @@ export default function Dashboard() {
           })}
           suffix="ج.م"
           accent="sunset"
-          loading={loading || error}
+          loading={loading || error !== null}
           icon={<TrendingUpIcon />}
         />
         <MetricWidget
           label="عدد الطلبات"
           value={completed.length.toLocaleString('en-US')}
           accent="twilight"
-          loading={loading || error}
+          loading={loading || error !== null}
           icon={<BagIcon />}
         />
         <MetricWidget
           label="نواقص المخزون"
           value={deficits.length.toLocaleString('en-US')}
           accent="amber"
-          loading={loading || error}
+          loading={loading || error !== null}
           icon={<AlertIcon />}
         />
         {/* Inventory had no presence here at all, which is why changing it
@@ -154,14 +157,14 @@ export default function Dashboard() {
           })}
           suffix="ج.م"
           accent="twilight"
-          loading={loading || error}
+          loading={loading || error !== null}
           icon={<BoxIcon />}
         />
         <MetricWidget
           label="تحت الحد الأدنى"
           value={lowStockCount.toLocaleString('en-US')}
           accent="amber"
-          loading={loading || error}
+          loading={loading || error !== null}
           icon={<AlertIcon />}
         />
       </div>
@@ -181,8 +184,8 @@ export default function Dashboard() {
               <tbody className="divide-y divide-surface-sand-border/70">
                 {error ? (
                   <tr>
-                    <td colSpan={3} className="px-6 py-10 text-center text-destructive-strong">
-                      تعذّر تحميل البيانات. تأكّد من تسجيل الدخول ومن تشغيل الخادم.
+                    <td colSpan={3} className="px-6 py-10">
+                      <LoadError failure={error} onRetry={load} />
                     </td>
                   </tr>
                 ) : loading ? (
