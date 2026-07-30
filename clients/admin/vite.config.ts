@@ -14,5 +14,16 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
+    // Placeholder Supabase config, so importing the API client does not throw
+    // "supabaseUrl is required" in a checkout with no .env.
+    //
+    // These are NOT credentials and must never become them: nothing in a test
+    // reaches Supabase. The real values live in clients/admin/.env, which is
+    // gitignored — which is exactly why the suite passed locally and failed in
+    // CI until this existed.
+    env: {
+      VITE_SUPABASE_URL: 'http://localhost:54321',
+      VITE_SUPABASE_ANON_KEY: 'test-anon-key-not-a-real-credential',
+    },
   },
 });
