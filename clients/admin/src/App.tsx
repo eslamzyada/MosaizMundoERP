@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PreferencesProvider from './session/PreferencesProvider';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
@@ -13,6 +14,7 @@ import Reports from './pages/Reports';
 import StocktakePage from './pages/Stocktake';
 import Suppliers from './pages/Suppliers';
 import Printers from './pages/Printers';
+import Settings from './pages/Settings';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Menu from './pages/Menu';
 import { SessionProvider } from './session/SessionProvider';
@@ -38,7 +40,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-surface-sand text-sm text-slate-400">
+      <div className="grid min-h-screen place-items-center bg-app-bg text-sm text-app-ink-muted">
         جارٍ التحميل…
       </div>
     );
@@ -51,7 +53,8 @@ export default function App() {
   // SessionProvider sits inside the auth gate: it resolves GET /api/me once for
   // the whole app, so every page knows the caller's role without refetching it.
   return (
-    <SessionProvider>
+    <PreferencesProvider>
+      <SessionProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
@@ -66,10 +69,12 @@ export default function App() {
             <Route path="suppliers" element={<Suppliers />} />
             <Route path="purchase-orders" element={<PurchaseOrders />} />
             <Route path="printers" element={<Printers />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </SessionProvider>
+    </PreferencesProvider>
   );
 }

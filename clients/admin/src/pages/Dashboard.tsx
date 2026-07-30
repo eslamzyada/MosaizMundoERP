@@ -95,11 +95,11 @@ export default function Dashboard() {
     <div className="p-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-surface-dark">لوحة التحكم</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-app-ink">لوحة التحكم</h1>
+          <p className="mt-1 text-sm text-app-ink-muted">
             نظرة عامة على أداء اليوم.
             {fetchedAt && (
-              <span className="ms-2 text-xs text-slate-400">
+              <span className="ms-2 text-xs text-app-ink-muted">
                 آخر تحديث{' '}
                 <span className="font-numerals">
                   {fetchedAt.toLocaleTimeString('en-GB', {
@@ -114,7 +114,7 @@ export default function Dashboard() {
         <button
           type="button"
           onClick={() => void load()}
-          className="rounded-lg border border-surface-sand-border bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:bg-surface-sand-alt focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+          className="rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-xs font-bold text-app-ink-muted transition-colors hover:bg-app-surface-alt focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
         >
           تحديث
         </button>
@@ -170,18 +170,18 @@ export default function Dashboard() {
       </div>
 
       <section>
-        <h2 className="mb-3 text-sm font-bold text-surface-dark">أحدث الطلبات</h2>
-        <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+        <h2 className="mb-3 text-sm font-bold text-app-ink">أحدث الطلبات</h2>
+        <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-surface-sand-border text-sm">
-              <thead className="bg-surface-sand-alt/60">
+            <table className="min-w-full divide-y divide-app-border text-sm">
+              <thead className="bg-app-surface-alt/60">
                 <tr>
                   <Th>رقم الطلب</Th>
                   <Th>الإجمالي</Th>
                   <Th>الحالة</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-sand-border/70">
+              <tbody className="divide-y divide-app-border/70">
                 {error ? (
                   <tr>
                     <td colSpan={3} className="px-6 py-10">
@@ -190,7 +190,7 @@ export default function Dashboard() {
                   </tr>
                 ) : loading ? (
                   <tr>
-                    <td colSpan={3} className="px-6 py-10 text-center text-slate-400">
+                    <td colSpan={3} className="px-6 py-10 text-center text-app-ink-muted">
                       جارٍ التحميل…
                     </td>
                   </tr>
@@ -198,20 +198,20 @@ export default function Dashboard() {
                   recentOrders.map((o) => {
                     const meta = orderStatusMeta(o.status);
                     return (
-                      <tr key={o.id} className="transition-colors hover:bg-surface-sand/60">
+                      <tr key={o.id} className="transition-colors hover:bg-app-bg/60">
                         <td className="px-6 py-4">
-                          <span className="font-numerals font-semibold text-surface-dark">
+                          <span className="font-numerals font-semibold text-app-ink">
                             #{o.id.slice(0, 8)}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="font-numerals font-semibold text-surface-dark">
+                          <span className="font-numerals font-semibold text-app-ink">
                             {o.total_amount.toLocaleString('en-US', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
                           </span>
-                          <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+                          <span className="ms-1 text-xs font-medium text-app-ink-muted">ج.م</span>
                         </td>
                         <td className="px-6 py-4">
                           <Badge variant={meta.variant}>{meta.label}</Badge>
@@ -241,7 +241,7 @@ function BoxIcon() {
 
 function Th({ children }: { children: ReactNode }) {
   return (
-    <th className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500">
+    <th className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted">
       {children}
     </th>
   );

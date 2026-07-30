@@ -107,8 +107,8 @@ export default function Recipes() {
   return (
     <div className="p-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-surface-dark">الوصفات</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold tracking-tight text-app-ink">الوصفات</h1>
+        <p className="mt-1 text-sm text-app-ink-muted">
           قائمة الأصناف ومكوّناتها الخام — اختر صنفًا لعرض وصفته.
         </p>
       </header>
@@ -116,8 +116,8 @@ export default function Recipes() {
       <div className="flex flex-col gap-6 lg:flex-row">
         {/* Master: menu (sellable items) */}
         <aside className="w-full flex-shrink-0 lg:w-72">
-          <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
-            <div className="border-b border-surface-sand-border px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+          <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
+            <div className="border-b border-app-border px-4 py-3 text-xs font-bold uppercase tracking-wide text-app-ink-muted">
               القائمة
             </div>
             {error ? (
@@ -125,7 +125,7 @@ export default function Recipes() {
                 <LoadError failure={error} />
               </div>
             ) : loading ? (
-              <div className="px-4 py-10 text-center text-sm text-slate-400">جارٍ التحميل…</div>
+              <div className="px-4 py-10 text-center text-sm text-app-ink-muted">جارٍ التحميل…</div>
             ) : (
               <ul className="p-2">
                 {recipes.map((r) => {
@@ -138,14 +138,14 @@ export default function Recipes() {
                           'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm transition-colors',
                           isActive
                             ? 'bg-twilight-600 text-white'
-                            : 'text-surface-dark hover:bg-surface-sand-alt',
+                            : 'text-app-ink hover:bg-app-surface-alt',
                         ].join(' ')}
                       >
                         <span className="font-semibold">{r.sellable_item.name}</span>
                         <span
                           className={[
                             'font-numerals text-xs',
-                            isActive ? 'text-twilight-100' : 'text-slate-400',
+                            isActive ? 'text-twilight-100' : 'text-app-ink-muted',
                           ].join(' ')}
                         >
                           {r.recipe_lines.length}
@@ -162,33 +162,33 @@ export default function Recipes() {
         {/* Detail: the selected recipe's Bill of Materials */}
         <section className="min-w-0 flex-1">
           {error ? (
-            <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-destructive-strong">
+            <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center text-sm text-destructive-strong">
               <LoadError failure={error} />
             </div>
           ) : loading || !selected ? (
-            <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-slate-400">
+            <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center text-sm text-app-ink-muted">
               {loading ? 'جارٍ تحميل الوصفة…' : 'اختر صنفًا من القائمة.'}
             </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-surface-sand-border px-6 py-4">
+            <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-app-border px-6 py-4">
                 <div>
-                  <h2 className="text-lg font-bold text-surface-dark">
+                  <h2 className="text-lg font-bold text-app-ink">
                     {selected.sellable_item.name}
                   </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-app-ink-muted">
                     رمز الصنف:{' '}
                     <span className="font-numerals">{selected.sellable_item.sku ?? '—'}</span>
                   </p>
                 </div>
                 {maySeeCost && (
                 <div className="text-start">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-app-ink-muted">
                     {selected.uncosted_line_count > 0 ? 'تكلفة جزئية' : 'تكلفة المكوّنات'}
                   </div>
                   <div className="font-numerals text-xl font-bold text-twilight-700">
                     {money(selected.total_cost)}
-                    <span className="ms-1 font-sans text-sm font-medium text-slate-500">ج.م</span>
+                    <span className="ms-1 font-sans text-sm font-medium text-app-ink-muted">ج.م</span>
                   </div>
                   {/* An incomplete cost is worse than no cost: it looks like a
                       finished number and would underprice the dish. Say so. */}
@@ -198,22 +198,22 @@ export default function Recipes() {
                       التكلفة الحقيقية أعلى.
                     </p>
                   ) : selected.price > 0 ? (
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      <span className="font-numerals font-semibold text-surface-dark">
+                    <p className="mt-1 text-[11px] text-app-ink-muted">
+                      <span className="font-numerals font-semibold text-app-ink">
                         {((selected.total_cost / selected.price) * 100).toFixed(1)}%
                       </span>{' '}
                       من سعر البيع ({money(selected.price)} ج.م)
                     </p>
                   ) : (
-                    <p className="mt-1 text-[11px] text-slate-500">لم يُحدَّد سعر بيع لهذا الصنف.</p>
+                    <p className="mt-1 text-[11px] text-app-ink-muted">لم يُحدَّد سعر بيع لهذا الصنف.</p>
                   )}
                 </div>
                 )}
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-surface-sand-border text-sm">
-                  <thead className="bg-surface-sand-alt/60">
+                <table className="min-w-full divide-y divide-app-border text-sm">
+                  <thead className="bg-app-surface-alt/60">
                     <tr>
                       <Th>المكوّن</Th>
                       <Th>الكمية</Th>
@@ -223,12 +223,12 @@ export default function Recipes() {
                       {mayEdit && <Th>إجراءات</Th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-surface-sand-border/70">
+                  <tbody className="divide-y divide-app-border/70">
                     {selected.recipe_lines.length === 0 && (
                       <tr>
                         <td
                           colSpan={(mayEdit ? 5 : 4) + (maySeeCost ? 1 : 0)}
-                          className="px-6 py-10 text-center text-sm text-slate-400"
+                          className="px-6 py-10 text-center text-sm text-app-ink-muted"
                         >
                           لا توجد مكوّنات في هذه الوصفة بعد.
                           {mayEdit && ' أضف مكوّنًا لتبدأ في خصم المخزون عند البيع.'}
@@ -236,8 +236,8 @@ export default function Recipes() {
                       </tr>
                     )}
                     {selected.recipe_lines.map((line) => (
-                      <tr key={line.id} className="transition-colors hover:bg-surface-sand/60">
-                        <td className="px-6 py-4 font-semibold text-surface-dark">
+                      <tr key={line.id} className="transition-colors hover:bg-app-bg/60">
+                        <td className="px-6 py-4 font-semibold text-app-ink">
                           {line.raw_item.name}
                         </td>
                         <td className="px-6 py-4">
@@ -248,18 +248,18 @@ export default function Recipes() {
                             onCommit={(qty) => handleQuantityCommit(line.id, qty)}
                           />
                         </td>
-                        <td className="px-6 py-4 text-slate-500">{line.raw_item.unit_of_measure}</td>
+                        <td className="px-6 py-4 text-app-ink-muted">{line.raw_item.unit_of_measure}</td>
                         {maySeeCost && (
                         <td className="px-6 py-4">
                           {line.line_cost === null ? (
                             <Badge variant="warning">بلا رصيد</Badge>
                           ) : (
                             <span
-                              className="font-numerals text-surface-dark"
+                              className="font-numerals text-app-ink"
                               title={`${money(line.unit_cost ?? 0)} ج.م لكل ${line.raw_item.unit_of_measure}`}
                             >
                               {money(line.line_cost)}
-                              <span className="ms-1 font-sans text-xs text-slate-400">ج.م</span>
+                              <span className="ms-1 font-sans text-xs text-app-ink-muted">ج.م</span>
                             </span>
                           )}
                         </td>
@@ -271,7 +271,7 @@ export default function Recipes() {
                           <td className="px-6 py-4">
                             {pendingRemoveId === line.id ? (
                               <div className="flex items-center justify-end gap-2">
-                                <span className="text-xs text-slate-500">حذف المكوّن؟</span>
+                                <span className="text-xs text-app-ink-muted">حذف المكوّن؟</span>
                                 <button
                                   type="button"
                                   disabled={busyLineId === line.id}
@@ -283,7 +283,7 @@ export default function Recipes() {
                                 <button
                                   type="button"
                                   onClick={() => setPendingRemoveId(null)}
-                                  className="rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-500 transition-colors hover:bg-surface-sand-alt"
+                                  className="rounded-lg px-2.5 py-1 text-xs font-semibold text-app-ink-muted transition-colors hover:bg-app-surface-alt"
                                 >
                                   إلغاء
                                 </button>
@@ -313,13 +313,13 @@ export default function Recipes() {
                   actions. There is no "save recipe" button: each change is
                   written on its own, so nothing sits unsaved on screen. */}
               {mayEdit ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-sand-border px-6 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-app-border px-6 py-4">
                   <p
                     role={lineError ? 'alert' : undefined}
                     className={
                       lineError
                         ? 'text-xs font-semibold text-destructive-strong'
-                        : 'text-xs text-slate-500'
+                        : 'text-xs text-app-ink-muted'
                     }
                   >
                     {lineError ?? 'كل تعديل يُحفظ فور إدخاله.'}
@@ -329,7 +329,7 @@ export default function Recipes() {
                   </Button>
                 </div>
               ) : (
-                <p className="border-t border-surface-sand-border px-6 py-4 text-xs text-slate-500">
+                <p className="border-t border-app-border px-6 py-4 text-xs text-app-ink-muted">
                   عرض فقط — تعديل الوصفات متاح للمالك والمديرين.
                 </p>
               )}
@@ -379,7 +379,7 @@ function QuantityCell({
 
   if (!editable) {
     return (
-      <span className="font-numerals font-semibold text-surface-dark">
+      <span className="font-numerals font-semibold text-app-ink">
         {line.quantity_required.toLocaleString('en-US')}
       </span>
     );
@@ -423,10 +423,10 @@ function QuantityCell({
           }
         }}
         className={[
-          'w-24 rounded-lg border bg-white px-2 py-1 font-numerals text-start text-sm font-semibold',
-          'text-surface-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30',
+          'w-24 rounded-lg border bg-app-surface px-2 py-1 font-numerals text-start text-sm font-semibold',
+          'text-app-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30',
           'disabled:opacity-50',
-          dirty ? 'border-twilight-500' : 'border-surface-sand-border focus:border-twilight-500',
+          dirty ? 'border-twilight-500' : 'border-app-border focus:border-twilight-500',
         ].join(' ')}
       />
       {dirty && (
@@ -471,7 +471,7 @@ function CategoryChip({ category }: { category?: IngredientCategory }) {
 
 function Th({ children }: { children: ReactNode }) {
   return (
-    <th className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500">
+    <th className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted">
       {children}
     </th>
   );

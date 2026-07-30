@@ -1,5 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Theme is a class on <html>, set by PreferencesProvider from the stored
+  // preference (or the operating system when that preference is 'system').
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
@@ -10,6 +13,17 @@ export default {
         numerals: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
+        // Role-named surfaces backed by CSS variables (see index.css). Use
+        // these for anything themed; the literal palettes below stay for brand
+        // accents and the deliberately-dark sidebar chrome.
+        app: {
+          bg: 'rgb(var(--app-bg) / <alpha-value>)',
+          surface: 'rgb(var(--app-surface) / <alpha-value>)',
+          'surface-alt': 'rgb(var(--app-surface-alt) / <alpha-value>)',
+          border: 'rgb(var(--app-border) / <alpha-value>)',
+          ink: 'rgb(var(--app-ink) / <alpha-value>)',
+          'ink-muted': 'rgb(var(--app-ink-muted) / <alpha-value>)',
+        },
         // Primary brand — sunset red/orange.
         sunset: {
           50: '#fff5f1',

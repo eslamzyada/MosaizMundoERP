@@ -18,7 +18,7 @@ interface Props {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-surface-sand-border bg-white px-3 py-2 text-sm text-surface-dark ' +
+  'w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-ink ' +
   'focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30';
 
 /**
@@ -114,7 +114,7 @@ export default function IngredientModal({ open, ingredient, onClose, onSave }: P
             onChange={(e) => setThreshold(e.target.value)}
             className={`${inputClass} font-numerals text-start`}
           />
-          <span className="mt-1 block text-[11px] text-slate-400">
+          <span className="mt-1 block text-[11px] text-app-ink-muted">
             يُنبّه لوحة المخزون عندما يقل المتوفر عن هذا الحد. صفر = بدون تنبيه.
           </span>
         </Field>
@@ -141,7 +141,7 @@ export default function IngredientModal({ open, ingredient, onClose, onSave }: P
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-500">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold text-app-ink-muted">{label}</span>
       {children}
     </label>
   );

@@ -110,8 +110,8 @@ export default function PurchaseOrders() {
     <div className="p-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-surface-dark">أوامر الشراء</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-app-ink">أوامر الشراء</h1>
+          <p className="mt-1 text-sm text-app-ink-muted">
             ما تم طلبه من المورّدين، وما وصل منه فعلًا — الفرق بينهما هو المتبقّي لدى المورّد.
           </p>
         </div>
@@ -123,7 +123,7 @@ export default function PurchaseOrders() {
       </header>
 
       {!mayOrder && !loading && (
-        <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-xs text-slate-500">
+        <p className="mb-4 rounded-xl border border-app-border bg-app-surface-alt/60 px-4 py-3 text-xs text-app-ink-muted">
           عرض فقط — إصدار أوامر الشراء واستلامها متاح للمالك والمديرين.
         </p>
       )}
@@ -138,14 +138,14 @@ export default function PurchaseOrders() {
       )}
 
       {error ? (
-        <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center">
+        <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center">
           <p className="mb-3 text-sm text-destructive-strong">تعذّر تحميل البيانات.</p>
           <Button variant="secondary" onClick={load}>
             إعادة المحاولة
           </Button>
         </div>
       ) : loading ? (
-        <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-slate-400">
+        <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center text-sm text-app-ink-muted">
           جارٍ التحميل…
         </div>
       ) : (
@@ -219,11 +219,11 @@ function OrderTable({
   onOpen: (id: string) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+        <table className="min-w-full divide-y divide-app-border text-sm">
           <caption className="sr-only">أوامر الشراء</caption>
-          <thead className="bg-surface-sand-alt/60">
+          <thead className="bg-app-surface-alt/60">
             <tr>
               <Th>المورّد</Th>
               <Th>التوريد المتوقّع</Th>
@@ -235,19 +235,19 @@ function OrderTable({
               </Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-surface-sand-border/70">
+          <tbody className="divide-y divide-app-border/70">
             {orders.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">
+                <td colSpan={6} className="px-6 py-12 text-center text-sm text-app-ink-muted">
                   لا توجد أوامر شراء بعد.
                 </td>
               </tr>
             ) : (
               orders.map((o) => (
-                <tr key={o.id} className="transition-colors hover:bg-surface-sand/60">
-                  <td className="px-6 py-4 font-semibold text-surface-dark">{o.supplier_name}</td>
-                  <td className="px-6 py-4 font-numerals text-slate-500">{day(o.expected_at)}</td>
-                  <td className="px-6 py-4 text-slate-500">
+                <tr key={o.id} className="transition-colors hover:bg-app-bg/60">
+                  <td className="px-6 py-4 font-semibold text-app-ink">{o.supplier_name}</td>
+                  <td className="px-6 py-4 font-numerals text-app-ink-muted">{day(o.expected_at)}</td>
+                  <td className="px-6 py-4 text-app-ink-muted">
                     <span className="font-numerals">{o.line_count}</span>
                     {/* The number that matters on a placed order: what has not
                         turned up yet. */}
@@ -257,7 +257,7 @@ function OrderTable({
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 font-numerals text-slate-600">
+                  <td className="px-6 py-4 font-numerals text-app-ink-muted">
                     {money(Number(o.order_value))}
                   </td>
                   <td className="px-6 py-4">
@@ -330,16 +330,16 @@ function OrderDetail({
   const canReceive = mayOrder && order.status === 'placed' && receipts.length > 0;
 
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-sand-border px-6 py-4">
+    <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-border px-6 py-4">
         <div>
-          <h2 className="text-sm font-bold text-surface-dark">
+          <h2 className="text-sm font-bold text-app-ink">
             {order.suppliers.name}{' '}
             <Badge variant={STATUS_META[order.status].variant}>
               {STATUS_META[order.status].label}
             </Badge>
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-app-ink-muted">
             التوريد المتوقّع: <span className="font-numerals">{day(order.expected_at)}</span>
             {order.notes && ` · ${order.notes}`}
           </p>
@@ -362,15 +362,15 @@ function OrderDetail({
       </div>
 
       {order.status === 'draft' && (
-        <p className="border-b border-surface-sand-border bg-surface-sand-alt/40 px-6 py-3 text-xs text-slate-500">
+        <p className="border-b border-app-border bg-app-surface-alt/40 px-6 py-3 text-xs text-app-ink-muted">
           مسودّة — لا يمكن تسجيل استلام قبل اعتماد الأمر.
         </p>
       )}
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+        <table className="min-w-full divide-y divide-app-border text-sm">
           <caption className="sr-only">أصناف أمر الشراء</caption>
-          <thead className="bg-surface-sand-alt/60">
+          <thead className="bg-app-surface-alt/60">
             <tr>
               <Th>المكوّن</Th>
               <Th>المطلوب</Th>
@@ -380,27 +380,27 @@ function OrderDetail({
               {order.status === 'placed' && mayOrder && <Th>استلام الآن</Th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-surface-sand-border/70">
+          <tbody className="divide-y divide-app-border/70">
             {order.lines.map((line) => {
               const short = Number(line.quantity_outstanding);
               return (
-                <tr key={line.id} className="transition-colors hover:bg-surface-sand/60">
-                  <td className="px-6 py-3 font-semibold text-surface-dark">
+                <tr key={line.id} className="transition-colors hover:bg-app-bg/60">
+                  <td className="px-6 py-3 font-semibold text-app-ink">
                     {line.raw_item_name}
-                    <span className="ms-2 text-xs font-normal text-slate-400">
+                    <span className="ms-2 text-xs font-normal text-app-ink-muted">
                       {line.unit_of_measure}
                     </span>
                   </td>
-                  <td className="px-6 py-3 font-numerals text-slate-500">
+                  <td className="px-6 py-3 font-numerals text-app-ink-muted">
                     {qty(Number(line.quantity_ordered))}
                   </td>
-                  <td className="px-6 py-3 font-numerals text-slate-600">
+                  <td className="px-6 py-3 font-numerals text-app-ink-muted">
                     {qty(Number(line.quantity_received))}
                   </td>
                   <td className="px-6 py-3">
                     <Outstanding value={short} />
                   </td>
-                  <td className="px-6 py-3 font-numerals text-slate-500">
+                  <td className="px-6 py-3 font-numerals text-app-ink-muted">
                     {money(Number(line.unit_price))}
                   </td>
                   {order.status === 'placed' && mayOrder && (
@@ -419,7 +419,7 @@ function OrderDetail({
                           onChange={(e) =>
                             setDrafts((d) => ({ ...d, [line.id]: e.target.value }))
                           }
-                          className="w-24 rounded-lg border border-surface-sand-border bg-white px-2 py-1 font-numerals text-start text-sm font-semibold text-surface-dark focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
+                          className="w-24 rounded-lg border border-app-border bg-app-surface px-2 py-1 font-numerals text-start text-sm font-semibold text-app-ink focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
                         />
                         {/* The invoice often differs from the quote; leaving
                             this blank keeps the agreed price. */}
@@ -434,7 +434,7 @@ function OrderDetail({
                           value={costs[line.id] ?? ''}
                           disabled={busy}
                           onChange={(e) => setCosts((c) => ({ ...c, [line.id]: e.target.value }))}
-                          className="w-24 rounded-lg border border-surface-sand-border bg-white px-2 py-1 font-numerals text-start text-sm text-slate-600 focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
+                          className="w-24 rounded-lg border border-app-border bg-app-surface px-2 py-1 font-numerals text-start text-sm text-app-ink-muted focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
                         />
                       </div>
                     </td>
@@ -447,8 +447,8 @@ function OrderDetail({
       </div>
 
       {order.status === 'placed' && mayOrder && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-sand-border px-6 py-4">
-          <p className="text-xs text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-app-border px-6 py-4">
+          <p className="text-xs text-app-ink-muted">
             أدخل ما وصل فعلًا. اترك خانة السعر فارغة إذا لم يتغيّر عن المتفق عليه.
           </p>
           <Button variant="primary" disabled={!canReceive || busy} onClick={() => onReceive(receipts)}>
@@ -482,7 +482,7 @@ function Th({ children }: { children: ReactNode }) {
   return (
     <th
       scope="col"
-      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500"
+      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted"
     >
       {children}
     </th>

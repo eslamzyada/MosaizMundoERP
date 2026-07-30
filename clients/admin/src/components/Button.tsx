@@ -6,7 +6,7 @@ const VARIANTS: Record<Variant, string> = {
   // Twilight is the Back-Office accent (see the design system).
   primary: 'bg-twilight-600 text-white hover:bg-twilight-700 focus-visible:ring-twilight-500',
   secondary:
-    'border border-surface-sand-border bg-white text-surface-dark hover:bg-surface-sand-alt focus-visible:ring-twilight-500',
+    'border border-app-border bg-app-surface text-app-ink hover:bg-app-surface-alt focus-visible:ring-twilight-500',
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

@@ -52,25 +52,25 @@ export default function RemoveIngredientModal({ blocked, onClose, onArchive }: P
   return (
     <Modal open title={`لا يمكن حذف «${item.name}»`} onClose={onClose}>
       <div className="space-y-4">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-app-ink-muted">
           هذا المكوّن له سجل مرتبط به. حذفه سيمحو تكلفة مبيعات مسجّلة وسجلّ استهلاك تعتمد
           عليهما تقارير سابقة وتتبّع الدفعات عند أي استدعاء غذائي.
         </p>
 
-        <div className="overflow-hidden rounded-xl border border-surface-sand-border">
-          <ul className="divide-y divide-surface-sand-border text-sm">
+        <div className="overflow-hidden rounded-xl border border-app-border">
+          <ul className="divide-y divide-app-border text-sm">
             {present.map(([label, n]) => (
               <li key={label} className="flex justify-between px-4 py-2">
-                <span className="text-slate-600">{label}</span>
-                <span className="font-numerals font-semibold text-surface-dark">{n}</span>
+                <span className="text-app-ink-muted">{label}</span>
+                <span className="font-numerals font-semibold text-app-ink">{n}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="rounded-xl border border-surface-sand-border bg-surface-sand-alt/50 px-4 py-3">
-          <p className="text-sm font-bold text-surface-dark">الأرشفة هي البديل</p>
-          <p className="mt-1 text-xs text-slate-500">
+        <div className="rounded-xl border border-app-border bg-app-surface-alt/50 px-4 py-3">
+          <p className="text-sm font-bold text-app-ink">الأرشفة هي البديل</p>
+          <p className="mt-1 text-xs text-app-ink-muted">
             يختفي من قوائم الوصفات والاستلام واقتراحات الشراء، ويبقى سجلّه كاملًا. إن كان لديه
             رصيد فسيظل ظاهرًا في المخزون حتى ينفد — لأنه رصيد حقيقي على الرفّ.
           </p>

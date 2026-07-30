@@ -17,6 +17,7 @@ const navItems: Array<{ to: string; label: string; end: boolean; capability?: Ca
   { to: '/suppliers', label: 'المورّدون', end: false },
   { to: '/purchase-orders', label: 'أوامر الشراء', end: false },
   { to: '/printers', label: 'الطابعات', end: false },
+  { to: '/settings', label: 'الإعدادات', end: false },
   { to: '/recipes', label: 'الوصفات', end: false },
   // Financial reporting is the one page a cashier cannot read at all, so it is
   // hidden from them rather than offered and then refused.
@@ -35,8 +36,11 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex h-full min-h-screen bg-surface-sand text-surface-dark">
-      {/* Sidebar — deep twilight/charcoal chrome (contrasts the sand content). */}
+    <div className="flex h-full min-h-screen bg-app-bg text-app-ink">
+      {/* Sidebar — deep twilight/charcoal chrome, and deliberately the SAME in
+          both themes: it is the app's anchor, and a light theme without it
+          loses the contrast the whole layout is built on. Everything inside
+          keeps the literal palette rather than the app-* tokens. */}
       <aside className="flex w-64 flex-shrink-0 flex-col border-e border-surface-dark-border bg-surface-dark text-slate-100">
         <div className="flex h-16 items-center gap-3 border-b border-surface-dark-border px-6">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sunset-500 to-twilight-600 text-base font-bold text-white">

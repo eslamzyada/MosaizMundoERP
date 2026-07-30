@@ -2,11 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Semantic surfaces, so a theme is a variable swap rather than an edit to every
+ * file.
+ *
+ * The naive way to add dark mode is to flip the existing palette — but
+ * `surface-dark` is used as INK in 135 places (text-surface-dark) and as CHROME
+ * in exactly one (the sidebar's background). Swapping it would have turned body
+ * text invisible while leaving the sidebar unchanged, which is the opposite of
+ * what is wanted in both cases.
+ *
+ * So the tokens below are named for their ROLE, not their colour:
+ *
+ *   bg / surface / surface-alt   things you put content ON
+ *   border                       the lines between them
+ *   ink / ink-muted              things you READ
+ *
+ * Held as space-separated RGB channels rather than hex, so Tailwind can still
+ * apply opacity modifiers (bg-app-surface/60) through <alpha-value>.
+ *
+ * The sidebar keeps the literal surface-dark palette on purpose: it is dark
+ * chrome in BOTH themes, and making it follow the theme would leave the light
+ * theme without its anchor.
+ */
+:root {
+  --app-bg: 247 242 233;          /* warm sand — the back-office background */
+  --app-surface: 255 255 255;     /* cards and tables */
+  --app-surface-alt: 239 231 214; /* table headers, subtle fills */
+  --app-border: 230 220 200;
+  --app-ink: 25 22 39;            /* the old surface-dark, as text */
+  /* slate-600, not the slate-500 the pages used before. Against the sand
+     background that was 4.27:1 — under the 4.5:1 floor for body text, and
+     every secondary label in the app was sitting there. Consolidating the
+     colour into one token is what made it a one-line fix rather than 32. */
+  --app-ink-muted: 71 85 105;
+}
+
+.dark {
+  /* Not the sidebar's charcoal: a page-sized expanse of it is heavier than a
+     column of it, so the background goes darker and surfaces lift off it. */
+  --app-bg: 17 15 26;
+  --app-surface: 34 29 54;
+  --app-surface-alt: 43 37 69;
+  --app-border: 51 44 77;
+  --app-ink: 241 245 249;
+  --app-ink-muted: 148 163 184;
+}
+
 @layer base {
   html,
   body,
   #root {
     height: 100%;
+  }
+
+  /* Text size (0032). Everything is sized in rem, so scaling the root scales
+     the interface — spacing included — rather than only the letters, which is
+     what somebody who needs larger text actually wants. */
+  html {
+    font-size: calc(16px * var(--app-text-scale, 100) / 100);
+  }
+
+  body {
+    background-color: rgb(var(--app-bg));
+    color: rgb(var(--app-ink));
   }
 
   body {

@@ -85,8 +85,8 @@ export default function Menu() {
     <div className="p-8">
       <header className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-surface-dark">القائمة</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-app-ink">القائمة</h1>
+          <p className="mt-1 text-sm text-app-ink-muted">
             أصناف البيع وأسعارها. السعر هنا هو المعتمد عند الدفع في نقطة البيع.
           </p>
         </div>
@@ -102,16 +102,16 @@ export default function Menu() {
       </div>
 
       {!mayManage && !busy && (
-        <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-xs text-slate-500">
+        <p className="mb-4 rounded-xl border border-app-border bg-app-surface-alt/60 px-4 py-3 text-xs text-app-ink-muted">
           عرض فقط — إدارة القائمة متاحة للمالك والمديرين.
         </p>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+          <table className="min-w-full divide-y divide-app-border text-sm">
             <caption className="sr-only">أصناف القائمة وأسعارها</caption>
-            <thead className="bg-surface-sand-alt/60">
+            <thead className="bg-app-surface-alt/60">
               <tr>
                 <Th>الصنف</Th>
                 <Th>SKU</Th>
@@ -123,7 +123,7 @@ export default function Menu() {
                 </Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-sand-border/70">
+            <tbody className="divide-y divide-app-border/70">
               {error ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12">
@@ -132,27 +132,27 @@ export default function Menu() {
                 </tr>
               ) : loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-app-ink-muted">
                     جارٍ التحميل…
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-app-ink-muted">
                     لا توجد أصناف بعد.
                     {mayManage ? ' أضف أول صنف من زر «إضافة صنف».' : ''}
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-surface-sand/60">
-                    <td className="px-6 py-4 font-semibold text-surface-dark">{item.name}</td>
-                    <td className="px-6 py-4 font-numerals text-slate-500">{item.sku ?? '—'}</td>
+                  <tr key={item.id} className="transition-colors hover:bg-app-bg/60">
+                    <td className="px-6 py-4 font-semibold text-app-ink">{item.name}</td>
+                    <td className="px-6 py-4 font-numerals text-app-ink-muted">{item.sku ?? '—'}</td>
                     <td className="px-6 py-4">
-                      <span className="font-numerals font-semibold text-surface-dark">
+                      <span className="font-numerals font-semibold text-app-ink">
                         {money(item.price)}
                       </span>
-                      <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+                      <span className="ms-1 text-xs font-medium text-app-ink-muted">ج.م</span>
                     </td>
                     <td className="px-6 py-4">
                       <CostCell item={item} />
@@ -199,7 +199,7 @@ export default function Menu() {
 function CostCell({ item }: { item: CatalogItem }) {
   if (item.recipe_line_count === 0) {
     return (
-      <span className="text-xs text-slate-400" title="أضف وصفة لهذا الصنف لحساب تكلفته">
+      <span className="text-xs text-app-ink-muted" title="أضف وصفة لهذا الصنف لحساب تكلفته">
         لا توجد وصفة
       </span>
     );
@@ -209,10 +209,10 @@ function CostCell({ item }: { item: CatalogItem }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span>
-        <span className="font-numerals font-semibold text-surface-dark">
+        <span className="font-numerals font-semibold text-app-ink">
           {money(item.total_cost)}
         </span>
-        <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+        <span className="ms-1 text-xs font-medium text-app-ink-muted">ج.م</span>
       </span>
       {partial && (
         <span
@@ -246,14 +246,14 @@ function MarginCell({ item }: { item: CatalogItem }) {
         <span
           className={[
             'font-numerals font-semibold',
-            profit < 0 ? 'text-destructive-strong' : 'text-surface-dark',
+            profit < 0 ? 'text-destructive-strong' : 'text-app-ink',
           ].join(' ')}
         >
           {money(profit)}
         </span>
-        <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+        <span className="ms-1 text-xs font-medium text-app-ink-muted">ج.م</span>
       </span>
-      <span className="font-numerals text-[11px] text-slate-500">
+      <span className="font-numerals text-[11px] text-app-ink-muted">
         نسبة التكلفة {foodCostPct.toFixed(1)}%
       </span>
     </div>
@@ -264,7 +264,7 @@ function Th({ children }: { children: ReactNode }) {
   return (
     <th
       scope="col"
-      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500"
+      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted"
     >
       {children}
     </th>

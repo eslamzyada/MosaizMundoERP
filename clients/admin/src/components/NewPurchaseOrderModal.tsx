@@ -21,7 +21,7 @@ interface DraftLine {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-surface-sand-border bg-white px-3 py-2 text-sm text-surface-dark ' +
+  'w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-ink ' +
   'focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30';
 
 /**
@@ -143,7 +143,7 @@ export default function NewPurchaseOrderModal({
         </Field>
 
         <div>
-          <span className="mb-1.5 block text-xs font-semibold text-slate-500">الأصناف</span>
+          <span className="mb-1.5 block text-xs font-semibold text-app-ink-muted">الأصناف</span>
           <div className="space-y-2">
             {lines.map((line, idx) => (
               <div key={idx} className="flex flex-wrap items-start gap-2">
@@ -252,7 +252,7 @@ export default function NewPurchaseOrderModal({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-500">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold text-app-ink-muted">{label}</span>
       {children}
     </label>
   );
