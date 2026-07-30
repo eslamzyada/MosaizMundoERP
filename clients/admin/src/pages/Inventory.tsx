@@ -254,8 +254,8 @@ export default function Inventory() {
     <div className="p-8">
       <header className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-surface-dark">المخزون</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-app-ink">المخزون</h1>
+          <p className="mt-1 text-sm text-app-ink-muted">
             المتوفر من كل مكوّن، محسوبًا من لوطات الشراء المفتوحة، مع تنبيهات النقص والصلاحية.
           </p>
         </div>
@@ -277,7 +277,7 @@ export default function Inventory() {
       </div>
 
       {!mayReceive && !busy && (
-        <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-xs text-slate-500">
+        <p className="mb-4 rounded-xl border border-app-border bg-app-surface-alt/60 px-4 py-3 text-xs text-app-ink-muted">
           عرض فقط — إدارة المخزون والمكوّنات متاحة للمالك والمديرين.
         </p>
       )}
@@ -316,11 +316,11 @@ export default function Inventory() {
       )}
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-bold text-surface-dark">المتوفر في المخزن</h2>
-        <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+        <h2 className="mb-3 text-sm font-bold text-app-ink">المتوفر في المخزن</h2>
+        <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-surface-sand-border text-sm">
-              <thead className="bg-surface-sand-alt/60">
+            <table className="min-w-full divide-y divide-app-border text-sm">
+              <thead className="bg-app-surface-alt/60">
                 <tr>
                   <Th>المكوّن</Th>
                   <Th>المتوفر</Th>
@@ -332,7 +332,7 @@ export default function Inventory() {
                   <Th> </Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-sand-border/70">
+              <tbody className="divide-y divide-app-border/70">
                 {error ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-12">
@@ -341,13 +341,13 @@ export default function Inventory() {
                   </tr>
                 ) : loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-14 text-center text-slate-400">
+                    <td colSpan={8} className="px-6 py-14 text-center text-app-ink-muted">
                       جارٍ تحميل المخزون…
                     </td>
                   </tr>
                 ) : stock.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-14 text-center text-slate-400">
+                    <td colSpan={8} className="px-6 py-14 text-center text-app-ink-muted">
                       لا توجد مكوّنات مسجّلة بعد.
                     </td>
                   </tr>
@@ -355,42 +355,42 @@ export default function Inventory() {
                   stock.map((s) => {
                     const meta = STATUS_META[statusOf(s)];
                     return (
-                      <tr key={s.id} className="transition-colors hover:bg-surface-sand/60">
-                        <td className="px-6 py-4 font-semibold text-surface-dark">
+                      <tr key={s.id} className="transition-colors hover:bg-app-bg/60">
+                        <td className="px-6 py-4 font-semibold text-app-ink">
                           {s.name}
                           {/* A retired ingredient stays listed while it still
                               holds stock — that stock is real and somebody has
                               to sell, count or write it off. The badge is what
                               stops its presence reading as "in use". */}
                           {!s.is_active && (
-                            <span className="ms-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-500">
+                            <span className="ms-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-app-ink-muted">
                               مؤرشف
                             </span>
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <span className="font-numerals font-semibold text-surface-dark">
+                          <span className="font-numerals font-semibold text-app-ink">
                             {qty(s.on_hand)}
                           </span>
-                          <span className="ms-1 text-xs text-slate-400">{s.unit_of_measure}</span>
+                          <span className="ms-1 text-xs text-app-ink-muted">{s.unit_of_measure}</span>
                         </td>
-                        <td className="px-6 py-4 font-numerals text-slate-500">
+                        <td className="px-6 py-4 font-numerals text-app-ink-muted">
                           {s.reorder_threshold > 0 ? qty(s.reorder_threshold) : '—'}
                         </td>
-                        <td className="px-6 py-4 font-numerals text-slate-500">
+                        <td className="px-6 py-4 font-numerals text-app-ink-muted">
                           {qty(s.open_batches)}
                         </td>
-                        <td className="px-6 py-4 font-numerals text-slate-500">
+                        <td className="px-6 py-4 font-numerals text-app-ink-muted">
                           {formatDate(s.earliest_expiry)}
                         </td>
                         <td className="px-6 py-4">
                           <Badge variant={meta.variant}>{meta.label}</Badge>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="font-numerals text-surface-dark">
+                          <span className="font-numerals text-app-ink">
                             {money(s.stock_value)}
                           </span>
-                          <span className="ms-1 text-xs text-slate-400">ج.م</span>
+                          <span className="ms-1 text-xs text-app-ink-muted">ج.م</span>
                         </td>
                         <td className="px-6 py-4 text-end">
                           {mayReceive && (
@@ -399,7 +399,7 @@ export default function Inventory() {
                                 type="button"
                                 onClick={() => openEditIngredient(s)}
                                 aria-label={`تعديل المكوّن: ${s.name}`}
-                                className="rounded-lg px-2.5 py-1 text-xs font-bold text-slate-500 transition-colors hover:bg-black/5 hover:text-surface-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                                className="rounded-lg px-2.5 py-1 text-xs font-bold text-app-ink-muted transition-colors hover:bg-black/5 hover:text-app-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
                               >
                                 تعديل
                               </button>
@@ -415,7 +415,7 @@ export default function Inventory() {
                                 type="button"
                                 onClick={() => setViewingLots(s)}
                                 aria-label={`دفعات وتكاليف: ${s.name}`}
-                                className="rounded-lg px-2.5 py-1 text-xs font-bold text-slate-500 transition-colors hover:bg-black/5 hover:text-surface-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                                className="rounded-lg px-2.5 py-1 text-xs font-bold text-app-ink-muted transition-colors hover:bg-black/5 hover:text-app-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
                               >
                                 الدفعات
                               </button>
@@ -453,14 +453,14 @@ export default function Inventory() {
 
       {/* ---- Deficit ledger ---- */}
       <section>
-        <h2 className="mb-1 text-sm font-bold text-surface-dark">نواقص المخزون</h2>
-        <p className="mb-3 text-xs text-slate-500">
+        <h2 className="mb-1 text-sm font-bold text-app-ink">نواقص المخزون</h2>
+        <p className="mb-3 text-xs text-app-ink-muted">
           مكوّنات تم بيعها بما يتجاوز المخزون المُسجّل، بانتظار التسوية.
         </p>
-        <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-surface-sand-border text-sm">
-              <thead className="bg-surface-sand-alt/60">
+            <table className="min-w-full divide-y divide-app-border text-sm">
+              <thead className="bg-app-surface-alt/60">
                 <tr>
                   <Th>المكوّن</Th>
                   <Th>الوحدة</Th>
@@ -468,26 +468,26 @@ export default function Inventory() {
                   <Th>تاريخ التسجيل</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-sand-border/70">
+              <tbody className="divide-y divide-app-border/70">
                 {loading || error ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-slate-400">
+                    <td colSpan={4} className="px-6 py-10 text-center text-app-ink-muted">
                       {error ? '—' : 'جارٍ التحميل…'}
                     </td>
                   </tr>
                 ) : deficits.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-slate-400">
+                    <td colSpan={4} className="px-6 py-10 text-center text-app-ink-muted">
                       لا توجد نواقص. المخزون مُسوّى بالكامل.
                     </td>
                   </tr>
                 ) : (
                   deficits.map((d) => (
-                    <tr key={d.id} className="transition-colors hover:bg-surface-sand/60">
-                      <td className="px-6 py-4 font-semibold text-surface-dark">
+                    <tr key={d.id} className="transition-colors hover:bg-app-bg/60">
+                      <td className="px-6 py-4 font-semibold text-app-ink">
                         {d.raw_inventory_items.name}
                       </td>
-                      <td className="px-6 py-4 text-slate-500">
+                      <td className="px-6 py-4 text-app-ink-muted">
                         {d.raw_inventory_items.unit_of_measure}
                       </td>
                       <td className="px-6 py-4">
@@ -495,7 +495,7 @@ export default function Inventory() {
                           {qty(d.missing_quantity)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 font-numerals text-slate-500">
+                      <td className="px-6 py-4 font-numerals text-app-ink-muted">
                         {formatDate(d.recorded_at)}
                       </td>
                     </tr>
@@ -524,7 +524,7 @@ export default function Inventory() {
       />
 
       {removalNotice && (
-        <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-sm text-surface-dark">
+        <p className="mb-4 rounded-xl border border-app-border bg-app-surface-alt/60 px-4 py-3 text-sm text-app-ink">
           {removalNotice}
         </p>
       )}
@@ -587,10 +587,10 @@ function ExpiringPanel({
   return (
     <section className="mb-8 overflow-hidden rounded-2xl border border-warning-strong/40 bg-warning-soft/20 shadow-sm">
       <div className="border-b border-warning-strong/30 px-6 py-4">
-        <h2 className="text-sm font-bold text-surface-dark">
+        <h2 className="text-sm font-bold text-app-ink">
           قارب على انتهاء الصلاحية
         </h2>
-        <p className="mt-1 text-xs text-slate-600">
+        <p className="mt-1 text-xs text-app-ink-muted">
           <span className="font-numerals font-semibold">{lots.length}</span> دفعة خلال{' '}
           <span className="font-numerals">{EXPIRY_WINDOW_DAYS}</span> أيام، بقيمة{' '}
           <span className="font-numerals font-semibold">
@@ -619,15 +619,15 @@ function ExpiringPanel({
             className="flex flex-wrap items-center justify-between gap-3 px-6 py-3"
           >
             <div>
-              <p className="text-sm font-semibold text-surface-dark">
+              <p className="text-sm font-semibold text-app-ink">
                 {lot.item_name}
                 {lot.supplier_name && (
-                  <span className="ms-2 text-xs font-normal text-slate-500">
+                  <span className="ms-2 text-xs font-normal text-app-ink-muted">
                     · {lot.supplier_name}
                   </span>
                 )}
               </p>
-              <p className="mt-0.5 text-xs text-slate-600">
+              <p className="mt-0.5 text-xs text-app-ink-muted">
                 <span className="font-numerals">{lot.quantity_remaining}</span>{' '}
                 {lot.unit_of_measure} ·{' '}
                 <span className="font-numerals">
@@ -654,7 +654,7 @@ function ExpiringPanel({
               <button
                 type="button"
                 onClick={() => onWriteOff(lot)}
-                className="rounded-lg border border-surface-sand-border bg-white px-3 py-1.5 text-xs font-bold text-destructive-strong transition-colors hover:bg-destructive-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+                className="rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-xs font-bold text-destructive-strong transition-colors hover:bg-destructive-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
               >
                 إتلاف
               </button>
@@ -678,12 +678,12 @@ function StatCard({
   accent: keyof typeof ACCENT_BAR;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-surface-sand-border bg-white p-5 shadow-sm">
+    <div className="relative overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
       <span className={`absolute inset-y-0 end-0 w-1 ${ACCENT_BAR[accent]}`} aria-hidden />
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-2 font-numerals text-3xl font-bold text-surface-dark">
+      <div className="text-xs font-semibold uppercase tracking-wide text-app-ink-muted">{label}</div>
+      <div className="mt-2 font-numerals text-3xl font-bold text-app-ink">
         {value}
-        {suffix && <span className="ms-1 text-sm font-medium text-slate-400">{suffix}</span>}
+        {suffix && <span className="ms-1 text-sm font-medium text-app-ink-muted">{suffix}</span>}
       </div>
     </div>
   );
@@ -693,7 +693,7 @@ function Th({ children }: { children: ReactNode }) {
   return (
     <th
       scope="col"
-      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500"
+      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted"
     >
       {children}
     </th>

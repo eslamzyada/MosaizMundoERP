@@ -12,7 +12,7 @@ const VARIANTS: Record<BadgeVariant, string> = {
   success: 'bg-success-soft text-success-strong',
   destructive: 'bg-destructive-soft text-destructive-strong',
   warning: 'bg-warning-soft text-warning-strong',
-  neutral: 'bg-slate-100 text-slate-600',
+  neutral: 'bg-slate-100 text-app-ink-muted',
   // Brand accents (non-semantic) — e.g. ingredient categories.
   twilight: 'bg-twilight-100 text-twilight-700',
   amber: 'bg-amber-100 text-amber-800',

@@ -79,8 +79,8 @@ export default function Printers() {
   return (
     <div className="p-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-surface-dark">الطابعات</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold tracking-tight text-app-ink">الطابعات</h1>
+        <p className="mt-1 text-sm text-app-ink-muted">
           عنوان كل طابعة على شبكة المطعم. الجهاز الذي يطبع هو الكاشير نفسه، لا الخادم — لذا
           يجب أن يكون على نفس الشبكة المحلية للطابعة.
         </p>
@@ -93,7 +93,7 @@ export default function Printers() {
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-500">جارٍ التحميل…</p>
+        <p className="text-sm text-app-ink-muted">جارٍ التحميل…</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           {ROLES.map(({ role, title, blurb, missing }) => {
@@ -102,20 +102,20 @@ export default function Printers() {
             return (
               <section
                 key={role}
-                className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+                className="rounded-xl border border-slate-200 bg-app-surface p-6 shadow-sm"
               >
                 <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-surface-dark">{title}</h2>
-                  <p className="mt-1 text-sm text-slate-500">{blurb}</p>
+                  <h2 className="text-lg font-semibold text-app-ink">{title}</h2>
+                  <p className="mt-1 text-sm text-app-ink-muted">{blurb}</p>
                 </div>
 
                 {active ? (
                   <div className="rounded-lg bg-slate-50 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-surface-dark">{active.name}</p>
+                        <p className="font-semibold text-app-ink">{active.name}</p>
                         {/* dir=ltr: an address reads left-to-right even on an RTL page. */}
-                        <p className="mt-1 font-mono text-sm text-slate-600" dir="ltr">
+                        <p className="mt-1 font-mono text-sm text-app-ink-muted" dir="ltr">
                           {active.host}:{active.port}
                         </p>
                       </div>
@@ -165,7 +165,7 @@ export default function Printers() {
 
                 {retired.length > 0 && (
                   <details className="mt-4">
-                    <summary className="cursor-pointer text-sm text-slate-500">
+                    <summary className="cursor-pointer text-sm text-app-ink-muted">
                       طابعات متوقفة ({retired.length})
                     </summary>
                     <ul className="mt-2 space-y-2">
@@ -176,14 +176,14 @@ export default function Printers() {
                         >
                           <span>
                             {p.name}{' '}
-                            <span className="font-mono text-slate-500" dir="ltr">
+                            <span className="font-mono text-app-ink-muted" dir="ltr">
                               {p.host}:{p.port}
                             </span>
                           </span>
                           {mayManage && (
                             <button
                               type="button"
-                              className="text-xs text-slate-500 underline"
+                              className="text-xs text-app-ink-muted underline"
                               onClick={() => run(() => repository.remove(p.id))}
                             >
                               حذف
@@ -201,7 +201,7 @@ export default function Printers() {
       )}
 
       {!mayManage && (
-        <p className="mt-6 text-sm text-slate-500">
+        <p className="mt-6 text-sm text-app-ink-muted">
           العرض فقط — تغيير مكان طباعة الطلبات من صلاحيات المديرين.
         </p>
       )}
@@ -240,7 +240,7 @@ function PrinterForm({
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 p-4">
       <label className="block">
-        <span className="text-sm text-slate-600">الاسم</span>
+        <span className="text-sm text-app-ink-muted">الاسم</span>
         <input
           className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
           value={name}
@@ -248,7 +248,7 @@ function PrinterForm({
         />
       </label>
       <label className="block">
-        <span className="text-sm text-slate-600">عنوان الشبكة (IP)</span>
+        <span className="text-sm text-app-ink-muted">عنوان الشبكة (IP)</span>
         <input
           className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono"
           dir="ltr"
@@ -258,7 +258,7 @@ function PrinterForm({
         />
       </label>
       <label className="block">
-        <span className="text-sm text-slate-600">المنفذ</span>
+        <span className="text-sm text-app-ink-muted">المنفذ</span>
         <input
           className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono"
           dir="ltr"

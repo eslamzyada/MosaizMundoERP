@@ -4,14 +4,14 @@ import { supabase } from '../lib/supabase';
 
 export default function Login() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-sand p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-surface-sand-border bg-white p-8 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-app-bg p-4">
+      <div className="w-full max-w-sm rounded-2xl border border-app-border bg-app-surface p-8 shadow-sm">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-sunset-500 to-twilight-600 text-lg font-bold text-white">
             M
           </div>
-          <h1 className="font-numerals text-lg font-bold text-surface-dark">Mosaiz Mundo</h1>
-          <p className="mt-1 text-sm text-slate-500">تسجيل الدخول إلى لوحة الإدارة</p>
+          <h1 className="font-numerals text-lg font-bold text-app-ink">Mosaiz Mundo</h1>
+          <p className="mt-1 text-sm text-app-ink-muted">تسجيل الدخول إلى لوحة الإدارة</p>
         </div>
 
         <Auth

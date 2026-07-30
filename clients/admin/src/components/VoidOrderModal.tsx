@@ -83,13 +83,13 @@ export default function VoidOrderModal({ order, onClose, onVoid }: Props) {
   return (
     <Modal open title="إلغاء الطلب" onClose={onClose}>
       <div className="space-y-4">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-app-ink-muted">
           إلغاء الطلب{' '}
-          <span className="font-numerals font-semibold text-surface-dark">
+          <span className="font-numerals font-semibold text-app-ink">
             #{order.id.slice(0, 8)}
           </span>{' '}
           بقيمة{' '}
-          <span className="font-numerals font-semibold text-surface-dark">
+          <span className="font-numerals font-semibold text-app-ink">
             {order.total_amount.toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -99,8 +99,8 @@ export default function VoidOrderModal({ order, onClose, onVoid }: Props) {
         </p>
 
         <fieldset>
-          <legend className="text-sm font-bold text-surface-dark">ما سبب الإلغاء؟</legend>
-          <p className="mt-1 text-xs text-slate-500">
+          <legend className="text-sm font-bold text-app-ink">ما سبب الإلغاء؟</legend>
+          <p className="mt-1 text-xs text-app-ink-muted">
             يُسجَّل السبب مع الطلب ويظهر في تقرير الإلغاءات — به تُعرف مشكلة التدريب من مشكلة
             المطبخ.
           </p>
@@ -114,7 +114,7 @@ export default function VoidOrderModal({ order, onClose, onVoid }: Props) {
                   className={`cursor-pointer rounded-xl border px-3 py-2 transition-colors ${
                     selected
                       ? 'border-twilight-500 bg-twilight-100/50'
-                      : 'border-surface-sand-border bg-white hover:border-twilight-500/50'
+                      : 'border-app-border bg-app-surface hover:border-twilight-500/50'
                   } ${busy !== null ? 'pointer-events-none opacity-50' : ''}`}
                 >
                   <input
@@ -126,8 +126,8 @@ export default function VoidOrderModal({ order, onClose, onVoid }: Props) {
                     onChange={() => setReason(r.code)}
                     className="sr-only"
                   />
-                  <span className="block text-sm font-bold text-surface-dark">{r.label}</span>
-                  <span className="mt-0.5 block text-xs text-slate-500">{r.hint}</span>
+                  <span className="block text-sm font-bold text-app-ink">{r.label}</span>
+                  <span className="mt-0.5 block text-xs text-app-ink-muted">{r.hint}</span>
                 </label>
               );
             })}
@@ -136,7 +136,7 @@ export default function VoidOrderModal({ order, onClose, onVoid }: Props) {
 
         {reason !== null && (
           <div>
-            <label htmlFor="void-note" className="block text-sm font-bold text-surface-dark">
+            <label htmlFor="void-note" className="block text-sm font-bold text-app-ink">
               {noteRequired ? 'وضِّح السبب (مطلوب)' : 'ملاحظة (اختياري)'}
             </label>
             <textarea
@@ -147,19 +147,19 @@ export default function VoidOrderModal({ order, onClose, onVoid }: Props) {
               onChange={(e) => setNote(e.target.value)}
               maxLength={VOID_NOTE_MAX_LENGTH}
               placeholder={noteRequired ? 'ما الذي حدث بالضبط؟' : ''}
-              className="mt-1.5 w-full rounded-xl border border-surface-sand-border px-3 py-2 text-sm text-surface-dark focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500 disabled:opacity-50"
+              className="mt-1.5 w-full rounded-xl border border-app-border px-3 py-2 text-sm text-app-ink focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500 disabled:opacity-50"
             />
             {noteRequired && note.trim() === '' && (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-app-ink-muted">
                 «سبب آخر» بلا توضيح لا يفيد أحدًا لاحقًا.
               </p>
             )}
           </div>
         )}
 
-        <div className="rounded-xl border border-surface-sand-border bg-surface-sand-alt/50 px-4 py-3">
-          <p className="text-sm font-bold text-surface-dark">هل تم تحضير الطعام؟</p>
-          <p className="mt-1 text-xs text-slate-500">
+        <div className="rounded-xl border border-app-border bg-app-surface-alt/50 px-4 py-3">
+          <p className="text-sm font-bold text-app-ink">هل تم تحضير الطعام؟</p>
+          <p className="mt-1 text-xs text-app-ink-muted">
             الإجابة تحدّد ما يحدث للمكوّنات المخصومة من المخزون، ولا يمكن تعديلها لاحقًا.
           </p>
         </div>
@@ -169,12 +169,12 @@ export default function VoidOrderModal({ order, onClose, onVoid }: Props) {
             type="button"
             disabled={busy !== null || !ready}
             onClick={() => choose(true)}
-            className="w-full rounded-xl border border-surface-sand-border bg-white px-4 py-3 text-start transition-colors hover:border-twilight-500 hover:bg-twilight-100/40 disabled:opacity-50"
+            className="w-full rounded-xl border border-app-border bg-app-surface px-4 py-3 text-start transition-colors hover:border-twilight-500 hover:bg-twilight-100/40 disabled:opacity-50"
           >
-            <span className="block text-sm font-bold text-surface-dark">
+            <span className="block text-sm font-bold text-app-ink">
               {busy === 'restore' ? 'جارٍ الإلغاء…' : 'لم يُحضَّر — أعد المكوّنات إلى المخزون'}
             </span>
-            <span className="mt-0.5 block text-xs text-slate-500">
+            <span className="mt-0.5 block text-xs text-app-ink-muted">
               خطأ في التسجيل قبل التحضير: تعود كل كمية إلى نفس دفعة المخزون التي خُصمت منها.
             </span>
           </button>
@@ -183,19 +183,19 @@ export default function VoidOrderModal({ order, onClose, onVoid }: Props) {
             type="button"
             disabled={busy !== null || !ready}
             onClick={() => choose(false)}
-            className="w-full rounded-xl border border-surface-sand-border bg-white px-4 py-3 text-start transition-colors hover:border-warning-strong hover:bg-warning-soft/30 disabled:opacity-50"
+            className="w-full rounded-xl border border-app-border bg-app-surface px-4 py-3 text-start transition-colors hover:border-warning-strong hover:bg-warning-soft/30 disabled:opacity-50"
           >
-            <span className="block text-sm font-bold text-surface-dark">
+            <span className="block text-sm font-bold text-app-ink">
               {busy === 'keep' ? 'جارٍ الإلغاء…' : 'حُضِّر بالفعل — المكوّنات استُهلكت'}
             </span>
-            <span className="mt-0.5 block text-xs text-slate-500">
+            <span className="mt-0.5 block text-xs text-app-ink-muted">
               إعادة تحضير أو هدر: يُصحَّح المبلغ فقط، ويبقى المخزون مخصومًا كما هو.
             </span>
           </button>
         </div>
 
         {!ready && (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-app-ink-muted">
             اختر سبب الإلغاء أولًا لتفعيل الخيارين أعلاه.
           </p>
         )}

@@ -16,7 +16,7 @@ interface Props {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-surface-sand-border bg-white px-3 py-2 text-sm text-surface-dark ' +
+  'w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-ink ' +
   'focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30';
 
 export default function InviteMemberModal({ open, currentUserRole, onClose, onInvite }: Props) {
@@ -88,7 +88,7 @@ export default function InviteMemberModal({ open, currentUserRole, onClose, onIn
           </select>
         </Field>
 
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-app-ink-muted">
           ينضم المدعوّ إلى مؤسستك عند إنشاء حسابه بهذا البريد.
         </p>
 
@@ -114,7 +114,7 @@ export default function InviteMemberModal({ open, currentUserRole, onClose, onIn
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-500">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold text-app-ink-muted">{label}</span>
       {children}
     </label>
   );

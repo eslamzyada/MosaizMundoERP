@@ -90,9 +90,9 @@ export default function WriteOffModal({ lot, onClose, onWriteOff }: Props) {
   return (
     <Modal open title="إتلاف مخزون" onClose={onClose}>
       <div className="space-y-4">
-        <div className="rounded-xl border border-surface-sand-border bg-surface-sand-alt/50 px-4 py-3">
-          <p className="text-sm font-bold text-surface-dark">{lot.item_name}</p>
-          <p className="mt-1 text-xs text-slate-500">
+        <div className="rounded-xl border border-app-border bg-app-surface-alt/50 px-4 py-3">
+          <p className="text-sm font-bold text-app-ink">{lot.item_name}</p>
+          <p className="mt-1 text-xs text-app-ink-muted">
             المتبقٍ في هذه الدفعة{' '}
             <span className="font-numerals font-semibold">{lot.quantity_remaining}</span>{' '}
             {lot.unit_of_measure} — بقيمة{' '}
@@ -107,7 +107,7 @@ export default function WriteOffModal({ lot, onClose, onWriteOff }: Props) {
         </div>
 
         <div>
-          <label htmlFor="wo-qty" className="block text-sm font-bold text-surface-dark">
+          <label htmlFor="wo-qty" className="block text-sm font-bold text-app-ink">
             الكمية المُتلَفة
           </label>
           <input
@@ -118,15 +118,15 @@ export default function WriteOffModal({ lot, onClose, onWriteOff }: Props) {
             value={quantity}
             disabled={busy}
             onChange={(e) => setQuantity(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-surface-sand-border px-3 py-2 font-numerals text-sm text-surface-dark focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500 disabled:opacity-50"
+            className="mt-1.5 w-full rounded-xl border border-app-border px-3 py-2 font-numerals text-sm text-app-ink focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500 disabled:opacity-50"
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-app-ink-muted">
             إن تجاوزت المتبقٍ في الدفاتر، يُسجَّل الفارق كعجز يُسوّى في الجرد.
           </p>
         </div>
 
         <fieldset>
-          <legend className="text-sm font-bold text-surface-dark">ما سبب الإتلاف؟</legend>
+          <legend className="text-sm font-bold text-app-ink">ما سبب الإتلاف؟</legend>
           <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
             {WRITE_OFF_REASONS.map((r) => {
               const selected = reason === r.code;
@@ -136,7 +136,7 @@ export default function WriteOffModal({ lot, onClose, onWriteOff }: Props) {
                   className={`cursor-pointer rounded-xl border px-3 py-2 transition-colors ${
                     selected
                       ? 'border-twilight-500 bg-twilight-100/50'
-                      : 'border-surface-sand-border bg-white hover:border-twilight-500/50'
+                      : 'border-app-border bg-app-surface hover:border-twilight-500/50'
                   } ${busy ? 'pointer-events-none opacity-50' : ''}`}
                 >
                   <input
@@ -148,8 +148,8 @@ export default function WriteOffModal({ lot, onClose, onWriteOff }: Props) {
                     onChange={() => setReason(r.code)}
                     className="sr-only"
                   />
-                  <span className="block text-sm font-bold text-surface-dark">{r.label}</span>
-                  <span className="mt-0.5 block text-xs text-slate-500">{r.hint}</span>
+                  <span className="block text-sm font-bold text-app-ink">{r.label}</span>
+                  <span className="mt-0.5 block text-xs text-app-ink-muted">{r.hint}</span>
                 </label>
               );
             })}
@@ -158,7 +158,7 @@ export default function WriteOffModal({ lot, onClose, onWriteOff }: Props) {
 
         {reason !== null && (
           <div>
-            <label htmlFor="wo-note" className="block text-sm font-bold text-surface-dark">
+            <label htmlFor="wo-note" className="block text-sm font-bold text-app-ink">
               {noteRequired ? 'وضِّح السبب (مطلوب)' : 'ملاحظة (اختياري)'}
             </label>
             <textarea
@@ -168,7 +168,7 @@ export default function WriteOffModal({ lot, onClose, onWriteOff }: Props) {
               disabled={busy}
               maxLength={WRITE_OFF_NOTE_MAX_LENGTH}
               onChange={(e) => setNote(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-surface-sand-border px-3 py-2 text-sm text-surface-dark focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500 disabled:opacity-50"
+              className="mt-1.5 w-full rounded-xl border border-app-border px-3 py-2 text-sm text-app-ink focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500 disabled:opacity-50"
             />
           </div>
         )}

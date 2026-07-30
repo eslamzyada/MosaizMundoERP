@@ -28,19 +28,19 @@ export default function MetricWidget({
 }: MetricWidgetProps) {
   const a = ACCENT[accent];
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-surface-sand-border bg-white p-5 shadow-sm">
+    <div className="relative overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
       <span className={`absolute inset-y-0 end-0 w-1 ${a.bar}`} aria-hidden />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <div className="text-xs font-semibold uppercase tracking-wide text-app-ink-muted">
             {label}
           </div>
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="font-numerals text-3xl font-bold text-surface-dark">
+            <span className="font-numerals text-3xl font-bold text-app-ink">
               {loading ? '—' : value}
             </span>
             {suffix && !loading ? (
-              <span className="text-sm font-medium text-slate-400">{suffix}</span>
+              <span className="text-sm font-medium text-app-ink-muted">{suffix}</span>
             ) : null}
           </div>
         </div>

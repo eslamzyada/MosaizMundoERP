@@ -88,17 +88,17 @@ export default function Modal({ open, title, onClose, children }: ModalProps) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative w-full max-w-md overflow-hidden rounded-2xl bg-surface-sand shadow-2xl outline-none ring-1 ring-black/5"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl bg-app-bg shadow-2xl outline-none ring-1 ring-black/5"
       >
-        <div className="flex items-center justify-between border-b border-surface-sand-border px-5 py-4">
-          <h2 id={titleId} className="text-base font-bold text-surface-dark">
+        <div className="flex items-center justify-between border-b border-app-border px-5 py-4">
+          <h2 id={titleId} className="text-base font-bold text-app-ink">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="إغلاق"
-            className="rounded-lg p-1 text-slate-500 transition-colors hover:bg-black/5 hover:text-surface-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+            className="rounded-lg p-1 text-app-ink-muted transition-colors hover:bg-black/5 hover:text-app-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
           >
             <svg
               width="20"

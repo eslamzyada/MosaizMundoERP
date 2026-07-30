@@ -52,7 +52,7 @@ export default function ReorderPanel({ suggestions, suppliers, mayOrder, busy, o
 
   if (suggestions.length === 0) {
     return (
-      <section className="mb-6 rounded-2xl border border-surface-sand-border bg-white px-6 py-5 text-sm text-slate-500 shadow-sm">
+      <section className="mb-6 rounded-2xl border border-app-border bg-app-surface px-6 py-5 text-sm text-app-ink-muted shadow-sm">
         كل المكوّنات فوق حدّها الأدنى — لا شيء يحتاج إعادة طلب.
       </section>
     );
@@ -77,12 +77,12 @@ export default function ReorderPanel({ suggestions, suppliers, mayOrder, busy, o
   }
 
   return (
-    <section className="mb-6 overflow-hidden rounded-2xl border border-warning-soft bg-white shadow-sm">
-      <div className="border-b border-surface-sand-border bg-warning-soft/30 px-6 py-4">
-        <h2 className="text-sm font-bold text-surface-dark">
+    <section className="mb-6 overflow-hidden rounded-2xl border border-warning-soft bg-app-surface shadow-sm">
+      <div className="border-b border-app-border bg-warning-soft/30 px-6 py-4">
+        <h2 className="text-sm font-bold text-app-ink">
           {suggestions.length} مكوّن تحت الحدّ الأدنى
         </h2>
-        <p className="mt-0.5 text-xs text-slate-600">
+        <p className="mt-0.5 text-xs text-app-ink-muted">
           الكمية المقترحة تعيد الرصيد إلى الحدّ الأدنى فقط، بعد خصم ما هو قيد التوريد بالفعل —
           عدّلها حسب دورة التوريد لديك.
         </p>
@@ -92,12 +92,12 @@ export default function ReorderPanel({ suggestions, suppliers, mayOrder, busy, o
         const named = suppliers.find((s) => s.id === supplierId);
         const unassigned = supplierId === '__none__';
         return (
-          <div key={supplierId} className="border-b border-surface-sand-border/70 last:border-b-0">
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-sand-alt/40 px-6 py-2.5">
-              <p className="text-xs font-bold text-surface-dark">
+          <div key={supplierId} className="border-b border-app-border/70 last:border-b-0">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-app-surface-alt/40 px-6 py-2.5">
+              <p className="text-xs font-bold text-app-ink">
                 {unassigned ? 'بلا مورّد محدّد' : (named?.name ?? '—')}
                 {!unassigned && (
-                  <span className="ms-2 font-normal text-slate-500">
+                  <span className="ms-2 font-normal text-app-ink-muted">
                     {rows.length} صنف
                   </span>
                 )}
@@ -114,7 +114,7 @@ export default function ReorderPanel({ suggestions, suppliers, mayOrder, busy, o
             </div>
 
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-surface-sand-border/70 text-sm">
+              <table className="min-w-full divide-y divide-app-border/70 text-sm">
                 <caption className="sr-only">مكوّنات تحتاج إعادة طلب</caption>
                 <thead>
                   <tr>
@@ -127,22 +127,22 @@ export default function ReorderPanel({ suggestions, suppliers, mayOrder, busy, o
                     {mayOrder && <Th>المورّد</Th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-surface-sand-border/70">
+                <tbody className="divide-y divide-app-border/70">
                   {rows.map((s) => (
-                    <tr key={s.raw_item_id} className="transition-colors hover:bg-surface-sand/60">
-                      <td className="px-6 py-3 font-semibold text-surface-dark">
+                    <tr key={s.raw_item_id} className="transition-colors hover:bg-app-bg/60">
+                      <td className="px-6 py-3 font-semibold text-app-ink">
                         {s.name}
-                        <span className="ms-2 text-xs font-normal text-slate-400">
+                        <span className="ms-2 text-xs font-normal text-app-ink-muted">
                           {s.unit_of_measure}
                         </span>
                       </td>
                       <td className="px-6 py-3 font-numerals text-destructive-strong">
                         {qty(Number(s.quantity_on_hand))}
                       </td>
-                      <td className="px-6 py-3 font-numerals text-slate-500">
+                      <td className="px-6 py-3 font-numerals text-app-ink-muted">
                         {qty(Number(s.reorder_threshold))}
                       </td>
-                      <td className="px-6 py-3 font-numerals text-slate-500">
+                      <td className="px-6 py-3 font-numerals text-app-ink-muted">
                         {Number(s.quantity_on_order) > 0 ? qty(Number(s.quantity_on_order)) : '—'}
                       </td>
                       <td className="px-6 py-3">
@@ -159,15 +159,15 @@ export default function ReorderPanel({ suggestions, suppliers, mayOrder, busy, o
                             onChange={(e) =>
                               setQuantities((q) => ({ ...q, [s.raw_item_id]: e.target.value }))
                             }
-                            className="w-24 rounded-lg border border-surface-sand-border bg-white px-2 py-1 font-numerals text-start text-sm font-semibold text-surface-dark focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
+                            className="w-24 rounded-lg border border-app-border bg-app-surface px-2 py-1 font-numerals text-start text-sm font-semibold text-app-ink focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
                           />
                         ) : (
-                          <span className="font-numerals font-semibold text-surface-dark">
+                          <span className="font-numerals font-semibold text-app-ink">
                             {qty(Number(s.shortfall))}
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-3 font-numerals text-slate-500">
+                      <td className="px-6 py-3 font-numerals text-app-ink-muted">
                         {s.suggested_unit_price === null
                           ? '—'
                           : money(Number(s.suggested_unit_price))}
@@ -181,7 +181,7 @@ export default function ReorderPanel({ suggestions, suppliers, mayOrder, busy, o
                             onChange={(e) =>
                               setChosen((c) => ({ ...c, [s.raw_item_id]: e.target.value }))
                             }
-                            className="rounded-lg border border-surface-sand-border bg-white px-2 py-1 text-xs text-surface-dark focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
+                            className="rounded-lg border border-app-border bg-app-surface px-2 py-1 text-xs text-app-ink focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
                           >
                             <option value="">اختر مورّدًا…</option>
                             {suppliers.map((sup) => (
@@ -199,7 +199,7 @@ export default function ReorderPanel({ suggestions, suppliers, mayOrder, busy, o
             </div>
 
             {unassigned && mayOrder && (
-              <p className="px-6 py-3 text-xs text-slate-500">
+              <p className="px-6 py-3 text-xs text-app-ink-muted">
                 لم يُشترَ أيٌّ من هذه المكوّنات من مورّد مسجَّل من قبل، فلا يوجد سعر سابق للاختيار
                 بناءً عليه — حدّد المورّد يدويًا.
               </p>
@@ -215,7 +215,7 @@ function Th({ children }: { children: ReactNode }) {
   return (
     <th
       scope="col"
-      className="px-6 py-2.5 text-start text-[11px] font-bold uppercase tracking-wide text-slate-500"
+      className="px-6 py-2.5 text-start text-[11px] font-bold uppercase tracking-wide text-app-ink-muted"
     >
       {children}
     </th>

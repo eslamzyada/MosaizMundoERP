@@ -40,7 +40,7 @@ export default function StarRating({ value, onChange, disabled }: Props) {
           ★
         </button>
       ))}
-      {value === null && <span className="ms-1 text-xs text-slate-400">بلا تقييم</span>}
+      {value === null && <span className="ms-1 text-xs text-app-ink-muted">بلا تقييم</span>}
     </span>
   );
 }

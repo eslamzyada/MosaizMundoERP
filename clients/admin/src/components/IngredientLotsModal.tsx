@@ -85,30 +85,30 @@ export default function IngredientLotsModal({ item, onClose, loadLots, onCorrect
   return (
     <Modal open title={`دفعات — ${item.name}`} onClose={onClose}>
       <div className="space-y-3">
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-app-ink-muted">
           التكلفة تخصّ الدفعة وليس الصنف. تصحيحها يغيّر قيمة المخزون والخصم مستقبلًا، ولا يمسّ
           تكلفة المبيعات المسجّلة سابقًا.
         </p>
 
         {loading ? (
-          <p className="py-6 text-center text-sm text-slate-400">جارٍ التحميل…</p>
+          <p className="py-6 text-center text-sm text-app-ink-muted">جارٍ التحميل…</p>
         ) : lots.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">لا توجد دفعات لهذا الصنف.</p>
+          <p className="py-6 text-center text-sm text-app-ink-muted">لا توجد دفعات لهذا الصنف.</p>
         ) : (
-          <ul className="divide-y divide-surface-sand-border rounded-xl border border-surface-sand-border">
+          <ul className="divide-y divide-app-border rounded-xl border border-app-border">
             {lots.map((lot) => (
               <li key={lot.id} className="px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-xs text-slate-600">
-                    <span className="font-numerals font-semibold text-surface-dark">
+                  <div className="text-xs text-app-ink-muted">
+                    <span className="font-numerals font-semibold text-app-ink">
                       {lot.quantity_remaining}
                     </span>{' '}
                     / <span className="font-numerals">{lot.quantity_received}</span>{' '}
                     {item.unit_of_measure}
                     {lot.supplier_name && (
-                      <span className="ms-2 text-slate-400">· {lot.supplier_name}</span>
+                      <span className="ms-2 text-app-ink-muted">· {lot.supplier_name}</span>
                     )}
-                    <span className="ms-2 text-slate-400">
+                    <span className="ms-2 text-app-ink-muted">
                       · استُلمت {new Date(lot.received_at).toLocaleDateString('en-GB')}
                     </span>
                     {/* The invoice figure, and whether the lot's own arithmetic
@@ -116,7 +116,7 @@ export default function IngredientLotsModal({ item, onClose, loadLots, onCorrect
                         which is exactly what someone checking a supplier's bill
                         is looking for — so it is shown rather than smoothed. */}
                     {lot.total_cost !== null && (
-                      <span className="mt-0.5 block text-slate-500">
+                      <span className="mt-0.5 block text-app-ink-muted">
                         الفاتورة{' '}
                         <span className="font-numerals font-semibold">
                           {money(lot.total_cost)}
@@ -143,7 +143,7 @@ export default function IngredientLotsModal({ item, onClose, loadLots, onCorrect
                         autoFocus
                         disabled={busy}
                         onChange={(e) => setDraft(e.target.value)}
-                        className="w-28 rounded-lg border border-surface-sand-border px-2 py-1 font-numerals text-sm focus:border-twilight-500 focus:outline-none"
+                        className="w-28 rounded-lg border border-app-border px-2 py-1 font-numerals text-sm focus:border-twilight-500 focus:outline-none"
                       />
                       <Button type="button" onClick={() => save(lot)} disabled={busy}>
                         {busy ? '…' : 'حفظ'}
@@ -159,7 +159,7 @@ export default function IngredientLotsModal({ item, onClose, loadLots, onCorrect
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <span className="font-numerals text-sm font-semibold text-surface-dark">
+                      <span className="font-numerals text-sm font-semibold text-app-ink">
                         {money(lot.cost_at_purchase)} ج.م
                       </span>
                       <button

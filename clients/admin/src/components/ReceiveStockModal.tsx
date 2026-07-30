@@ -16,7 +16,7 @@ interface Props {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-surface-sand-border bg-white px-3 py-2 text-sm text-surface-dark ' +
+  'w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-ink ' +
   'focus:border-twilight-500 focus:outline-none focus:ring-2 focus:ring-twilight-500/30';
 
 /**
@@ -149,7 +149,7 @@ export default function ReceiveStockModal({
               </option>
             ))}
           </select>
-          <span className="mt-1 block text-[11px] text-slate-400">
+          <span className="mt-1 block text-[11px] text-app-ink-muted">
             تحديد المورّد يتيح تتبّع تغيّر سعر الشراء لهذا المكوّن.
           </span>
         </Field>
@@ -213,7 +213,7 @@ export default function ReceiveStockModal({
             </button>
 
             {derived !== null && selected && (
-              <span className="font-numerals text-xs text-slate-500" dir="ltr">
+              <span className="font-numerals text-xs text-app-ink-muted" dir="ltr">
                 {costMode === 'unit'
                   ? `${qtyNum} ${selected.unit_of_measure} × ${money(unitCostNum)} = ${money(derived)} ج.م`
                   : `${money(derived)} ج.م / ${selected.unit_of_measure}`}
@@ -250,7 +250,7 @@ export default function ReceiveStockModal({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-500">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold text-app-ink-muted">{label}</span>
       {children}
     </label>
   );

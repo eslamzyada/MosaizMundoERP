@@ -106,8 +106,8 @@ export default function Members() {
     <div className="p-8">
       <header className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-surface-dark">الفريق</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-app-ink">الفريق</h1>
+          <p className="mt-1 text-sm text-app-ink-muted">
             أعضاء المؤسسة وأدوارهم. الدور يحدّد ما يستطيع كل عضو فعله.
           </p>
         </div>
@@ -124,7 +124,7 @@ export default function Members() {
       </div>
 
       {!mayManage && !loading && !error && (
-        <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-xs text-slate-500">
+        <p className="mb-4 rounded-xl border border-app-border bg-app-surface-alt/60 px-4 py-3 text-xs text-app-ink-muted">
           عرض فقط — إدارة الأعضاء متاحة للمالك.
         </p>
       )}
@@ -139,11 +139,11 @@ export default function Members() {
       )}
 
       <section className="mb-8">
-        <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+            <table className="min-w-full divide-y divide-app-border text-sm">
               <caption className="sr-only">أعضاء المؤسسة وأدوارهم وحالتهم</caption>
-              <thead className="bg-surface-sand-alt/60">
+              <thead className="bg-app-surface-alt/60">
                 <tr>
                   <Th>البريد الإلكتروني</Th>
                   <Th>الدور</Th>
@@ -153,7 +153,7 @@ export default function Members() {
                   </Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-sand-border/70">
+              <tbody className="divide-y divide-app-border/70">
                 {error ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center">
@@ -165,13 +165,13 @@ export default function Members() {
                   </tr>
                 ) : loading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={4} className="px-6 py-12 text-center text-app-ink-muted">
                       جارٍ التحميل…
                     </td>
                   </tr>
                 ) : members.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={4} className="px-6 py-12 text-center text-app-ink-muted">
                       لا يوجد أعضاء.
                     </td>
                   </tr>
@@ -183,14 +183,14 @@ export default function Members() {
                     return (
                       <tr
                         key={m.user_id}
-                        className={`transition-colors hover:bg-surface-sand/60 ${
+                        className={`transition-colors hover:bg-app-bg/60 ${
                           m.is_active ? '' : 'opacity-60'
                         }`}
                       >
-                        <td className="px-6 py-4 font-semibold text-surface-dark">
+                        <td className="px-6 py-4 font-semibold text-app-ink">
                           {m.email}
                           {m.is_self && (
-                            <span className="ms-2 text-xs font-medium text-slate-400">(أنت)</span>
+                            <span className="ms-2 text-xs font-medium text-app-ink-muted">(أنت)</span>
                           )}
                         </td>
                         <td className="px-6 py-4">
@@ -201,7 +201,7 @@ export default function Members() {
                                 value={m.role}
                                 disabled={isBusy}
                                 onChange={(e) => changeRole(m.user_id, e.target.value as Role)}
-                                className="rounded-lg border border-surface-sand-border bg-white px-2 py-1 text-sm text-surface-dark focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
+                                className="rounded-lg border border-app-border bg-app-surface px-2 py-1 text-sm text-app-ink focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30 disabled:opacity-50"
                               >
                                 {ROLES.map((r) => (
                                   <option key={r} value={r}>
@@ -245,42 +245,42 @@ export default function Members() {
 
       {mayManage && (
         <section>
-          <h2 className="mb-1 text-sm font-bold text-surface-dark">دعوات معلّقة</h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <h2 className="mb-1 text-sm font-bold text-app-ink">دعوات معلّقة</h2>
+          <p className="mb-3 text-xs text-app-ink-muted">
             ينضم المدعوّ إلى هذه المؤسسة تلقائيًا عند إنشاء حسابه.
           </p>
-          <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+              <table className="min-w-full divide-y divide-app-border text-sm">
                 <caption className="sr-only">الدعوات المعلّقة</caption>
-                <thead className="bg-surface-sand-alt/60">
+                <thead className="bg-app-surface-alt/60">
                   <tr>
                     <Th>البريد الإلكتروني</Th>
                     <Th>الدور</Th>
                     <Th>تنتهي في</Th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-surface-sand-border/70">
+                <tbody className="divide-y divide-app-border/70">
                   {loading ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center text-slate-400">
+                      <td colSpan={3} className="px-6 py-8 text-center text-app-ink-muted">
                         جارٍ التحميل…
                       </td>
                     </tr>
                   ) : invitations.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center text-slate-400">
+                      <td colSpan={3} className="px-6 py-8 text-center text-app-ink-muted">
                         لا توجد دعوات معلّقة.
                       </td>
                     </tr>
                   ) : (
                     invitations.map((i) => (
-                      <tr key={i.id} className="transition-colors hover:bg-surface-sand/60">
-                        <td className="px-6 py-4 font-semibold text-surface-dark">{i.email}</td>
+                      <tr key={i.id} className="transition-colors hover:bg-app-bg/60">
+                        <td className="px-6 py-4 font-semibold text-app-ink">{i.email}</td>
                         <td className="px-6 py-4">
                           <Badge variant="neutral">{ROLE_LABELS[i.role]}</Badge>
                         </td>
-                        <td className="px-6 py-4 font-numerals text-slate-500">
+                        <td className="px-6 py-4 font-numerals text-app-ink-muted">
                           {formatDate(i.expires_at)}
                         </td>
                       </tr>
@@ -310,7 +310,7 @@ function Th({ children }: { children: ReactNode }) {
   return (
     <th
       scope="col"
-      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500"
+      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted"
     >
       {children}
     </th>

@@ -14,7 +14,7 @@ interface Props {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-surface-sand-border bg-white px-3 py-2 text-sm text-surface-dark ' +
+  'w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-ink ' +
   'focus:border-twilight-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30';
 
 /** Create or edit a menu item — name, price (the checkout-authoritative price), and an optional SKU. */
@@ -141,7 +141,7 @@ const money = (n: number) =>
 function PriceInsight({ item, price }: { item: CatalogItem; price: string }) {
   if (item.recipe_line_count === 0) {
     return (
-      <p className="-mt-1 text-[11px] text-slate-400">
+      <p className="-mt-1 text-[11px] text-app-ink-muted">
         لا توجد وصفة لهذا الصنف بعد، فلا يمكن حساب التكلفة أو الهامش.
       </p>
     );
@@ -161,7 +161,7 @@ function PriceInsight({ item, price }: { item: CatalogItem; price: string }) {
 
   if (!priced) {
     return (
-      <p className="-mt-1 text-[11px] text-slate-500">
+      <p className="-mt-1 text-[11px] text-app-ink-muted">
         التكلفة <span className="font-numerals">{money(item.total_cost)}</span> ج.م — أدخل سعرًا
         لرؤية الهامش.
       </p>
@@ -175,7 +175,7 @@ function PriceInsight({ item, price }: { item: CatalogItem; price: string }) {
     <p
       className={[
         '-mt-1 text-[11px]',
-        profit < 0 ? 'font-semibold text-destructive-strong' : 'text-slate-500',
+        profit < 0 ? 'font-semibold text-destructive-strong' : 'text-app-ink-muted',
       ].join(' ')}
     >
       التكلفة <span className="font-numerals">{money(item.total_cost)}</span> ج.م · الربح{' '}
@@ -189,7 +189,7 @@ function PriceInsight({ item, price }: { item: CatalogItem; price: string }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-500">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold text-app-ink-muted">{label}</span>
       {children}
     </label>
   );

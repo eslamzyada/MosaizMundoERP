@@ -64,8 +64,8 @@ export default function Suppliers() {
     <div className="p-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-surface-dark">المورّدون</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-app-ink">المورّدون</h1>
+          <p className="mt-1 text-sm text-app-ink-muted">
             من تشتري منه، وكم يتقاضى — لمتابعة تغيّر أسعار الشراء بمرور الوقت.
           </p>
         </div>
@@ -83,20 +83,20 @@ export default function Suppliers() {
       </header>
 
       {!mayManage && !loading && (
-        <p className="mb-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-xs text-slate-500">
+        <p className="mb-4 rounded-xl border border-app-border bg-app-surface-alt/60 px-4 py-3 text-xs text-app-ink-muted">
           عرض فقط — إدارة المورّدين متاحة للمالك والمديرين.
         </p>
       )}
 
       {error ? (
-        <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center">
+        <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center">
           <p className="mb-3 text-sm text-destructive-strong">تعذّر تحميل البيانات.</p>
           <Button variant="secondary" onClick={load}>
             إعادة المحاولة
           </Button>
         </div>
       ) : loading ? (
-        <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-slate-400">
+        <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center text-sm text-app-ink-muted">
           جارٍ التحميل…
         </div>
       ) : (
@@ -136,11 +136,11 @@ function SupplierTable({
   onToggle: (s: Supplier) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+        <table className="min-w-full divide-y divide-app-border text-sm">
           <caption className="sr-only">قائمة المورّدين</caption>
-          <thead className="bg-surface-sand-alt/60">
+          <thead className="bg-app-surface-alt/60">
             <tr>
               <Th>المورّد</Th>
               <Th>مسؤول التواصل</Th>
@@ -153,10 +153,10 @@ function SupplierTable({
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-surface-sand-border/70">
+          <tbody className="divide-y divide-app-border/70">
             {suppliers.length === 0 ? (
               <tr>
-                <td colSpan={mayManage ? 5 : 4} className="px-6 py-12 text-center text-sm text-slate-400">
+                <td colSpan={mayManage ? 5 : 4} className="px-6 py-12 text-center text-sm text-app-ink-muted">
                   لا يوجد مورّدون بعد. أضف مورّدًا لتتمكّن من نسب المشتريات إليه.
                 </td>
               </tr>
@@ -165,20 +165,20 @@ function SupplierTable({
                 <tr
                   key={s.id}
                   className={[
-                    'transition-colors hover:bg-surface-sand/60',
+                    'transition-colors hover:bg-app-bg/60',
                     s.is_active ? '' : 'opacity-60',
                   ].join(' ')}
                 >
-                  <td className="px-6 py-4 font-semibold text-surface-dark">
+                  <td className="px-6 py-4 font-semibold text-app-ink">
                     {s.name}
                     {s.notes && (
-                      <span className="mt-0.5 block text-xs font-normal text-slate-400">
+                      <span className="mt-0.5 block text-xs font-normal text-app-ink-muted">
                         {s.notes}
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-slate-500">{s.contact_name ?? '—'}</td>
-                  <td className="px-6 py-4 font-numerals text-slate-500" dir="ltr">
+                  <td className="px-6 py-4 text-app-ink-muted">{s.contact_name ?? '—'}</td>
+                  <td className="px-6 py-4 font-numerals text-app-ink-muted" dir="ltr">
                     <span className="block text-start">{s.phone ?? '—'}</span>
                   </td>
                   <td className="px-6 py-4">
@@ -203,7 +203,7 @@ function SupplierTable({
                           type="button"
                           onClick={() => onToggle(s)}
                           aria-label={`${s.is_active ? 'إيقاف' : 'تفعيل'} المورّد ${s.name}`}
-                          className="rounded-lg px-2.5 py-1 text-xs font-bold text-slate-500 transition-colors hover:bg-surface-sand-alt"
+                          className="rounded-lg px-2.5 py-1 text-xs font-bold text-app-ink-muted transition-colors hover:bg-app-surface-alt"
                         >
                           {s.is_active ? 'إيقاف' : 'تفعيل'}
                         </button>
@@ -240,24 +240,24 @@ function PriceTable({ prices }: { prices: SupplierPriceRow[] }) {
 
   if (groups.length === 0) {
     return (
-      <section className="mt-6 rounded-2xl border border-dashed border-surface-sand-border bg-white p-10 text-center text-sm text-slate-400">
+      <section className="mt-6 rounded-2xl border border-dashed border-app-border bg-app-surface p-10 text-center text-sm text-app-ink-muted">
         لا توجد مشتريات منسوبة إلى مورّد بعد. اختر المورّد عند استلام المخزون لتتبّع الأسعار.
       </section>
     );
   }
 
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
-      <div className="border-b border-surface-sand-border px-6 py-4">
-        <h2 className="text-sm font-bold text-surface-dark">أسعار الشراء حسب المورّد</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
+    <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
+      <div className="border-b border-app-border px-6 py-4">
+        <h2 className="text-sm font-bold text-app-ink">أسعار الشراء حسب المورّد</h2>
+        <p className="mt-0.5 text-xs text-app-ink-muted">
           يشمل المشتريات المنسوبة إلى مورّد فقط. الأرخص لكل مكوّن مُعلَّم.
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+        <table className="min-w-full divide-y divide-app-border text-sm">
           <caption className="sr-only">أسعار الشراء لكل مكوّن حسب المورّد</caption>
-          <thead className="bg-surface-sand-alt/60">
+          <thead className="bg-app-surface-alt/60">
             <tr>
               <Th>المكوّن</Th>
               <Th>المورّد</Th>
@@ -267,7 +267,7 @@ function PriceTable({ prices }: { prices: SupplierPriceRow[] }) {
               <Th>إجمالي الإنفاق</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-surface-sand-border/70">
+          <tbody className="divide-y divide-app-border/70">
             {groups.map((rows) => {
               const cheapest = Math.min(...rows.map((r) => Number(r.latest_cost)));
               return rows.map((row, idx) => {
@@ -276,22 +276,22 @@ function PriceTable({ prices }: { prices: SupplierPriceRow[] }) {
                 return (
                   <tr
                     key={`${row.raw_item_id}-${row.supplier_id}`}
-                    className="transition-colors hover:bg-surface-sand/60"
+                    className="transition-colors hover:bg-app-bg/60"
                   >
-                    <td className="px-6 py-3 font-semibold text-surface-dark">
+                    <td className="px-6 py-3 font-semibold text-app-ink">
                       {/* Name the ingredient once per group; repeating it makes
                           the comparison harder to read, not easier. */}
                       {idx === 0 ? row.raw_item_name : ''}
                       {idx === 0 && (
-                        <span className="ms-2 text-xs font-normal text-slate-400">
+                        <span className="ms-2 text-xs font-normal text-app-ink-muted">
                           {row.unit_of_measure}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-3 text-slate-600">
+                    <td className="px-6 py-3 text-app-ink-muted">
                       {row.supplier_name}
                       {!row.supplier_is_active && (
-                        <span className="ms-2 text-[11px] text-slate-400">(موقوف)</span>
+                        <span className="ms-2 text-[11px] text-app-ink-muted">(موقوف)</span>
                       )}
                       {isCheapest && (
                         <span className="ms-2 text-[11px] font-bold text-success-strong">
@@ -300,16 +300,16 @@ function PriceTable({ prices }: { prices: SupplierPriceRow[] }) {
                       )}
                     </td>
                     <td className="px-6 py-3">
-                      <span className="font-numerals font-semibold text-surface-dark">
+                      <span className="font-numerals font-semibold text-app-ink">
                         {money(latest)}
                       </span>
-                      <span className="ms-1 text-xs text-slate-400">ج.م</span>
+                      <span className="ms-1 text-xs text-app-ink-muted">ج.م</span>
                     </td>
                     <td className="px-6 py-3">
                       <PriceMove latest={latest} previous={row.previous_cost} />
                     </td>
-                    <td className="px-6 py-3 font-numerals text-slate-500">{row.deliveries}</td>
-                    <td className="px-6 py-3 font-numerals text-slate-500">
+                    <td className="px-6 py-3 font-numerals text-app-ink-muted">{row.deliveries}</td>
+                    <td className="px-6 py-3 font-numerals text-app-ink-muted">
                       {money(Number(row.total_spend))}
                     </td>
                   </tr>
@@ -328,12 +328,12 @@ function PriceMove({ latest, previous }: { latest: number; previous: number | nu
   if (previous === null || previous === undefined) {
     // A first delivery has nothing to compare against; showing 0% would imply
     // a stable price we have no evidence for.
-    return <span className="text-xs text-slate-400">أول توريد</span>;
+    return <span className="text-xs text-app-ink-muted">أول توريد</span>;
   }
   const prev = Number(previous);
   const delta = latest - prev;
   if (Math.abs(delta) < 1e-9 || prev <= 0) {
-    return <span className="text-xs text-slate-400">بدون تغيير</span>;
+    return <span className="text-xs text-app-ink-muted">بدون تغيير</span>;
   }
   const pct = (delta / prev) * 100;
   const up = delta > 0;
@@ -355,7 +355,7 @@ function Th({ children }: { children: ReactNode }) {
   return (
     <th
       scope="col"
-      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500"
+      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted"
     >
       {children}
     </th>

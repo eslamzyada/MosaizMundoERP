@@ -57,7 +57,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               minified frames. The full detail is in the console. */}
           <pre
             dir="ltr"
-            className="mt-4 overflow-x-auto rounded bg-white/70 p-3 text-xs text-red-900"
+            className="mt-4 overflow-x-auto rounded bg-app-surface/70 p-3 text-xs text-red-900"
           >
             {error.message}
           </pre>
@@ -73,7 +73,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-100"
+              className="rounded-lg border border-red-300 bg-app-surface px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-100"
             >
               إعادة تحميل الصفحة
             </button>

@@ -65,7 +65,7 @@ export function RatingSparkline({
 
   const rated = scale.filter((s) => s.score !== null);
   if (rated.length === 0) {
-    return <span className="text-xs text-slate-400">لا يوجد تقييم بعد</span>;
+    return <span className="text-xs text-app-ink-muted">لا يوجد تقييم بعد</span>;
   }
 
   const width = scale.length * (BAR_W + GAP);
@@ -133,7 +133,7 @@ function Trend({ scale }: { scale: { month: string; score: number | null }[] }) 
   const previous = rated[rated.length - 2].score;
   const delta = latest - previous;
   if (delta === 0) {
-    return <span className="text-xs text-slate-400" title="بلا تغيّر عن التقييم السابق">→</span>;
+    return <span className="text-xs text-app-ink-muted" title="بلا تغيّر عن التقييم السابق">→</span>;
   }
   return (
     <span

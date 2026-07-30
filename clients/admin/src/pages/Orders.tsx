@@ -57,14 +57,14 @@ export default function Orders() {
   return (
     <div className="p-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-surface-dark">الطلبات</h1>
-        <p className="mt-1 text-sm text-slate-500">سجل الطلبات الأخيرة عبر نقاط البيع.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-app-ink">الطلبات</h1>
+        <p className="mt-1 text-sm text-app-ink-muted">سجل الطلبات الأخيرة عبر نقاط البيع.</p>
       </header>
 
-      <div className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-surface-sand-border text-sm">
-            <thead className="bg-surface-sand-alt/60">
+          <table className="min-w-full divide-y divide-app-border text-sm">
+            <thead className="bg-app-surface-alt/60">
               <tr>
                 <Th>رقم الطلب</Th>
                 <Th>التاريخ والوقت</Th>
@@ -78,7 +78,7 @@ export default function Orders() {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-sand-border/70">
+            <tbody className="divide-y divide-app-border/70">
               {error ? (
                 <tr>
                   <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14">
@@ -87,13 +87,13 @@ export default function Orders() {
                 </tr>
               ) : loading ? (
                 <tr>
-                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14 text-center text-slate-400">
+                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14 text-center text-app-ink-muted">
                     جارٍ تحميل الطلبات…
                   </td>
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14 text-center text-slate-400">
+                  <td colSpan={mayVoid ? 6 : 5} className="px-6 py-14 text-center text-app-ink-muted">
                     لا توجد طلبات بعد.
                   </td>
                 </tr>
@@ -102,26 +102,26 @@ export default function Orders() {
                   const meta = orderStatusMeta(o.status);
                   const itemCount = o.order_items.reduce((sum, it) => sum + it.quantity, 0);
                   return (
-                    <tr key={o.id} className="transition-colors hover:bg-surface-sand/60">
+                    <tr key={o.id} className="transition-colors hover:bg-app-bg/60">
                       <td className="px-6 py-4">
-                        <span className="font-numerals font-semibold text-surface-dark">
+                        <span className="font-numerals font-semibold text-app-ink">
                           #{o.id.slice(0, 8)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">
+                      <td className="px-6 py-4 text-app-ink-muted">
                         <span className="font-numerals">{formatDateTime(o.created_at)}</span>
                       </td>
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-6 py-4 text-app-ink-muted">
                         <span className="font-numerals">{itemCount.toLocaleString('en-US')}</span> عناصر
                       </td>
                       <td className="px-6 py-4">
-                        <span className="font-numerals font-semibold text-surface-dark">
+                        <span className="font-numerals font-semibold text-app-ink">
                           {o.total_amount.toLocaleString('en-US', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
                         </span>
-                        <span className="ms-1 text-xs font-medium text-slate-400">ج.م</span>
+                        <span className="ms-1 text-xs font-medium text-app-ink-muted">ج.م</span>
                       </td>
                       <td className="px-6 py-4">
                         <Badge variant={meta.variant}>{meta.label}</Badge>
@@ -130,18 +130,18 @@ export default function Orders() {
                             rather than just a row of red badges. */}
                         {o.status === 'voided' && o.void_reason && (
                           <div className="mt-1.5 space-y-0.5">
-                            <span className="block text-xs font-semibold text-slate-600">
+                            <span className="block text-xs font-semibold text-app-ink-muted">
                               {voidReasonLabel(o.void_reason)}
                             </span>
                             {o.void_note && (
                               <span
                                 title={o.void_note}
-                                className="block max-w-[15rem] truncate text-xs text-slate-400"
+                                className="block max-w-[15rem] truncate text-xs text-app-ink-muted"
                               >
                                 {o.void_note}
                               </span>
                             )}
-                            <span className="block text-xs text-slate-400">
+                            <span className="block text-xs text-app-ink-muted">
                               {o.stock_restored ? 'أُعيدت المكوّنات' : 'المكوّنات استُهلكت'}
                             </span>
                           </div>
@@ -177,7 +177,7 @@ export default function Orders() {
 
 function Th({ children }: { children: ReactNode }) {
   return (
-    <th className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500">
+    <th className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted">
       {children}
     </th>
   );

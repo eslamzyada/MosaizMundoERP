@@ -117,8 +117,8 @@ export default function StocktakePage() {
     // Reading a past count is open to everyone; running one is not.
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold tracking-tight text-surface-dark">جرد المخزون</h1>
-        <p className="mt-4 rounded-xl border border-surface-sand-border bg-surface-sand-alt/60 px-4 py-3 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold tracking-tight text-app-ink">جرد المخزون</h1>
+        <p className="mt-4 rounded-xl border border-app-border bg-app-surface-alt/60 px-4 py-3 text-sm text-app-ink-muted">
           عرض فقط — إجراء الجرد متاح للمالك والمديرين.
         </p>
       </div>
@@ -129,8 +129,8 @@ export default function StocktakePage() {
     <div className="p-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-surface-dark">جرد المخزون</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-app-ink">جرد المخزون</h1>
+          <p className="mt-1 text-sm text-app-ink-muted">
             عُدّ ما على الرفّ فعلًا، ثم رحّل الجرد ليتطابق المخزون المسجّل مع الواقع.
           </p>
         </div>
@@ -148,24 +148,24 @@ export default function StocktakePage() {
       )}
 
       {error ? (
-        <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center">
+        <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center">
           <p className="mb-3 text-sm text-destructive-strong">تعذّر تحميل البيانات.</p>
           <Button variant="secondary" onClick={load}>إعادة المحاولة</Button>
         </div>
       ) : loading ? (
-        <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-slate-400">
+        <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center text-sm text-app-ink-muted">
           جارٍ التحميل…
         </div>
       ) : (
         <>
           {sheet ? (
-            <section className="overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-sand-border px-6 py-4">
+            <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-border px-6 py-4">
                 <div>
-                  <h2 className="text-sm font-bold text-surface-dark">
+                  <h2 className="text-sm font-bold text-app-ink">
                     ورقة الجرد <Badge variant={STATUS_META[sheet.status].variant}>{STATUS_META[sheet.status].label}</Badge>
                   </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-app-ink-muted">
                     {isDraft
                       ? 'أدخل الكمية الموجودة فعلًا لكل مكوّن. الفرق يُحتسب مقابل رصيد النظام وقت بدء الجرد.'
                       : 'جرد مكتمل — للعرض فقط.'}
@@ -188,9 +188,9 @@ export default function StocktakePage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+                <table className="min-w-full divide-y divide-app-border text-sm">
                   <caption className="sr-only">ورقة جرد المخزون</caption>
-                  <thead className="bg-surface-sand-alt/60">
+                  <thead className="bg-app-surface-alt/60">
                     <tr>
                       <Th>المكوّن</Th>
                       <Th>رصيد النظام</Th>
@@ -198,16 +198,16 @@ export default function StocktakePage() {
                       <Th>الفرق</Th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-surface-sand-border/70">
+                  <tbody className="divide-y divide-app-border/70">
                     {rows.map(({ item, raw, valid, variance }) => (
-                      <tr key={item.id} className="transition-colors hover:bg-surface-sand/60">
-                        <td className="px-6 py-3 font-semibold text-surface-dark">
+                      <tr key={item.id} className="transition-colors hover:bg-app-bg/60">
+                        <td className="px-6 py-3 font-semibold text-app-ink">
                           {item.name}
-                          <span className="ms-2 text-xs font-normal text-slate-400">
+                          <span className="ms-2 text-xs font-normal text-app-ink-muted">
                             {item.unit_of_measure}
                           </span>
                         </td>
-                        <td className="px-6 py-3 font-numerals text-slate-500">
+                        <td className="px-6 py-3 font-numerals text-app-ink-muted">
                           {qty(item.expected_quantity)}
                         </td>
                         <td className="px-6 py-3">
@@ -225,14 +225,14 @@ export default function StocktakePage() {
                                 setDrafts((d) => ({ ...d, [item.raw_item_id]: e.target.value }))
                               }
                               className={[
-                                'w-28 rounded-lg border bg-white px-2 py-1 font-numerals text-start text-sm font-semibold',
-                                'text-surface-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30',
+                                'w-28 rounded-lg border bg-app-surface px-2 py-1 font-numerals text-start text-sm font-semibold',
+                                'text-app-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500/30',
                                 'disabled:opacity-50',
-                                valid ? 'border-surface-sand-border focus:border-twilight-500' : 'border-destructive-strong',
+                                valid ? 'border-app-border focus:border-twilight-500' : 'border-destructive-strong',
                               ].join(' ')}
                             />
                           ) : (
-                            <span className="font-numerals font-semibold text-surface-dark">
+                            <span className="font-numerals font-semibold text-app-ink">
                               {qty(item.counted_quantity)}
                             </span>
                           )}
@@ -247,7 +247,7 @@ export default function StocktakePage() {
               </div>
 
               {isDraft && (
-                <div className="border-t border-surface-sand-border px-6 py-4">
+                <div className="border-t border-app-border px-6 py-4">
                   <PostPanel
                     invalidCount={invalidCount}
                     varianceCount={varianceRows.length}
@@ -274,7 +274,7 @@ export default function StocktakePage() {
               )}
             </section>
           ) : (
-            <div className="rounded-2xl border border-dashed border-surface-sand-border bg-white p-12 text-center text-sm text-slate-400">
+            <div className="rounded-2xl border border-dashed border-app-border bg-app-surface p-12 text-center text-sm text-app-ink-muted">
               لا يوجد جرد مفتوح. ابدأ جردًا جديدًا لعدّ المخزون.
             </div>
           )}
@@ -319,7 +319,7 @@ function PostPanel({
   if (!confirming) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-app-ink-muted">
           {varianceCount === 0
             ? 'لا توجد فروق — الترحيل سيؤكّد أن الأرصدة مطابقة.'
             : `${varianceCount} مكوّن يختلف عن رصيد النظام. الترحيل سيعدّل المخزون ليطابق العدّ.`}
@@ -351,7 +351,7 @@ function PostPanel({
 function VarianceCell({ variance, valid }: { variance: number; valid: boolean }) {
   if (!valid) return <span className="text-xs text-destructive-strong">—</span>;
   if (Math.abs(variance) < 1e-9) {
-    return <span className="text-xs text-slate-400">مطابق</span>;
+    return <span className="text-xs text-app-ink-muted">مطابق</span>;
   }
   const short = variance < 0;
   return (
@@ -379,14 +379,14 @@ function HistoryTable({
   if (past.length === 0) return null;
 
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-surface-sand-border bg-white shadow-sm">
-      <div className="border-b border-surface-sand-border px-6 py-4">
-        <h2 className="text-sm font-bold text-surface-dark">عمليات الجرد السابقة</h2>
+    <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
+      <div className="border-b border-app-border px-6 py-4">
+        <h2 className="text-sm font-bold text-app-ink">عمليات الجرد السابقة</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-surface-sand-border text-sm">
+        <table className="min-w-full divide-y divide-app-border text-sm">
           <caption className="sr-only">سجل عمليات الجرد</caption>
-          <thead className="bg-surface-sand-alt/60">
+          <thead className="bg-app-surface-alt/60">
             <tr>
               <Th>التاريخ</Th>
               <Th>المكوّنات</Th>
@@ -395,16 +395,16 @@ function HistoryTable({
               <Th><span className="sr-only">عرض</span></Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-surface-sand-border/70">
+          <tbody className="divide-y divide-app-border/70">
             {past.map((s) => (
-              <tr key={s.id} className="transition-colors hover:bg-surface-sand/60">
-                <td className="px-6 py-3 font-numerals text-slate-600">
+              <tr key={s.id} className="transition-colors hover:bg-app-bg/60">
+                <td className="px-6 py-3 font-numerals text-app-ink-muted">
                   {new Date(s.created_at).toLocaleDateString('en-GB', {
                     day: '2-digit', month: 'short', year: 'numeric',
                   })}
                 </td>
-                <td className="px-6 py-3 font-numerals text-slate-500">{s.item_count}</td>
-                <td className="px-6 py-3 font-numerals text-slate-500">{s.variance_count}</td>
+                <td className="px-6 py-3 font-numerals text-app-ink-muted">{s.item_count}</td>
+                <td className="px-6 py-3 font-numerals text-app-ink-muted">{s.variance_count}</td>
                 <td className="px-6 py-3">
                   <Badge variant={STATUS_META[s.status].variant}>{STATUS_META[s.status].label}</Badge>
                 </td>
@@ -430,7 +430,7 @@ function Th({ children }: { children: ReactNode }) {
   return (
     <th
       scope="col"
-      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-slate-500"
+      className="px-6 py-3.5 text-start text-xs font-bold uppercase tracking-wide text-app-ink-muted"
     >
       {children}
     </th>
