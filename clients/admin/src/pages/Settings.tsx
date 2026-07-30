@@ -1,5 +1,10 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { TEXT_SCALE_MAX, TEXT_SCALE_MIN, usePreferences } from '../session/PreferencesProvider';
 import type { Theme } from '../session/PreferencesProvider';
+import { brandingRepository } from '../api/BrandingRepository';
+import type { Branding } from '../api/BrandingRepository';
+import { useSession } from '../session/SessionProvider';
+import { classifyLoadFailure } from '../lib/loadFailure';
 
 /**
  * Appearance settings.
@@ -32,6 +37,7 @@ const SCALES = [
 export default function Settings() {
   const { theme, text_scale, resolvedTheme, loaded, error, setTheme, setTextScale } =
     usePreferences();
+  const { can } = useSession();
 
   return (
     <div className="p-8">
@@ -128,7 +134,128 @@ export default function Settings() {
             </p>
           </div>
         </section>
+
+        {/* Branding is the one thing on this page that is NOT personal, so it
+            is gated and labelled as such — everything above changes only what
+            the reader sees, this changes what customers see. */}
+        <BrandingSection canManage={can('administer')} />
       </div>
     </div>
+  );
+}
+
+/**
+ * The restaurant's logo and trading name.
+ *
+ * Read by everyone (a till prints it) but changed only by an administrator, so
+ * the section is always visible and the controls are not.
+ */
+function BrandingSection({ canManage }: { canManage: boolean }) {
+  const [branding, setBranding] = useState<Branding | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(() => {
+    brandingRepository
+      .get()
+      .then(setBranding)
+      .catch((e) => setMessage(classifyLoadFailure(e).message));
+  }, []);
+
+  useEffect(load, [load]);
+
+  async function run(action: () => Promise<Branding>) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      setBranding(await action());
+    } catch (err) {
+      // The server's wording is more specific than anything invented here — it
+      // knows whether the credential is missing, the file is too large, or the
+      // type is unsupported.
+      const fromServer = (err as { response?: { data?: { error?: string } } })?.response?.data
+        ?.error;
+      setMessage(fromServer ?? classifyLoadFailure(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-app-border bg-app-surface p-6 shadow-sm lg:col-span-2">
+      <h2 className="text-lg font-semibold text-app-ink">شعار المطعم</h2>
+      <p className="mt-1 text-sm text-app-ink-muted">
+        يظهر داخل النظام ويُطبع على فواتير العملاء. هذا إعداد للمطعم كله، لا يخصّك وحدك.
+      </p>
+
+      {message && (
+        <div
+          role="alert"
+          className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          {message}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-6">
+        <div className="grid h-24 w-24 place-items-center overflow-hidden rounded-xl border border-dashed border-app-border bg-app-surface-alt/40">
+          {branding?.logo_url ? (
+            <img
+              src={branding.logo_url}
+              alt="شعار المطعم"
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <span className="text-center text-xs text-app-ink-muted">لا يوجد شعار</span>
+          )}
+        </div>
+
+        {canManage ? (
+          <div className="flex flex-wrap gap-2">
+            {/* The input is hidden and driven by the button: a bare file input
+                cannot be styled, and its default label is in the browser's
+                language rather than the app's. */}
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void run(() => brandingRepository.uploadLogo(file));
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => fileInput.current?.click()}
+              className="rounded-lg bg-twilight-600 px-4 py-2 text-sm font-semibold text-white hover:bg-twilight-700 disabled:opacity-50"
+            >
+              {busy ? 'جارٍ الرفع…' : branding?.logo_url ? 'استبدال الشعار' : 'رفع شعار'}
+            </button>
+            {branding?.logo_url && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void run(() => brandingRepository.clearLogo())}
+                className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold text-app-ink hover:bg-app-surface-alt disabled:opacity-50"
+              >
+                إزالة
+              </button>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-app-ink-muted">
+            تغيير الشعار من صلاحيات المديرين.
+          </p>
+        )}
+      </div>
+
+      <p className="mt-3 text-xs text-app-ink-muted">
+        PNG أو JPG أو WebP أو SVG، بحد أقصى ٢ ميجابايت.
+      </p>
+    </section>
   );
 }

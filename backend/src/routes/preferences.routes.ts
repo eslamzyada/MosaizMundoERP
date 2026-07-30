@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { ADMIN_ROLES, requireRole } from '../middleware/requireRole';
+import multer from 'multer';
 import {
   getBranding,
   getPreferences,
   updateBranding,
   updatePreferences,
+  uploadBrandingLogo,
 } from '../controllers/preferences.controller';
+import { MAX_LOGO_BYTES } from '../lib/logoStorage';
 
 /**
  * Appearance settings (0032), as TWO routers mounted at their own paths.
@@ -33,3 +36,23 @@ export const brandingRouter = Router();
 brandingRouter.use(authMiddleware);
 brandingRouter.get('/', getBranding);
 brandingRouter.put('/', requireRole(...ADMIN_ROLES), updateBranding);
+
+/**
+ * The image itself. Held in memory rather than written to disk: it is at most
+ * 2 MB, it is forwarded straight to Supabase, and a temp file would be one more
+ * thing to clean up on a server that may be replaced at any moment.
+ *
+ * The size limit is enforced here, at the bucket, and in the uploader — the
+ * first refusal costs nothing and the last is the one that cannot be bypassed.
+ */
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_LOGO_BYTES, files: 1 },
+});
+
+brandingRouter.post(
+  '/logo',
+  requireRole(...ADMIN_ROLES),
+  logoUpload.single('logo'),
+  uploadBrandingLogo,
+);

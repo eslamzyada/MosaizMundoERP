@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import {
+  LogoStorageNotConfigured,
+  LogoUploadFailed,
+  MAX_LOGO_BYTES,
+  uploadLogo,
+} from '../lib/logoStorage';
 
 /**
  * Appearance settings (0032).
@@ -237,3 +243,67 @@ export async function updateBranding(req: Request, res: Response): Promise<void>
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+/**
+ * POST /api/branding/logo  (multipart, field name "logo")
+ *
+ * Uploads the image AND points the branding at it in one call. Two calls would
+ * leave a window where the file exists but nothing references it — an orphan
+ * nobody can find and nobody deletes.
+ *
+ * Administrator-only, gated on the route AND by the 0032 UPDATE policy. That
+ * double gate is the whole reason this goes through the server: Supabase
+ * Storage cannot see this project's roles, so it could only have offered "any
+ * signed-in user", which includes every cashier.
+ */
+export async function uploadBrandingLogo(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+  if (!file) {
+    res.status(400).json({ error: 'No image was uploaded (expected a "logo" file field)' });
+    return;
+  }
+
+  try {
+    const orgId = await resolveOrgId(req);
+    if (!orgId) {
+      res.status(403).json({ error: 'No active organization membership' });
+      return;
+    }
+
+    const logoUrl = await uploadLogo(orgId, file);
+
+    const saved = await req.tx.organization_branding.upsert({
+      where: { organization_id: orgId },
+      create: { organization_id: orgId, logo_url: logoUrl },
+      update: { logo_url: logoUrl },
+      select: { logo_url: true, display_name: true, updated_at: true },
+    });
+
+    res.status(200).json(saved);
+  } catch (err) {
+    if (err instanceof LogoStorageNotConfigured) {
+      // 503, not 500: the server is working, it has simply not been given a
+      // credential yet, and the message names exactly which one.
+      res.status(503).json({ error: err.message, code: 'storage_not_configured' });
+      return;
+    }
+    if (err instanceof LogoUploadFailed) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (postgresErrorCode(err) === '42501') {
+      res.status(403).json({ error: 'Changing the branding is limited to managers' });
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.error('[branding.uploadLogo] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export { MAX_LOGO_BYTES };
