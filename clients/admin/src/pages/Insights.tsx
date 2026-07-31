@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ChartCard from '../components/charts/ChartCard';
+import ExportMenu from '../components/ExportMenu';
 import LineChart from '../components/charts/LineChart';
 import BarChart from '../components/charts/BarChart';
 import DonutChart from '../components/charts/DonutChart';
@@ -180,6 +181,7 @@ export default function Insights() {
             onChange={(v) => setBucket(v as TrendBucket)}
             ariaLabel="تجميع"
           />
+          <ExportMenu report="trends" window={window} />
           <button
             type="button"
             onClick={() => globalThis.print()}
