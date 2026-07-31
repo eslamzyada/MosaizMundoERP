@@ -203,15 +203,31 @@ describe('finding a record', () => {
     expect(screen.getByRole('option', { name: /طماطم كرزية/ })).toBeInTheDocument();
   });
 
-  it('explains a failure instead of showing an empty list', async () => {
+  it('explains a failure instead of claiming there are no results', async () => {
+    // "لا توجد نتائج" for a request that never succeeded is a lie: it says the
+    // restaurant has no طماطم when the truth is that nobody asked it.
     vi.spyOn(apiClient, 'get').mockRejectedValue(new Error('Network Error'));
     const user = userEvent.setup();
 
     renderPalette();
     await user.type(screen.getByRole('combobox'), 'طماطم');
 
-    await waitFor(() => expect(screen.getByRole('status')).not.toHaveTextContent('جارٍ البحث'));
+    expect(await screen.findByText('تعذّر تحميل البيانات.')).toBeInTheDocument();
     expect(screen.queryByText(/لا توجد نتائج/)).not.toBeInTheDocument();
+  });
+
+  it('passes on WHICH failure it was, not a single generic line', async () => {
+    // The whole point of classifyLoadFailure: a 500 is not the same news as a
+    // dead tunnel, and only one of them is worth waiting out.
+    vi.spyOn(apiClient, 'get').mockRejectedValue(
+      Object.assign(new Error('boom'), { isAxiosError: true, response: { status: 500 } }),
+    );
+    const user = userEvent.setup();
+
+    renderPalette();
+    await user.type(screen.getByRole('combobox'), 'طماطم');
+
+    expect(await screen.findByText(/خطأ في الخادم \(500\)/)).toBeInTheDocument();
   });
 });
 
