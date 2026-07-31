@@ -42,6 +42,7 @@ describe('the destinations', () => {
       '/settings',
       '/recipes',
       '/reports',
+      '/insights',
       '/members',
     ]) {
       expect(routes).toContain(route);

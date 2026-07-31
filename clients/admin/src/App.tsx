@@ -11,6 +11,7 @@ import Inventory from './pages/Inventory';
 import Recipes from './pages/Recipes';
 import Members from './pages/Members';
 import Reports from './pages/Reports';
+import Insights from './pages/Insights';
 import StocktakePage from './pages/Stocktake';
 import Suppliers from './pages/Suppliers';
 import Printers from './pages/Printers';
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="recipes" element={<Recipes />} />
             <Route path="members" element={<Members />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="insights" element={<Insights />} />
             <Route path="stocktake" element={<StocktakePage />} />
             <Route path="suppliers" element={<Suppliers />} />
             <Route path="purchase-orders" element={<PurchaseOrders />} />

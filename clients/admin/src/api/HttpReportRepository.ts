@@ -4,7 +4,10 @@ import type {
   EmployeeReport,
   InventoryAssetsReport,
   ProfitabilityReport,
+  PurchasingReport,
   ReportWindow,
+  TrendBucket,
+  TrendsReport,
   VoidsReport,
   WasteReport,
 } from '../types';
@@ -52,6 +55,20 @@ export class HttpReportRepository implements ReportRepository {
 
   async getEmployees(window: ReportWindow): Promise<EmployeeReport> {
     const { data } = await apiClient.get<EmployeeReport>('/api/reports/employees', {
+      params: windowParams(window),
+    });
+    return data;
+  }
+
+  async getTrends(window: ReportWindow, bucket: TrendBucket = 'day'): Promise<TrendsReport> {
+    const { data } = await apiClient.get<TrendsReport>('/api/reports/trends', {
+      params: { ...windowParams(window), bucket },
+    });
+    return data;
+  }
+
+  async getPurchasing(window: ReportWindow): Promise<PurchasingReport> {
+    const { data } = await apiClient.get<PurchasingReport>('/api/reports/purchasing', {
       params: windowParams(window),
     });
     return data;
