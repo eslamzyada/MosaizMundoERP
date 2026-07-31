@@ -14,6 +14,7 @@ import ratingRoutes from './routes/rating.routes';
 import supplierRoutes from './routes/supplier.routes';
 import printerRoutes from './routes/printer.routes';
 import { brandingRouter, preferencesRouter } from './routes/preferences.routes';
+import searchRoutes from './routes/search.routes';
 import purchaseOrderRoutes from './routes/purchaseOrder.routes';
 import webhookRoutes from './routes/webhook.routes';
 
@@ -150,6 +151,10 @@ app.use('/api/printers', printerRoutes);
 // all of them, which breaks the webhook route that authenticates by HMAC.
 app.use('/api/preferences', preferencesRouter);
 app.use('/api/branding', brandingRouter);
+
+// One search box over everything the caller can already see. Read-only, and
+// scoped entirely by RLS rather than by a WHERE clause of its own.
+app.use('/api/search', searchRoutes);
 
 // Supabase identity webhooks. Guarded by HMAC signature (webhookAuth), NOT the
 // JWT middleware — Supabase calls these, not a logged-in user.

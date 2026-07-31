@@ -10,6 +10,7 @@ import type { MemberRepository } from '../api/MemberRepository';
 import { ROLE_LABELS, useSession } from '../session/SessionProvider';
 import { ROLES } from '../types';
 import type { Invitation, Member, Role } from '../types';
+import { useSearchFocus } from '../lib/useSearchFocus';
 
 const repository: MemberRepository = new HttpMemberRepository();
 
@@ -23,6 +24,8 @@ function serverMessage(err: unknown, fallback: string): string {
 }
 
 export default function Members() {
+  // Arriving from the search box: scroll to the chosen row and mark it.
+  const { focusProps } = useSearchFocus();
   const { can, me } = useSession();
   const mayManage = can('manage_members');
 
@@ -183,9 +186,10 @@ export default function Members() {
                     return (
                       <tr
                         key={m.user_id}
-                        className={`transition-colors hover:bg-app-bg/60 ${
-                          m.is_active ? '' : 'opacity-60'
-                        }`}
+                        {...focusProps(
+                          m.user_id,
+                          `transition-colors hover:bg-app-bg/60 ${m.is_active ? '' : 'opacity-60'}`,
+                        )}
                       >
                         <td className="px-6 py-4 font-semibold text-app-ink">
                           {m.email}

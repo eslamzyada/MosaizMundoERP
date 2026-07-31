@@ -7,6 +7,7 @@ import { HttpSupplierRepository } from '../api/HttpSupplierRepository';
 import type { SupplierRepository } from '../api/SupplierRepository';
 import { useSession } from '../session/SessionProvider';
 import type { Supplier, SupplierPriceRow } from '../types';
+import { useSearchFocus } from '../lib/useSearchFocus';
 
 const repository: SupplierRepository = new HttpSupplierRepository();
 
@@ -135,6 +136,8 @@ function SupplierTable({
   onEdit: (s: Supplier) => void;
   onToggle: (s: Supplier) => void;
 }) {
+  // Arriving from the search box: scroll to the chosen row and mark it.
+  const { focusProps } = useSearchFocus();
   return (
     <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="overflow-x-auto">
@@ -164,10 +167,12 @@ function SupplierTable({
               suppliers.map((s) => (
                 <tr
                   key={s.id}
-                  className={[
-                    'transition-colors hover:bg-app-bg/60',
-                    s.is_active ? '' : 'opacity-60',
-                  ].join(' ')}
+                  {...focusProps(
+                    s.id,
+                    ['transition-colors hover:bg-app-bg/60', s.is_active ? '' : 'opacity-60'].join(
+                      ' ',
+                    ),
+                  )}
                 >
                   <td className="px-6 py-4 font-semibold text-app-ink">
                     {s.name}

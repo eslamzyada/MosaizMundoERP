@@ -11,10 +11,13 @@ import { orderStatusMeta } from '../lib/orderStatus';
 import { voidReasonLabel, type VoidReasonCode } from '../lib/voidReasons';
 import { useSession } from '../session/SessionProvider';
 import type { Order } from '../types';
+import { useSearchFocus } from '../lib/useSearchFocus';
 
 const repository: OrderRepository = new HttpOrderRepository();
 
 export default function Orders() {
+  // Arriving from the search box: scroll to the chosen row and mark it.
+  const { focusProps } = useSearchFocus();
   // Voiding is a management correction (0018): the DB refuses anyone else, the
   // UI simply doesn't offer it to them.
   const { can } = useSession();
@@ -102,7 +105,7 @@ export default function Orders() {
                   const meta = orderStatusMeta(o.status);
                   const itemCount = o.order_items.reduce((sum, it) => sum + it.quantity, 0);
                   return (
-                    <tr key={o.id} className="transition-colors hover:bg-app-bg/60">
+                    <tr key={o.id} {...focusProps(o.id, 'transition-colors hover:bg-app-bg/60')}>
                       <td className="px-6 py-4">
                         <span className="font-numerals font-semibold text-app-ink">
                           #{o.id.slice(0, 8)}

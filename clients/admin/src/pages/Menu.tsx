@@ -9,6 +9,7 @@ import { HttpCatalogRepository } from '../api/HttpCatalogRepository';
 import type { CatalogRepository } from '../api/CatalogRepository';
 import { useSession } from '../session/SessionProvider';
 import type { CatalogItem } from '../types';
+import { useSearchFocus } from '../lib/useSearchFocus';
 
 const repository: CatalogRepository = new HttpCatalogRepository();
 
@@ -16,6 +17,8 @@ const money = (n: number) =>
   n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function Menu() {
+  // Arriving from the search box: scroll to the chosen row and mark it.
+  const { focusProps } = useSearchFocus();
   // Managing the menu (create / re-price) is administrative (0010). Others read.
   const { can } = useSession();
   const mayManage = can('administer');
@@ -145,7 +148,10 @@ export default function Menu() {
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-app-bg/60">
+                  <tr
+                    key={item.id}
+                    {...focusProps(item.id, 'transition-colors hover:bg-app-bg/60')}
+                  >
                     <td className="px-6 py-4 font-semibold text-app-ink">{item.name}</td>
                     <td className="px-6 py-4 font-numerals text-app-ink-muted">{item.sku ?? '—'}</td>
                     <td className="px-6 py-4">

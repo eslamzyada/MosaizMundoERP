@@ -5,6 +5,7 @@ import { HttpPrinterRepository } from '../api/HttpPrinterRepository';
 import type { PrinterRepository } from '../api/PrinterRepository';
 import { useSession } from '../session/SessionProvider';
 import type { Printer, PrinterRole } from '../types';
+import { useSearchFocus } from '../lib/useSearchFocus';
 
 const repository: PrinterRepository = new HttpPrinterRepository();
 
@@ -34,6 +35,10 @@ const ROLES: { role: PrinterRole; title: string; blurb: string; missing: string 
 ];
 
 export default function Printers() {
+  // Arriving from the search box. Only the ACTIVE printer per role is marked —
+  // a retired one sits inside a collapsed <details>, and scrolling to something
+  // that is not on screen would look like nothing happened at all.
+  const { focusProps } = useSearchFocus();
   const { can } = useSession();
   const mayManage = can('administer');
 
@@ -110,7 +115,7 @@ export default function Printers() {
                 </div>
 
                 {active ? (
-                  <div className="rounded-lg bg-slate-50 p-4">
+                  <div {...focusProps(active.id, 'rounded-lg bg-slate-50 p-4')}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-app-ink">{active.name}</p>
