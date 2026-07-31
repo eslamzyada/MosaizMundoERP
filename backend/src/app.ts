@@ -2,7 +2,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { Prisma } from '@prisma/client';
+import { convertDecimals } from './lib/json';
 import posRoutes from './routes/pos.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import recipeRoutes from './routes/recipe.routes';
@@ -15,26 +15,13 @@ import supplierRoutes from './routes/supplier.routes';
 import printerRoutes from './routes/printer.routes';
 import { brandingRouter, preferencesRouter } from './routes/preferences.routes';
 import searchRoutes from './routes/search.routes';
+import exportRoutes from './routes/export.routes';
 import purchaseOrderRoutes from './routes/purchaseOrder.routes';
 import webhookRoutes from './routes/webhook.routes';
 
-// Recursively convert Prisma Decimal values to plain JS numbers. Prisma
-// serializes Decimal as a string by default; the API contract is standard JSON
-// numbers. Dates are left intact (res.json renders them as ISO strings).
-function convertDecimals(value: unknown): unknown {
-  if (value === null || value === undefined) return value;
-  if (Prisma.Decimal.isDecimal(value)) return (value as Prisma.Decimal).toNumber();
-  if (value instanceof Date) return value;
-  if (Array.isArray(value)) return value.map(convertDecimals);
-  if (typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = convertDecimals(v);
-    }
-    return out;
-  }
-  return value;
-}
+// Moved to lib/json.ts so the export layer can apply the identical conversion
+// when it reads a report through its own handler.
+
 
 // The configured Express app, separated from the listener in server.ts so that
 // tests (supertest) can drive it without binding a port.
@@ -155,6 +142,11 @@ app.use('/api/branding', brandingRouter);
 // One search box over everything the caller can already see. Read-only, and
 // scoped entirely by RLS rather than by a WHERE clause of its own.
 app.use('/api/search', searchRoutes);
+
+// The same reports as files. Mounted separately from /api/reports so the JSON
+// routes keep answering JSON — an Accept-header switch on the existing routes
+// would make every one of them able to return a binary by accident.
+app.use('/api/exports', exportRoutes);
 
 // Supabase identity webhooks. Guarded by HMAC signature (webhookAuth), NOT the
 // JWT middleware — Supabase calls these, not a logged-in user.

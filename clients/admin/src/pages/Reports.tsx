@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import LoadError from '../components/LoadError';
+import ExportMenu from '../components/ExportMenu';
 import { classifyLoadFailure } from '../lib/loadFailure';
 import type { LoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
@@ -263,22 +264,22 @@ export default function Reports() {
 
           <DailyChart report={report} />
 
-          <ItemTable report={report} />
+          <ItemTable report={report} period={window} />
         </>
       )}
 
       {/* Outside the revenue guard on purpose: a window can hold voids and no
           completed sales, and that is precisely a period worth looking at. */}
-      {voids && voids.summary.void_count > 0 && <VoidsPanel report={voids} />}
+      {voids && voids.summary.void_count > 0 && <VoidsPanel report={voids} period={window} />}
 
       {wasteReport && wasteReport.summary.write_off_count > 0 && (
-        <WastePanel report={wasteReport} />
+        <WastePanel report={wasteReport} period={window} />
       )}
 
       {/* Shown whenever there is stock at all: "what am I holding" is a question
           worth answering even in a period with no sales — arguably especially
           then, since that is when capital sits still. */}
-      {assets && assets.summary.capital_tied_up > 0 && <AssetsPanel report={assets} />}
+      {assets && assets.summary.capital_tied_up > 0 && <AssetsPanel report={assets} period={window} />}
 
       {/* Shown whenever there is a team, NOT only when somebody sold something.
           This used to be gated on sales in the window, which meant a quiet week
@@ -288,6 +289,7 @@ export default function Reports() {
       {employees && employees.employees.length > 0 && (
         <EmployeePanel
           report={employees}
+          period={window}
           ratings={ratings}
           currentMonth={currentMonth}
           onRate={async (employeeId, score) => {
@@ -316,7 +318,7 @@ export default function Reports() {
  * layout"; the same count of kitchen_error voids that did not means the kitchen
  * is throwing away food. One total would hide exactly that difference.
  */
-function VoidsPanel({ report }: { report: VoidsReport }) {
+function VoidsPanel({ report, period }: { report: VoidsReport; period: ReportWindow }) {
   const worst = [...report.by_reason].sort(
     (a, b) => b.ingredient_cost_lost - a.ingredient_cost_lost,
   )[0];
@@ -324,7 +326,10 @@ function VoidsPanel({ report }: { report: VoidsReport }) {
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="border-b border-app-border px-6 py-4">
-        <h2 className="text-sm font-bold text-app-ink">الإلغاءات وأسبابها</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="text-sm font-bold text-app-ink">الإلغاءات وأسبابها</h2>
+          <ExportMenu report="voids" window={period} />
+        </div>
         <p className="mt-1 text-xs text-app-ink-muted">
           <span className="font-numerals font-semibold">{report.summary.void_count}</span> طلب
           مُلغى في هذه المدة. الإيراد الضائع غالبًا يُستردّ بإعادة التسجيل؛ تكلفة المكوّنات هي ما
@@ -637,11 +642,14 @@ function LegendKey({ label, swatch }: { label: string; swatch: ReactNode }) {
  * Which dishes actually earn. Also the table view that gives the chart's lighter
  * fill its required relief — every figure in the plot is legible as text here.
  */
-function ItemTable({ report }: { report: ProfitabilityReport }) {
+function ItemTable({ report, period }: { report: ProfitabilityReport; period: ReportWindow }) {
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="border-b border-app-border px-6 py-4">
-        <h2 className="text-sm font-bold text-app-ink">الربح حسب الصنف</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="text-sm font-bold text-app-ink">الربح حسب الصنف</h2>
+          <ExportMenu report="profitability" window={period} />
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-app-border text-sm">
@@ -742,7 +750,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
  * different against 20,000 of food sold than against 400,000. The denominator
  * is waste plus the cost of what actually sold — total food cost.
  */
-function WastePanel({ report }: { report: WasteReport }) {
+function WastePanel({ report, period }: { report: WasteReport; period: ReportWindow }) {
   const { summary } = report;
   const share = summary.waste_share_pct;
   // Trade rule of thumb: low single digits is healthy, ~10% is a problem worth
@@ -760,7 +768,10 @@ function WastePanel({ report }: { report: WasteReport }) {
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="border-b border-app-border px-6 py-4">
-        <h2 className="text-sm font-bold text-app-ink">الهدر وتكلفته</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="text-sm font-bold text-app-ink">الهدر وتكلفته</h2>
+          <ExportMenu report="waste" window={period} />
+        </div>
         <p className="mt-1 text-xs text-app-ink-muted">
           طعام أُتلف ولم يُبَع. وجبات الموظفين تُحتسب على حدة — لها تكلفة، لكنها ليست مشكلة
           تُعالَج.
@@ -914,14 +925,17 @@ function WastePanel({ report }: { report: WasteReport }) {
  * sales recorded yet", and dressing it up as an alarm would teach people to
  * ignore the alarm.
  */
-function AssetsPanel({ report }: { report: InventoryAssetsReport }) {
+function AssetsPanel({ report, period }: { report: InventoryAssetsReport; period: ReportWindow }) {
   const { summary } = report;
   const worst = report.by_item.find((i) => i.is_dead_stock);
 
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="border-b border-app-border px-6 py-4">
-        <h2 className="text-sm font-bold text-app-ink">المخزون كأصل</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="text-sm font-bold text-app-ink">المخزون كأصل</h2>
+          <ExportMenu report="inventory-assets" window={period} />
+        </div>
         <p className="mt-1 text-xs text-app-ink-muted">
           أين يقف رأس المال، ومنذ متى، وهل يتحرّك.
         </p>
@@ -1060,11 +1074,13 @@ function EmployeePanel({
   ratings,
   currentMonth,
   onRate,
+  period,
 }: {
   report: EmployeeReport;
   ratings: EmployeeRating[];
   currentMonth: string;
   onRate: (employeeId: string, score: number) => Promise<void>;
+  period: ReportWindow;
 }) {
   const { team } = report;
   // This month's rating for each person, if one exists yet.
@@ -1077,7 +1093,10 @@ function EmployeePanel({
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="border-b border-app-border px-6 py-4">
-        <h2 className="text-sm font-bold text-app-ink">أداء الموظفين</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="text-sm font-bold text-app-ink">أداء الموظفين</h2>
+          <ExportMenu report="employees" window={period} />
+        </div>
         <p className="mt-1 text-xs text-app-ink-muted">
           أرقام مسجّلة من نقطة البيع، وتقييم المدير بجانبها — لا يُدمجان في رقم واحد.
           نسبة الإلغاء تُحسب على مبيعات الموظف نفسه، لا على الإلغاءات التي اعتمدها.
