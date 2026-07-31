@@ -25,6 +25,7 @@ import type {
   Supplier,
   WriteOffPayload,
 } from '../types';
+import { useSearchFocus } from '../lib/useSearchFocus';
 
 // Depend on the interface, not the concrete class.
 const repository: InventoryRepository = new HttpInventoryRepository();
@@ -78,6 +79,8 @@ const money = (n: number) =>
 const EXPIRY_WINDOW_DAYS = 7;
 
 export default function Inventory() {
+  // Arriving from the search box: scroll to the chosen row and mark it.
+  const { focusProps } = useSearchFocus();
   // Receiving stock is administrative (0010). Rendering the button for a cashier
   // would only walk them into a 403.
   const { can } = useSession();
@@ -355,7 +358,7 @@ export default function Inventory() {
                   stock.map((s) => {
                     const meta = STATUS_META[statusOf(s)];
                     return (
-                      <tr key={s.id} className="transition-colors hover:bg-app-bg/60">
+                      <tr key={s.id} {...focusProps(s.id, 'transition-colors hover:bg-app-bg/60')}>
                         <td className="px-6 py-4 font-semibold text-app-ink">
                           {s.name}
                           {/* A retired ingredient stays listed while it still

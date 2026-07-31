@@ -1,34 +1,34 @@
+import { useEffect, useState } from 'react';
 import ErrorBoundary from './ErrorBoundary';
+import CommandPalette from './CommandPalette';
 import { NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS, useSession } from '../session/SessionProvider';
-import type { Capability } from '../session/SessionProvider';
-
-// `capability` hides a destination the signed-in role cannot use at all. Most
-// pages are readable by everyone and gate only the actions inside them, so this
-// stays empty for them. It is presentation, not enforcement — the API is the
-// boundary in every case.
-const navItems: Array<{ to: string; label: string; end: boolean; capability?: Capability }> = [
-  { to: '/', label: 'لوحة التحكم', end: true },
-  { to: '/menu', label: 'القائمة', end: false },
-  { to: '/orders', label: 'الطلبات', end: false },
-  { to: '/inventory', label: 'المخزون', end: false },
-  { to: '/stocktake', label: 'الجرد', end: false },
-  { to: '/suppliers', label: 'المورّدون', end: false },
-  { to: '/purchase-orders', label: 'أوامر الشراء', end: false },
-  { to: '/printers', label: 'الطابعات', end: false },
-  { to: '/settings', label: 'الإعدادات', end: false },
-  { to: '/recipes', label: 'الوصفات', end: false },
-  // Financial reporting is the one page a cashier cannot read at all, so it is
-  // hidden from them rather than offered and then refused.
-  { to: '/reports', label: 'الأرباح', end: false, capability: 'view_finance' },
-  // The roster is readable by every member; only the actions inside are gated.
-  { to: '/members', label: 'الفريق', end: false },
-];
+import { DESTINATIONS } from '../lib/searchTargets';
 
 export default function Layout() {
   const { me, can } = useSession();
-  const visibleNav = navItems.filter((item) => !item.capability || can(item.capability));
+  // The same list the search box uses. It was duplicated here; two copies is
+  // one copy that gets forgotten, and a page missing from one of them is
+  // invisible in a way nobody thinks to report.
+  const visibleNav = DESTINATIONS.filter((item) => !item.capability || can(item.capability));
+
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Ctrl+K anywhere, including from inside a form field — that is the point of
+  // it. preventDefault because the browser claims the same chord for its own
+  // search bar.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   // Signing out clears the session; App's onAuthStateChange listener then
   // swaps the whole app back to the Login screen.
   async function handleLogout() {
@@ -49,6 +49,35 @@ export default function Layout() {
           <span className="font-numerals text-base font-semibold tracking-tight text-white">
             Mosaiz&nbsp;Mundo
           </span>
+        </div>
+
+        {/* Dressed as a field rather than an icon, because a magnifying glass
+            alone does not tell anyone the keyboard shortcut exists — and the
+            shortcut is what makes this worth having. */}
+        <div className="px-3 pt-4">
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="flex w-full items-center gap-2 rounded-lg border border-surface-dark-border bg-white/5 px-3 py-2 text-sm text-slate-400 transition-colors hover:border-twilight-500 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <span className="flex-1 text-start">بحث…</span>
+            <kbd className="font-numerals rounded border border-surface-dark-border px-1.5 py-0.5 text-[10px] text-slate-500">
+              Ctrl K
+            </kbd>
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-5" aria-label="التنقّل الرئيسي">
@@ -111,6 +140,11 @@ export default function Layout() {
           <Outlet />
         </ErrorBoundary>
       </main>
+
+      {/* Outside <main> so it is not clipped by the page's own scrolling, and
+          outside the ErrorBoundary so a page that throws still leaves you a
+          way to navigate away from it. */}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

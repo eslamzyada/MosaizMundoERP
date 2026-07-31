@@ -19,6 +19,7 @@ import type {
   ReorderSuggestion,
   Supplier,
 } from '../types';
+import { useSearchFocus } from '../lib/useSearchFocus';
 
 const repository: PurchaseOrderRepository = new HttpPurchaseOrderRepository();
 const supplierRepository = new HttpSupplierRepository();
@@ -218,6 +219,8 @@ function OrderTable({
   orders: PurchaseOrderSummary[];
   onOpen: (id: string) => void;
 }) {
+  // Arriving from the search box: scroll to the chosen row and mark it.
+  const { focusProps } = useSearchFocus();
   return (
     <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
       <div className="overflow-x-auto">
@@ -244,7 +247,7 @@ function OrderTable({
               </tr>
             ) : (
               orders.map((o) => (
-                <tr key={o.id} className="transition-colors hover:bg-app-bg/60">
+                <tr key={o.id} {...focusProps(o.id, 'transition-colors hover:bg-app-bg/60')}>
                   <td className="px-6 py-4 font-semibold text-app-ink">{o.supplier_name}</td>
                   <td className="px-6 py-4 font-numerals text-app-ink-muted">{day(o.expected_at)}</td>
                   <td className="px-6 py-4 text-app-ink-muted">

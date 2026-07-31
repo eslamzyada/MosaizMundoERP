@@ -24,15 +24,25 @@ const orgBId = randomUUID();
 const outsiderId = randomUUID();
 const tokens: Record<string, string> = {};
 
-function thisMonth(): string {
-  const d = new Date();
+/**
+ * The month `n` months back, as YYYY-MM.
+ *
+ * Built from the year and month alone, with the day pinned to 1. The obvious
+ * version — `d.setMonth(d.getMonth() - 1)` on today's date — is wrong on the
+ * 29th, 30th and 31st whenever the target month is shorter: 31 July minus one
+ * month is 31 June, which JavaScript normalises to 1 July. `lastMonth()` then
+ * returns THIS month, the closed-month test rates an open month, and the
+ * refusal it asserts never comes. It failed on three days out of thirty and
+ * passed on the rest, which is the worst possible way for a test to be wrong.
+ */
+function monthsAgo(n: number): string {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - n, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
-function lastMonth(): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
+
+const thisMonth = () => monthsAgo(0);
+const lastMonth = () => monthsAgo(1);
 
 async function rate(who: string, body: Record<string, unknown>) {
   return request(app)
@@ -99,6 +109,10 @@ describe('Recording a rating', () => {
   });
 
   test('a closed month is refused', async () => {
+    // Non-vacuity: if these ever coincide, this test is rating the OPEN month
+    // and asserting a refusal that was never going to happen.
+    expect(lastMonth()).not.toBe(thisMonth());
+
     const res = await rate('manager', {
       employee_id: cashierId,
       period_month: lastMonth(),
