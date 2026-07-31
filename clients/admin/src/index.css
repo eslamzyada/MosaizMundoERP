@@ -36,6 +36,23 @@
      every secondary label in the app was sitting there. Consolidating the
      colour into one token is what made it a one-line fix rather than 32. */
   --app-ink-muted: 71 85 105;
+
+  /*
+   * Chart series.
+   *
+   * Separate tokens from the interface palette because they answer a different
+   * question: interface colours have to recede, series colours have to be
+   * TELLABLE APART — from each other, and by someone who cannot distinguish red
+   * from green. The order below runs indigo, orange, teal, red, amber, so the
+   * first two series of any chart differ in hue AND in lightness, which is what
+   * survives both a colour-blind reader and a black-and-white printout.
+   */
+  --chart-1: 79 70 229;   /* indigo  — the primary measure, usually revenue */
+  --chart-2: 234 88 12;   /* orange  — the thing it is compared against */
+  --chart-3: 13 148 136;  /* teal */
+  --chart-4: 190 24 93;   /* rose */
+  --chart-5: 180 83 9;    /* amber */
+  --chart-grid: 226 219 205;
 }
 
 .dark {
@@ -47,6 +64,16 @@
   --app-border: 51 44 77;
   --app-ink: 241 245 249;
   --app-ink-muted: 148 163 184;
+
+  /* Lifted well off the dark surface. The light-theme indigo (79 70 229) on
+     34 29 54 is 1.9:1 — a line drawn in it is technically present and
+     practically invisible. */
+  --chart-1: 129 140 248;
+  --chart-2: 251 146 60;
+  --chart-3: 45 212 191;
+  --chart-4: 244 114 182;
+  --chart-5: 251 191 36;
+  --chart-grid: 55 48 82;
 }
 
 @layer base {
@@ -107,6 +134,33 @@
     background: transparent !important;
     box-shadow: none !important;
     color: #000 !important;
+  }
+
+  /*
+   * …but a chart is the one thing on the page whose colour IS the content.
+   * Forcing it black merges every series into a single black shape, which is
+   * worse than not printing it. Series fills are set from the --chart-* tokens
+   * rather than currentColor precisely so the rule above cannot reach them;
+   * this restores the backgrounds the rule strips, and asks the browser to
+   * actually put the ink down.
+   */
+  svg[data-chart] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  svg[data-chart] * {
+    background: revert !important;
+    color: revert !important;
+  }
+
+  /* The ranked bars are HTML, not SVG — same reasoning, same exemption. Without
+     it every bar prints as an empty outline and the ranking is gone. */
+  [data-chart-bar],
+  [data-chart-bar-fill] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: revert !important;
   }
 
   /* Keep the borders that carry meaning — table structure — but hairline. */

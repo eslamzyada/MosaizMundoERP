@@ -776,3 +776,95 @@ export interface UpdatePrinterPayload {
   port?: number;
   is_active?: boolean;
 }
+
+
+// ---- Trends: everything on one timeline (Phase D) ---------------------------
+
+export interface TrendPoint {
+  /** The bucket's first calendar day, YYYY-MM-DD, in the restaurant's own zone. */
+  bucket_start: string;
+  revenue: number;
+  costed_revenue: number;
+  cogs: number;
+  /** Over COSTED revenue only, so a partly costed period is not flattered. */
+  gross_profit: number;
+  order_count: number;
+  /** Food destroyed: expired, spoiled, damaged, prep error. */
+  waste_cost: number;
+  /** Everything written off, including staff meals — real cost, not all waste. */
+  write_off_cost: number;
+  /** Committed spend, dated when the order was placed. */
+  purchasing_cost: number;
+}
+
+export type TrendBucket = 'day' | 'week' | 'month';
+
+export interface TrendsReport extends ReportPeriod {
+  bucket: TrendBucket;
+  summary: {
+    revenue: number;
+    costed_revenue: number;
+    cogs: number;
+    gross_profit: number;
+    margin_pct: number | null;
+    coverage_pct: number | null;
+    order_count: number;
+    /** Null when nothing sold — there was no average, and 0 would be a lie. */
+    average_ticket: number | null;
+    waste_cost: number;
+    write_off_cost: number;
+    waste_share_pct: number | null;
+    purchasing_cost: number;
+    bucket_count: number;
+  };
+  points: TrendPoint[];
+}
+
+
+// ---- Purchasing: what was bought, and what has not arrived ------------------
+
+export interface PurchasingSupplierRow {
+  id: string;
+  name: string;
+  is_active: boolean;
+  order_count: number;
+  committed: number;
+  received: number;
+  outstanding: number;
+}
+
+export interface PurchasingStatusRow {
+  status: string;
+  order_count: number;
+  committed: number;
+}
+
+export interface PurchasingItemRow {
+  id: string;
+  name: string;
+  unit_of_measure: string;
+  quantity_ordered: number;
+  committed: number;
+  /** The most recent price agreed, not an average — it is what the next one costs. */
+  last_unit_price: number;
+}
+
+export interface PurchasingReport extends ReportPeriod {
+  summary: {
+    committed: number;
+    received: number;
+    outstanding: number;
+    fulfilment_pct: number | null;
+    order_count: number;
+    supplier_count: number;
+    /** Every undelivered order, whenever it was placed — NOT window-scoped. */
+    open_orders: {
+      order_count: number;
+      outstanding: number;
+      oldest_placed_at: string | null;
+    };
+  };
+  by_supplier: PurchasingSupplierRow[];
+  by_status: PurchasingStatusRow[];
+  by_item: PurchasingItemRow[];
+}

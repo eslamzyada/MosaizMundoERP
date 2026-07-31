@@ -65,6 +65,13 @@ export const DESTINATIONS: Destination[] = [
     capability: 'view_finance',
     keywords: ['التقارير', 'الهدر', 'الربحية', 'reports'],
   },
+  {
+    to: '/insights',
+    label: 'المؤشرات',
+    end: false,
+    capability: 'view_finance',
+    keywords: ['الرسوم', 'البيانات', 'التحليلات', 'المشتريات', 'الفواتير', 'charts', 'insights'],
+  },
   { to: '/members', label: 'الفريق', end: false, keywords: ['الموظفون', 'التقييم', 'members'] },
 ];
 

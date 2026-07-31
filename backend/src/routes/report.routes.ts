@@ -8,6 +8,8 @@ import {
   getVoids,
   getWaste,
 } from '../controllers/report.controller';
+import { getTrends } from '../controllers/trends.controller';
+import { getPurchasing } from '../controllers/purchasing.controller';
 
 // Financial reporting. authMiddleware applies to the whole router, so every
 // handler runs inside an authenticated, RLS-bound transaction.
@@ -37,5 +39,13 @@ router.get('/inventory-assets', requireRole(...FINANCE_ROLES), getInventoryAsset
 // this reports revenue per head, and one employee's takings are not another
 // employee's business.
 router.get('/employees', requireRole(...FINANCE_ROLES), getEmployeePerformance);
+
+// Sales, waste and buying on ONE shared timeline, bucketed and gap-filled, so
+// the figures can be drawn rather than read. Same gate — it is all money.
+router.get('/trends', requireRole(...FINANCE_ROLES), getTrends);
+
+// What was bought, from whom, and what has been paid for but has not arrived.
+// The one side of the business that had no report at all.
+router.get('/purchasing', requireRole(...FINANCE_ROLES), getPurchasing);
 
 export default router;

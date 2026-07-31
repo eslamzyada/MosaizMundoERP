@@ -2,7 +2,10 @@ import type {
   EmployeeReport,
   InventoryAssetsReport,
   ProfitabilityReport,
+  PurchasingReport,
   ReportWindow,
+  TrendBucket,
+  TrendsReport,
   VoidsReport,
   WasteReport,
 } from '../types';
@@ -20,4 +23,14 @@ export interface ReportRepository {
   getInventoryAssets(window: ReportWindow): Promise<InventoryAssetsReport>;
   /** How each person performed, from what the till recorded (0026). */
   getEmployees(window: ReportWindow): Promise<EmployeeReport>;
+  /**
+   * Sales, waste and buying on ONE gap-filled timeline.
+   *
+   * Separate from getProfitability even though both return a daily series: that
+   * one answers "what did each dish make", this one exists to be DRAWN, and its
+   * buckets are guaranteed to line up across every measure on it.
+   */
+  getTrends(window: ReportWindow, bucket?: TrendBucket): Promise<TrendsReport>;
+  /** What was bought, from whom, and what has been committed to but not delivered. */
+  getPurchasing(window: ReportWindow): Promise<PurchasingReport>;
 }
