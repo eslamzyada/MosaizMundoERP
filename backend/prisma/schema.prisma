@@ -148,6 +148,7 @@ model organizations {
   updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
   employee_criterion_scores employee_criterion_scores[]
   employee_ratings          employee_ratings[]
+  menu_change_requests      menu_change_requests[]
   orders                    orders[]
   organization_branding     organization_branding?
   organization_invitations  organization_invitations[]
@@ -190,19 +191,22 @@ model raw_inventory_items {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model sellable_items {
-  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id   String              @db.Uuid
-  name              String
-  sku               String?
-  created_at        DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime            @default(now()) @db.Timestamptz(6)
-  price             Decimal             @default(0.00) @db.Decimal(10, 2)
-  bill_of_materials bill_of_materials[]
-  order_items       order_items[]
-  organizations     organizations       @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id      String                 @db.Uuid
+  name                 String
+  sku                  String?
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  price                Decimal                @default(0.00) @db.Decimal(10, 2)
+  is_active            Boolean                @default(true)
+  bill_of_materials    bill_of_materials[]
+  menu_change_requests menu_change_requests[]
+  order_items          order_items[]
+  organizations        organizations          @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([id, organization_id])
   @@unique([organization_id, sku])
+  @@index([organization_id, is_active], map: "sellable_items_active_idx")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -251,6 +255,8 @@ model users {
   employee_criterion_scores_employee_criterion_scores_rated_byTousers    employee_criterion_scores[] @relation("employee_criterion_scores_rated_byTousers")
   employee_ratings_employee_ratings_employee_idTousers                   employee_ratings[]          @relation("employee_ratings_employee_idTousers")
   employee_ratings_employee_ratings_rated_byTousers                      employee_ratings[]          @relation("employee_ratings_rated_byTousers")
+  menu_change_requests_menu_change_requests_decided_byTousers            menu_change_requests[]      @relation("menu_change_requests_decided_byTousers")
+  menu_change_requests_menu_change_requests_requested_byTousers          menu_change_requests[]      @relation("menu_change_requests_requested_byTousers")
   orders_orders_served_byTousers                                         orders[]                    @relation("orders_served_byTousers")
   orders                                                                 orders[]
   organization_invitations                                               organization_invitations[]
@@ -514,4 +520,35 @@ model rating_criteria {
 
   @@unique([id, organization_id], map: "rating_criteria_org_unique")
   @@index([organization_id, is_active, sort_order], map: "rating_criteria_active_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model menu_change_requests {
+  id                                             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id                                String          @db.Uuid
+  kind                                           String
+  sellable_item_id                               String?         @db.Uuid
+  proposed_name                                  String?
+  proposed_sku                                   String?
+  proposed_price                                 Decimal?        @db.Decimal(10, 2)
+  reason                                         String
+  status                                         String          @default("pending")
+  requested_by                                   String          @db.Uuid
+  requested_at                                   DateTime        @default(now()) @db.Timestamptz(6)
+  decided_by                                     String?         @db.Uuid
+  decided_at                                     DateTime?       @db.Timestamptz(6)
+  decision_note                                  String?
+  created_at                                     DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at                                     DateTime        @default(now()) @db.Timestamptz(6)
+  sellable_items                                 sellable_items? @relation(fields: [sellable_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "menu_change_item_org")
+  users_menu_change_requests_decided_byTousers   users?          @relation("menu_change_requests_decided_byTousers", fields: [decided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  organizations                                  organizations   @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_menu_change_requests_requested_byTousers users           @relation("menu_change_requests_requested_byTousers", fields: [requested_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([decided_by])
+  @@index([sellable_item_id, requested_at(sort: Desc)], map: "menu_change_requests_item_idx")
+  @@index([organization_id, status, requested_at(sort: Desc)], map: "menu_change_requests_pending_idx")
+  @@index([requested_by])
 }
