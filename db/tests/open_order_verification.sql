@@ -34,9 +34,12 @@ BEGIN
     VALUES ('c0570000-0000-4000-8000-000000000000',
             '09e40000-0000-4000-8000-00000000000f', 1000, 1000, 0.20);
 
-    INSERT INTO public.sellable_items (id, organization_id, name, sku, price)
-    VALUES ('09e45e11-0000-4000-8000-00000000000f',
-            'c0570000-0000-4000-8000-000000000000', 'Tab Pizza', 'TAB-1', 100);
+    -- The dish is seeded by cogs_fixture as postgres (0035 took the menu away
+    -- from the application role). Guarded rather than inserted.
+    IF NOT EXISTS (SELECT FROM public.sellable_items
+                    WHERE id = '09e45e11-0000-4000-8000-00000000000f') THEN
+        RAISE EXCEPTION 'menu fixture missing: Tab Pizza was not seeded';
+    END IF;
 
     -- 100 g of cheese per pizza -> 20.00 of cheese per pizza.
     INSERT INTO public.bill_of_materials

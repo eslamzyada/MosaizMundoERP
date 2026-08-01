@@ -90,58 +90,17 @@ export async function listItems(req: Request, res: Response): Promise<void> {
  * checkout) is set.
  */
 export async function createItem(req: Request, res: Response): Promise<void> {
-  if (!req.tx || !req.userId) {
-    res.status(500).json({ error: 'No authenticated transaction on request' });
-    return;
-  }
-
-  const body = (req.body ?? {}) as { name?: unknown; price?: unknown; sku?: unknown };
-
-  if (typeof body.name !== 'string' || body.name.trim().length === 0) {
-    res.status(400).json({ error: 'name is required' });
-    return;
-  }
-  const pErr = priceError(body.price);
-  if (pErr) {
-    res.status(400).json({ error: pErr });
-    return;
-  }
-  if (body.sku !== undefined && body.sku !== null && typeof body.sku !== 'string') {
-    res.status(400).json({ error: 'sku must be a string' });
-    return;
-  }
-
-  try {
-    const orgId = await resolveOrgId(req);
-    if (!orgId) {
-      res.status(404).json({ error: 'No active organization membership found for this user' });
-      return;
-    }
-
-    const item = await req.tx.sellable_items.create({
-      data: {
-        organization_id: orgId,
-        name: body.name.trim(),
-        price: body.price as number,
-        sku: typeof body.sku === 'string' && body.sku.trim() ? body.sku.trim() : null,
-      },
-    });
-
-    res.status(201).json(item);
-  } catch (err) {
-    const code = postgresErrorCode(err);
-    if (code === '23505' || code === 'P2002') {
-      res.status(409).json({ error: 'An item with that SKU already exists' });
-      return;
-    }
-    if (code === '42501') {
-      res.status(403).json({ error: 'Your role is not permitted to manage the menu' });
-      return;
-    }
-    // eslint-disable-next-line no-console
-    console.error('[catalog.create] failed:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+  // Since 0035 the menu is not editable. The application role has no INSERT or
+  // UPDATE on sellable_items, so this endpoint cannot do what it used to even
+  // if it tried — and a 500 from a revoked privilege would tell a manager
+  // nothing. It answers with the route that does work instead.
+  res.status(409).json({
+    error:
+      'The menu can only be changed through an approved request. Propose the change at POST /api/menu-changes.',
+    code: 'menu_change_required',
+    propose_at: '/api/menu-changes',
+  });
+  void req;
 }
 
 /**
@@ -151,68 +110,15 @@ export async function createItem(req: Request, res: Response): Promise<void> {
  * update to the caller's org, so a foreign id resolves as not-found (404).
  */
 export async function updateItem(req: Request, res: Response): Promise<void> {
-  if (!req.tx) {
-    res.status(500).json({ error: 'No database transaction on request' });
-    return;
-  }
-
-  const id = req.params.id;
-  if (typeof id !== 'string' || !UUID_RE.test(id)) {
-    res.status(400).json({ error: 'A valid item id (uuid) is required' });
-    return;
-  }
-
-  const body = (req.body ?? {}) as { name?: unknown; price?: unknown; sku?: unknown };
-  const data: { name?: string; price?: number; sku?: string | null } = {};
-
-  if (body.name !== undefined) {
-    if (typeof body.name !== 'string' || body.name.trim().length === 0) {
-      res.status(400).json({ error: 'name must be a non-empty string' });
-      return;
-    }
-    data.name = body.name.trim();
-  }
-  if (body.price !== undefined) {
-    const pErr = priceError(body.price);
-    if (pErr) {
-      res.status(400).json({ error: pErr });
-      return;
-    }
-    data.price = body.price as number;
-  }
-  if (body.sku !== undefined) {
-    if (body.sku !== null && typeof body.sku !== 'string') {
-      res.status(400).json({ error: 'sku must be a string or null' });
-      return;
-    }
-    data.sku = typeof body.sku === 'string' && body.sku.trim() ? body.sku.trim() : null;
-  }
-
-  if (Object.keys(data).length === 0) {
-    res.status(400).json({ error: 'Provide at least one of: name, price, sku' });
-    return;
-  }
-
-  try {
-    const item = await req.tx.sellable_items.update({ where: { id }, data });
-    res.status(200).json(item);
-  } catch (err) {
-    const code = postgresErrorCode(err);
-    if (code === 'P2025') {
-      // Not visible/writable under RLS — indistinguishable from "does not exist".
-      res.status(404).json({ error: 'Item not found' });
-      return;
-    }
-    if (code === '23505' || code === 'P2002') {
-      res.status(409).json({ error: 'An item with that SKU already exists' });
-      return;
-    }
-    if (code === '42501') {
-      res.status(403).json({ error: 'Your role is not permitted to manage the menu' });
-      return;
-    }
-    // eslint-disable-next-line no-console
-    console.error('[catalog.update] failed:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+  // Since 0035 the menu is not editable. The application role has no INSERT or
+  // UPDATE on sellable_items, so this endpoint cannot do what it used to even
+  // if it tried — and a 500 from a revoked privilege would tell a manager
+  // nothing. It answers with the route that does work instead.
+  res.status(409).json({
+    error:
+      'The menu can only be changed through an approved request. Propose the change at POST /api/menu-changes.',
+    code: 'menu_change_required',
+    propose_at: '/api/menu-changes',
+  });
+  void req;
 }

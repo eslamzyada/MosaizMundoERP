@@ -45,6 +45,14 @@ INSERT INTO public.organization_memberships (organization_id, user_id, role)
 VALUES ('c0570000-0000-4000-8000-000000000000',
         'c0570003-0000-4000-8000-000000000003', 'accountant');
 
+-- The open-tab suite's dish. Seeded here because since 0035 the application
+-- role cannot write the menu, and that suite runs as mosaiz_app_user.
+INSERT INTO public.sellable_items (id, organization_id, name, sku, price)
+VALUES ('09e45e11-0000-4000-8000-00000000000f',
+        'c0570000-0000-4000-8000-000000000000', 'Tab Pizza', 'TAB-1', 100)
+ON CONFLICT (id) DO NOTHING;
+
+
 -- Ingredients ---------------------------------------------------------------
 INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure)
 VALUES ('c057f00d-0000-4000-8000-000000000001',

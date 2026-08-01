@@ -14,53 +14,21 @@ CREATE TEMP TABLE ctx AS
 SELECT (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo') AS org_id,
        '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f'::uuid                         AS coid;
 
--- Catalog prerequisite (added with migration 0005): order_items.sellable_item_id
--- now has an FK to sellable_items, so the items referenced below must exist
--- first. Seed them in the caller's org (RLS WITH CHECK passes for the owner).
-INSERT INTO public.sellable_items (id, organization_id, name, sku)
-SELECT 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'::uuid, org_id, 'CI Item A', 'ITEM-A1' FROM ctx
-UNION ALL
-SELECT 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2'::uuid, org_id, 'CI Item B', 'ITEM-B2' FROM ctx;
-
--- Price column (migration 0008): defaults to 0.00, is settable, and rejects
--- negative values (CHECK).
+-- Catalog prerequisite. The dishes and their prices are seeded by
+-- menu_fixture.sql as postgres: since 0035 the application role has no INSERT
+-- or UPDATE on sellable_items, because the menu only changes through an
+-- approved menu_change_request. What this suite proves is unchanged — that the
+-- SERVER prices a sale from the catalog and ignores what the payload claims.
 DO $$
-DECLARE
-    v_default numeric;
-    v_updated numeric;
-    v_rejected boolean := false;
 BEGIN
-    SELECT price INTO v_default FROM public.sellable_items
-    WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
-    IF v_default <> 0.00 THEN
-        RAISE EXCEPTION 'sellable_items.price should default to 0.00, got %', v_default;
-    END IF;
-
-    UPDATE public.sellable_items SET price = 24.50
-    WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
-    SELECT price INTO v_updated FROM public.sellable_items
-    WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
-    IF v_updated <> 24.50 THEN
-        RAISE EXCEPTION 'sellable_items.price update failed, got %', v_updated;
-    END IF;
-
-    BEGIN
-        UPDATE public.sellable_items SET price = -1
-        WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
-    EXCEPTION WHEN check_violation THEN
-        v_rejected := true;
-    END;
-    IF NOT v_rejected THEN
-        RAISE EXCEPTION 'negative price must be rejected by the CHECK constraint';
+    IF NOT EXISTS (SELECT FROM public.sellable_items
+                    WHERE id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1' AND price = 24.50)
+    OR NOT EXISTS (SELECT FROM public.sellable_items
+                    WHERE id = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2' AND price = 6.00) THEN
+        RAISE EXCEPTION 'menu fixture missing: run menu_fixture.sql first, or every price assertion below is vacuous';
     END IF;
 END;
 $$;
-
--- Item B gets a catalog price too — deliberately different from every price the
--- payloads below will claim, so the server-authoritative override (0012) is
--- proven for both lines. (Item A was set to 24.50 above.)
-UPDATE public.sellable_items SET price = 6.00
-WHERE id = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2';
 
 -- 1. First checkout — F-01 regression guard. The payload LIES about every price
 --    (unit_price 10.00 / 5.50, total 25.50). The server must ignore all of it

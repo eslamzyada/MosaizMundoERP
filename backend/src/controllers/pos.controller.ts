@@ -313,6 +313,9 @@ export async function getMenu(req: Request, res: Response): Promise<void> {
              MIN(p.portions) AS portions_available
       FROM public.sellable_items s
       LEFT JOIN per_ingredient p ON p.sellable_item_id = s.id
+      -- Retired dishes leave the till (0035). The row stays for the orders that
+      -- already sold it; what changes is that nobody can sell it again.
+      WHERE s.is_active
       GROUP BY s.id, s.organization_id, s.name, s.sku, s.price,
                s.created_at, s.updated_at
       ORDER BY s.name ASC

@@ -9,6 +9,7 @@ import recipeRoutes from './routes/recipe.routes';
 import userRoutes from './routes/user.routes';
 import memberRoutes from './routes/member.routes';
 import catalogRoutes from './routes/catalog.routes';
+import menuChangeRoutes from './routes/menuChange.routes';
 import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
 import ratingCriteriaRoutes from './routes/ratingCriteria.routes';
@@ -118,6 +119,10 @@ app.use('/api/members', memberRoutes);
 
 // Catalog — menu item (sellable_items) management: create / rename / re-price.
 app.use('/api/catalog', catalogRoutes);
+
+// The menu approval cycle (0035). Its own noun because the queue is a different
+// resource from the menu — readable by everyone, writable through a decision.
+app.use('/api/menu-changes', menuChangeRoutes);
 
 // Profitability reporting, from the cost captured at each sale. Restricted to
 // FINANCE_ROLES inside the router — SELECT is ungated in the database.
