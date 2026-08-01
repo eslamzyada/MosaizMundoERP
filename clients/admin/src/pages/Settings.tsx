@@ -5,6 +5,7 @@ import { brandingRepository } from '../api/BrandingRepository';
 import type { Branding } from '../api/BrandingRepository';
 import { useSession } from '../session/SessionProvider';
 import { classifyLoadFailure } from '../lib/loadFailure';
+import CriteriaManager from '../components/CriteriaManager';
 
 /**
  * Appearance settings.
@@ -139,6 +140,10 @@ export default function Settings() {
             is gated and labelled as such — everything above changes only what
             the reader sees, this changes what customers see. */}
         <BrandingSection canManage={can('administer')} />
+
+        {/* Also organisation-wide rather than personal, and gated the same way.
+            Everyone may READ the rubric — that is the point of it. */}
+        <CriteriaManager canManage={can('administer')} />
       </div>
     </div>
   );

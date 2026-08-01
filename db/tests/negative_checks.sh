@@ -48,4 +48,75 @@ expect_reject "raw item with a negative reorder_threshold (CHECK must reject)" \
      VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
              'Negative Threshold', 'kg', -1);"
 
+# --- 0033. Rating criteria and per-criterion scores -------------------------
+# IDENTITIES: this script runs SECOND, straight after rls_verification, so the
+# only things that exist are ci-bistro-cairo and its owner cccccccc. The cogs
+# fixture with its cashier is two hundred lines of CI away. Referencing it here
+# would make every check below pass for the wrong reason — rejected because the
+# row does not exist, which proves nothing about the policy.
+#
+# The two checks that genuinely need a second identity (a cashier writing to the
+# rubric) or a second organization (the composite foreign key) therefore live in
+# rating_criteria_verification.sql, which runs after both fixtures.
+
+expect_reject "criterion with a zero weight (would be scored but never counted)"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.rating_criteria (organization_id, name, weight)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'Zero Weight', 0);"
+
+expect_reject "criterion with a weight above the ceiling"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.rating_criteria (organization_id, name, weight)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'Heavy', 99);"
+
+expect_reject "criterion with a blank name"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.rating_criteria (organization_id, name)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             '   ');"
+
+# Derived from a row that already exists rather than written out as a literal:
+# this script passes SQL to psql on a COMMAND LINE, and a non-ASCII literal
+# arrives re-encoded on Windows. It then matches nothing, the insert succeeds,
+# and the check reports a hole that is not there — which is exactly what
+# happened the first time this was written. The Arabic form of this assertion
+# lives in rating_criteria_verification.sql, which psql reads from a file.
+expect_reject "criterion name differing from an existing one only by spacing"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.rating_criteria (organization_id, name)
+     SELECT c.organization_id, '  ' || c.name || '  '
+       FROM public.rating_criteria c
+       JOIN public.organizations o ON o.id = c.organization_id
+      WHERE o.slug = 'ci-bistro-cairo'
+      ORDER BY c.sort_order LIMIT 1;"
+
+expect_reject "score of 6 on a 1-5 scale"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.employee_criterion_scores
+         (organization_id, employee_id, criterion_id, period_month, score)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+             (SELECT c.id FROM public.rating_criteria c
+                JOIN public.organizations o ON o.id = c.organization_id
+               WHERE o.slug = 'ci-bistro-cairo' ORDER BY c.sort_order LIMIT 1),
+             date_trunc('month', now())::date, 6);"
+
+expect_reject "scoring yourself"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.employee_criterion_scores
+         (organization_id, employee_id, rated_by, criterion_id, period_month, score)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+             (SELECT c.id FROM public.rating_criteria c
+                JOIN public.organizations o ON o.id = c.organization_id
+               WHERE o.slug = 'ci-bistro-cairo' ORDER BY c.sort_order LIMIT 1),
+             date_trunc('month', now())::date, 5);"
+
+expect_reject "back-dating a criterion score into a closed month"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.employee_criterion_scores
+         (organization_id, employee_id, criterion_id, period_month, score)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+             (SELECT c.id FROM public.rating_criteria c
+                JOIN public.organizations o ON o.id = c.organization_id
+               WHERE o.slug = 'ci-bistro-cairo' ORDER BY c.sort_order LIMIT 1),
+             (date_trunc('month', now()) - interval '1 month')::date, 4);"
+
 exit "$fail"

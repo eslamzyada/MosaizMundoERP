@@ -11,6 +11,7 @@ import memberRoutes from './routes/member.routes';
 import catalogRoutes from './routes/catalog.routes';
 import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
+import ratingCriteriaRoutes from './routes/ratingCriteria.routes';
 import supplierRoutes from './routes/supplier.routes';
 import printerRoutes from './routes/printer.routes';
 import { brandingRouter, preferencesRouter } from './routes/preferences.routes';
@@ -122,6 +123,11 @@ app.use('/api/catalog', catalogRoutes);
 // FINANCE_ROLES inside the router — SELECT is ungated in the database.
 app.use('/api/reports', reportRoutes);
 app.use('/api/ratings', ratingRoutes);
+
+// What the rating is a judgement OF (0033): the organization's own criteria,
+// and a score against each. Its own noun rather than a branch of /api/ratings,
+// because the rubric is readable by everyone and the ratings are not.
+app.use('/api/rating-criteria', ratingCriteriaRoutes);
 
 // Suppliers, and what they charge for each ingredient over time.
 app.use('/api/suppliers', supplierRoutes);

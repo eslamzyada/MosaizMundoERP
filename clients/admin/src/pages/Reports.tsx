@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import LoadError from '../components/LoadError';
 import ExportMenu from '../components/ExportMenu';
+import CriterionScoreSheet from '../components/CriterionScoreSheet';
 import { classifyLoadFailure } from '../lib/loadFailure';
 import type { LoadFailure } from '../lib/loadFailure';
 import type { ReactNode } from 'react';
@@ -1083,6 +1084,11 @@ function EmployeePanel({
   period: ReportWindow;
 }) {
   const { team } = report;
+  const { can } = useSession();
+  const mayRate = can('administer');
+  // Which employee's criteria are open. One at a time: a table with every row
+  // expanded is a worse version of a list.
+  const [openSheet, setOpenSheet] = useState<string | null>(null);
   // This month's rating for each person, if one exists yet.
   const ratingFor = (id: string) =>
     ratings.find((r) => r.employee_id === id && r.period_month.startsWith(currentMonth));
@@ -1134,8 +1140,18 @@ function EmployeePanel({
           </thead>
           <tbody className="divide-y divide-app-border/70">
             {report.employees.map((e) => (
-              <tr key={e.user_id} className="transition-colors hover:bg-app-bg/60">
+              <Fragment key={e.user_id}>
+              <tr className="transition-colors hover:bg-app-bg/60">
                 <td className="px-6 py-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setOpenSheet(openSheet === e.user_id ? null : e.user_id)}
+                    aria-expanded={openSheet === e.user_id}
+                    className="me-2 rounded-md border border-app-border px-1.5 text-xs font-bold text-app-ink-muted transition-colors hover:bg-app-surface-alt"
+                    aria-label={`معايير ${e.email ?? e.user_id}`}
+                  >
+                    {openSheet === e.user_id ? '−' : '+'}
+                  </button>
                   <span className="font-semibold text-app-ink">{e.email ?? '—'}</span>
                   {e.role && <span className="ms-2 text-xs text-app-ink-muted">{e.role}</span>}
                   {e.is_active === false && (
@@ -1218,6 +1234,20 @@ function EmployeePanel({
                   <RatingSparkline ratings={ratingsFor(e.user_id)} />
                 </td>
               </tr>
+              {/* The rubric sits WITH the person it describes. On its own screen
+                  it becomes a thing nobody opens. */}
+              {openSheet === e.user_id && (
+                <tr>
+                  <td colSpan={8} className="bg-app-surface-alt/30 p-0">
+                    <CriterionScoreSheet
+                      employeeId={e.user_id}
+                      employeeLabel={e.email ?? e.user_id.slice(0, 8)}
+                      canScore={mayRate}
+                    />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>

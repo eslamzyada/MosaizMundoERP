@@ -17,13 +17,22 @@ function postgresErrorCode(err: unknown): string | undefined {
   return undefined;
 }
 
-/** The first day of a YYYY-MM, as the date the column stores. */
-function monthStart(month: string): string {
+/**
+ * The first day of a YYYY-MM, as the date the column stores.
+ *
+ * Exported so 0033's criterion scores use the SAME conversion. A second copy
+ * would be a second chance to reach for a JS Date, and a Date is exactly what
+ * breaks here: period_month is a DATE column, Prisma sends the UTC portion of
+ * whatever Date it is given, and local midnight anywhere east of UTC is the
+ * PREVIOUS day — so "this month" silently becomes last month and the month lock
+ * refuses every write. A string never has a timezone to lose.
+ */
+export function monthStart(month: string): string {
   return `${month}-01`;
 }
 
 /** The current month in YYYY-MM, in the server's local calendar. */
-function currentMonth(): string {
+export function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }

@@ -63,6 +63,17 @@ WHERE o.slug = 'ci-bistro-cairo';
 -- cross-tenant assertion downstream would then be testing against nothing and
 -- passing. Checked here because here is the only place with the visibility to
 -- check it.
+
+-- A rating criterion with a LITERAL id (0033). The suite needs to attempt a
+-- score against another restaurant's criterion, and it runs as mosaiz_app_user
+-- — which cannot SELECT this row, because RLS is doing its job. A generated id
+-- would therefore be unreachable and the attempt would insert NULL, proving
+-- nothing. The id is fixed here so the assertion has something real to aim at.
+INSERT INTO public.rating_criteria (id, organization_id, name, sort_order)
+SELECT '0c17e400-000f-400f-800f-00000000000f', id, 'معيار المنشأة الأخرى', 50
+  FROM public.organizations WHERE slug = 'ci-bistro-cairo'
+ON CONFLICT DO NOTHING;
+
 DO $$
 DECLARE
     missing text[] := '{}';
@@ -79,6 +90,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM public.printers
                    WHERE id = '9111e400-000f-400f-800f-00000000000f') THEN
         missing := missing || 'printer'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.rating_criteria
+                   WHERE id = '0c17e400-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'rating criterion'; END IF;
     IF NOT EXISTS (SELECT 1 FROM public.organization_branding b
                    JOIN public.organizations o ON o.id = b.organization_id
                    WHERE o.slug = 'ci-bistro-cairo') THEN
@@ -93,4 +107,4 @@ BEGIN
 END;
 $$;
 
-SELECT 'cross_tenant_fixture: seeded another organization''s supplier, ingredient, order, printer and branding' AS result;
+SELECT 'cross_tenant_fixture: seeded another organization''s supplier, ingredient, order, printer, branding and rating criterion' AS result;
