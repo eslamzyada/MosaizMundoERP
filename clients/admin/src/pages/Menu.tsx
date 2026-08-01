@@ -10,6 +10,8 @@ import type { CatalogRepository } from '../api/CatalogRepository';
 import { useSession } from '../session/SessionProvider';
 import type { CatalogItem } from '../types';
 import { useSearchFocus } from '../lib/useSearchFocus';
+import MenuChangeQueue from '../components/MenuChangeQueue';
+import { menuChangeRepository } from '../api/MenuChangeRepository';
 
 const repository: CatalogRepository = new HttpCatalogRepository();
 
@@ -20,8 +22,13 @@ export default function Menu() {
   // Arriving from the search box: scroll to the chosen row and mark it.
   const { focusProps } = useSearchFocus();
   // Managing the menu (create / re-price) is administrative (0010). Others read.
-  const { can } = useSession();
+  const { can, me } = useSession();
   const mayManage = can('administer');
+  // Proposing is wider than administering: the kitchen knows what can be
+  // cooked. Deciding is narrower. The database is the authority on both.
+  const mayPropose = mayManage || me?.role === 'kitchen';
+  const mayDecide = me?.role === 'owner' || me?.role === 'regional_manager';
+  const [queueNonce, setQueueNonce] = useState(0);
 
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,13 +80,37 @@ export default function Menu() {
     setModalOpen(true);
   }
 
-  async function handleSave(payload: { name: string; price: number; sku: string | null }) {
-    if (editing) {
-      await repository.updateItem(editing.id, payload);
-    } else {
-      await repository.createItem(payload);
-    }
-    refresh();
+  /**
+   * Saving became proposing (0035).
+   *
+   * Nothing here writes the menu — the application role cannot. This files a
+   * request, and the dish changes only once somebody else approves it.
+   */
+  async function handleSave(payload: {
+    name: string;
+    price: number;
+    sku: string | null;
+    reason: string;
+  }) {
+    await menuChangeRepository.propose(
+      editing
+        ? {
+            kind: 'update',
+            sellable_item_id: editing.id,
+            name: payload.name,
+            sku: payload.sku,
+            price: payload.price,
+            reason: payload.reason,
+          }
+        : {
+            kind: 'create',
+            name: payload.name,
+            sku: payload.sku,
+            price: payload.price,
+            reason: payload.reason,
+          },
+    );
+    setQueueNonce((n) => n + 1);
   }
 
   const busy = loading || error !== null;
@@ -93,9 +124,9 @@ export default function Menu() {
             أصناف البيع وأسعارها. السعر هنا هو المعتمد عند الدفع في نقطة البيع.
           </p>
         </div>
-        {mayManage && (
+        {mayPropose && (
           <Button variant="primary" onClick={openCreate} disabled={busy}>
-            إضافة صنف
+            اقتراح صنف
           </Button>
         )}
       </header>
@@ -106,11 +137,18 @@ export default function Menu() {
 
       {!mayManage && !busy && (
         <p className="mb-4 rounded-xl border border-app-border bg-app-surface-alt/60 px-4 py-3 text-xs text-app-ink-muted">
-          عرض فقط — إدارة القائمة متاحة للمالك والمديرين.
+          عرض فقط — اقتراح تغييرات القائمة متاح للمطبخ والمديرين.
         </p>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
+      <MenuChangeQueue
+        key={queueNonce}
+        canDecide={mayDecide}
+        currentUserId={me?.user_id ?? null}
+        onApplied={refresh}
+      />
+
+      <div className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-app-border text-sm">
             <caption className="sr-only">أصناف القائمة وأسعارها</caption>
@@ -143,7 +181,7 @@ export default function Menu() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-app-ink-muted">
                     لا توجد أصناف بعد.
-                    {mayManage ? ' أضف أول صنف من زر «إضافة صنف».' : ''}
+                    {mayPropose ? ' اقترح أول صنف من زر «اقتراح صنف».' : ''}
                   </td>
                 </tr>
               ) : (
@@ -167,14 +205,14 @@ export default function Menu() {
                       <MarginCell item={item} />
                     </td>
                     <td className="px-6 py-4 text-end">
-                      {mayManage && (
+                      {mayPropose && (
                         <button
                           type="button"
                           onClick={() => openEdit(item)}
-                          aria-label={`تعديل: ${item.name}`}
+                          aria-label={`اقتراح تعديل: ${item.name}`}
                           className="rounded-lg px-2.5 py-1 text-xs font-bold text-twilight-700 transition-colors hover:bg-twilight-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500"
                         >
-                          تعديل
+                          اقتراح تعديل
                         </button>
                       )}
                     </td>
