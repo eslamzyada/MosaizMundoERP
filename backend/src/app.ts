@@ -73,13 +73,29 @@ app.use(
 // Capture the raw request bytes so the webhook middleware can verify the HMAC
 // signature over exactly what Supabase signed (a re-serialized object would not
 // byte-match).
+// An EXPLICIT body ceiling. Express defaults to 100kb, which is fine — but a
+// default is a thing nobody chose, and the one request in this API that can
+// legitimately be large (a logo) does not come through here at all: multer
+// handles it with its own 2 MB limit. Naming the number means a future endpoint
+// that needs more has to say so.
 app.use(
   express.json({
+    limit: process.env.JSON_BODY_LIMIT ?? '256kb',
     verify: (req, _res, buf) => {
       (req as express.Request).rawBody = buf;
     },
   }),
 );
+
+// A body over the ceiling is the caller's to fix, and Express's default is an
+// HTML error page from the generic handler. This says what happened.
+app.use((err: Error & { type?: string }, _req: Request, res: Response, next: NextFunction) => {
+  if (err?.type === 'entity.too.large') {
+    res.status(413).json({ error: 'Request body is too large' });
+    return;
+  }
+  next(err);
+});
 
 // Serialize Prisma Decimal fields as JSON numbers across every endpoint. This
 // interceptor (rather than a prisma.$extends result extension) keeps the

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { contextFor, invalidate } from '../lib/cache';
 
 /**
  * Proposing and deciding a change to the menu (0035).
@@ -245,6 +246,15 @@ export async function decideChange(req: Request, res: Response): Promise<void> {
     // anyway. (A void-returning function through $queryRaw is also the P2010
     // that bit the delete path once already.)
     await req.tx.$executeRaw`SELECT app.decide_menu_change(${req.params.id}::uuid, ${body.approve}, ${note})`;
+
+    // An approval changes what every till in this restaurant should be
+    // offering, so the cached menu is dropped for EVERY role — clearing only
+    // the approver's own entry would leave the waiters reading old prices.
+    if (body.approve) {
+      const ctx = await contextFor(req);
+      if (ctx.organizationId) await invalidate('pos-menu', ctx.organizationId);
+    }
+
     res.status(200).json({ id: req.params.id, status: body.approve ? 'approved' : 'rejected' });
   } catch (err) {
     const code = postgresErrorCode(err);
