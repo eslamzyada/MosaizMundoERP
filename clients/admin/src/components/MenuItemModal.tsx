@@ -10,7 +10,13 @@ interface Props {
   /** The item being edited, or null to create a new one. */
   item: CatalogItem | null;
   onClose: () => void;
-  onSave: (payload: { name: string; price: number; sku: string | null }) => Promise<void>;
+  onSave: (payload: {
+    name: string;
+    price: number;
+    sku: string | null;
+    /** Why. Required since 0035 — this is now a REQUEST, not an edit. */
+    reason: string;
+  }) => Promise<void>;
 }
 
 const inputClass =
@@ -22,6 +28,7 @@ export default function MenuItemModal({ open, item, onClose, onSave }: Props) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [sku, setSku] = useState('');
+  const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +38,7 @@ export default function MenuItemModal({ open, item, onClose, onSave }: Props) {
       setName(item?.name ?? '');
       setPrice(item ? String(item.price) : '');
       setSku(item?.sku ?? '');
+      setReason('');
       setSaving(false);
       setError(null);
     }
@@ -48,11 +56,22 @@ export default function MenuItemModal({ open, item, onClose, onSave }: Props) {
       setError('أدخل سعرًا صحيحًا (صفر أو أكثر).');
       return;
     }
+    // The server refuses a proposal without one, and it is what the person
+    // approving actually decides on.
+    if (reason.trim().length < 3) {
+      setError('اكتب سبب التغيير — هو ما يُبنى عليه القرار.');
+      return;
+    }
 
     setSaving(true);
     setError(null);
     try {
-      await onSave({ name: trimmedName, price: numericPrice, sku: sku.trim() || null });
+      await onSave({
+        name: trimmedName,
+        price: numericPrice,
+        sku: sku.trim() || null,
+        reason: reason.trim(),
+      });
       onClose();
     } catch (err) {
       const msg = axios.isAxiosError(err)
@@ -107,6 +126,24 @@ export default function MenuItemModal({ open, item, onClose, onSave }: Props) {
             className={`${inputClass} text-start`}
           />
         </Field>
+
+        {/* Since 0035 this form files a REQUEST rather than saving. The reason
+            is the part somebody else reads before agreeing, so it is a field
+            rather than an afterthought. */}
+        <Field label="سبب التغيير">
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            maxLength={1000}
+            placeholder="مثال: ارتفع سعر اللحم من المورّد هذا الشهر"
+            className={inputClass}
+          />
+        </Field>
+
+        <p className="rounded-lg bg-app-surface-alt/60 px-3 py-2 text-xs text-app-ink-muted">
+          لن يتغيّر شيء الآن: يُرسَل الطلب للاعتماد من المالك أو المدير الإقليمي.
+        </p>
 
         {error && (
           <p role="alert" className="text-xs font-semibold text-destructive-strong">
