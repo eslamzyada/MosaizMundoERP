@@ -123,14 +123,19 @@ export type Role =
   | 'branch_manager'
   | 'accountant'
   | 'cashier'
+  | 'waiter'
+  | 'kitchen'
   | 'staff';
 
+/** Ordered as an org chart reads, not alphabetically. */
 export const ROLES: Role[] = [
   'owner',
   'regional_manager',
   'branch_manager',
   'accountant',
   'cashier',
+  'waiter',
+  'kitchen',
   'staff',
 ];
 
@@ -171,6 +176,22 @@ export interface OrderItem {
   unit_price: number;
   created_at: string;
   updated_at: string;
+  /**
+   * When the kitchen was told to make it, or null while it is still on the tab.
+   * A line with no fired_at carries no cost yet — the 0029 CHECK enforces that.
+   */
+  fired_at: string | null;
+  /** A line-level instruction: "بدون بصل". */
+  note: string | null;
+  /**
+   * The dish, joined by the orders endpoint.
+   *
+   * These last three fields were being RETURNED by the API and were missing
+   * from this type, so every screen that wanted a dish name had to reach past
+   * the compiler to get one. That gap is how a status the UI did not know about
+   * blanked the dashboard; it is corrected here rather than worked around.
+   */
+  sellable_items?: { name: string; sku: string | null };
 }
 
 // Mirrors the database CHECK (orders_status_check): 'completed' | 'voided'.
@@ -193,6 +214,10 @@ export interface Order {
   created_at: string;
   updated_at: string;
   order_items: OrderItem[];
+  /** What the tab is called on the floor — usually a table. */
+  note: string | null;
+  /** Who served it (0026), or null for sales that predate attribution. */
+  served_by: string | null;
   // Void metadata (0018, 0022). All null unless status is 'voided' — the
   // database enforces that a voided order has a reason and nothing else does.
   voided_at: string | null;

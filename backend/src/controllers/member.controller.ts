@@ -5,12 +5,17 @@ import { SAFETY_CAP } from '../lib/pagination';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Mirrors the CHECK on organization_memberships AND on
+// organization_invitations (0034). All three have to agree, or a role can be
+// offered and never granted — and that fails at the far end of a sign-up flow.
 const VALID_ROLES = [
   'owner',
   'regional_manager',
   'branch_manager',
   'accountant',
   'cashier',
+  'waiter',
+  'kitchen',
   'staff',
 ];
 

@@ -31,7 +31,10 @@ export interface Destination {
 }
 
 export const DESTINATIONS: Destination[] = [
-  { to: '/', label: 'لوحة التحكم', end: true, keywords: ['الرئيسية', 'ملخص', 'dashboard'] },
+  { to: '/dashboard', label: 'لوحة التحكم', end: true, keywords: ['الرئيسية', 'ملخص', 'dashboard'] },
+  { to: '/floor', label: 'الصالة', end: false, keywords: ['الطاولات', 'النادل', 'floor', 'tables'] },
+  { to: '/kitchen', label: 'المطبخ', end: false, keywords: ['التحضير', 'الطلبات', 'kitchen', 'pass'] },
+  { to: '/till', label: 'نقطة البيع', end: false, keywords: ['الكاشير', 'till', 'pos'] },
   { to: '/menu', label: 'القائمة', end: false, keywords: ['الأصناف', 'الأسعار', 'menu'] },
   { to: '/orders', label: 'الطلبات', end: false, keywords: ['الفواتير', 'المبيعات', 'orders'] },
   {
