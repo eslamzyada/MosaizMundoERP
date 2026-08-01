@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { cached, contextFor } from '../lib/cache';
 import { Prisma } from '@prisma/client';
 import { parsePage, SAFETY_CAP } from '../lib/pagination';
 import {
@@ -286,7 +287,9 @@ export async function getMenu(req: Request, res: Response): Promise<void> {
   try {
     // COUNT/FLOOR are cast to int: res.json cannot serialize a BigInt, and a
     // fractional portion is not a thing a cashier can sell.
-    const items = await req.tx.$queryRaw`
+    const ctx = await contextFor(req);
+    const items = await cached('pos-menu', ctx, '', 60, async () =>
+      req.tx!.$queryRaw`
       WITH stock AS (
           SELECT b.raw_item_id,
                  SUM(b.quantity_remaining) AS on_hand
@@ -320,7 +323,7 @@ export async function getMenu(req: Request, res: Response): Promise<void> {
                s.created_at, s.updated_at
       ORDER BY s.name ASC
       LIMIT ${SAFETY_CAP}
-    `;
+    `);
     res.status(200).json(items);
   } catch (err) {
     // eslint-disable-next-line no-console
