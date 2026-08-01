@@ -15,6 +15,10 @@ function item(orderId: string, seq: number, sellableId: string, quantity: number
     unit_price: unitPrice,
     created_at: '2026-07-12T10:00:00.000Z',
     updated_at: '2026-07-12T10:00:00.000Z',
+    // Fired, because a mock line with a price and no fired_at is a state the
+    // 0029 CHECK refuses — an unfired line carries no cost.
+    fired_at: '2026-07-12T10:00:00.000Z',
+    note: null,
   };
 }
 
@@ -45,6 +49,8 @@ function order(
     stock_restored: voided ? voided.restored : null,
     void_reason: voided ? voided.reason : null,
     void_note: voided?.note ?? null,
+    note: null,
+    served_by: null,
   };
 }
 

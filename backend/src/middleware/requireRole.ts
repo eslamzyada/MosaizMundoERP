@@ -75,8 +75,17 @@ export function requireRole(...allowedRoles: string[]) {
 /** Operational writes: receiving stock, stocktakes, catalog and recipe edits. */
 export const ADMIN_ROLES = ['owner', 'regional_manager', 'branch_manager'];
 
-/** May ring up a sale. Everyone except accountant, who is read-only. */
-export const SALES_ROLES = [...ADMIN_ROLES, 'cashier', 'staff'];
+/**
+ * May ring up a sale.
+ *
+ * A waiter opening a tab and adding to it IS a sale in progress, so they sit
+ * here beside the cashier. The accountant is read-only, and the kitchen writes
+ * nothing at all — it is a reading role by design (0034), not by omission.
+ *
+ * Mirrors app.user_can_sell. The database is the boundary; this list exists so
+ * a refusal arrives as an honest 403 rather than an opaque policy error.
+ */
+export const SALES_ROLES = [...ADMIN_ROLES, 'cashier', 'waiter', 'staff'];
 
 /**
  * May see money: revenue, cost of goods sold, margin.

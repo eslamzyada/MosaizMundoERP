@@ -31,7 +31,10 @@ describe('the destinations', () => {
     // being one list.
     const routes = DESTINATIONS.map((d) => d.to);
     for (const route of [
-      '/',
+      '/dashboard',
+      '/floor',
+      '/kitchen',
+      '/till',
       '/menu',
       '/orders',
       '/inventory',

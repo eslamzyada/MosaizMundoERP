@@ -5,13 +5,26 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS, useSession } from '../session/SessionProvider';
 import { DESTINATIONS } from '../lib/searchTargets';
+import { navFor } from '../lib/roleHome';
 
 export default function Layout() {
-  const { me, can } = useSession();
-  // The same list the search box uses. It was duplicated here; two copies is
-  // one copy that gets forgotten, and a page missing from one of them is
-  // invisible in a way nobody thinks to report.
-  const visibleNav = DESTINATIONS.filter((item) => !item.capability || can(item.capability));
+  const { me } = useSession();
+  /**
+   * Built PER ROLE, not filtered by capability.
+   *
+   * Filtering only makes the list shorter — it does not make it theirs. A
+   * waiter was meeting thirteen destinations, eleven of which were somebody
+   * else's job, with the one that mattered buried among them. `navFor` names
+   * what each role should be OFFERED, which is a different question from what
+   * they are permitted to open.
+   *
+   * Ordered by the role's list rather than by the shared DESTINATIONS order, so
+   * each role's first item is its own home.
+   */
+  const allowed = navFor(me?.role);
+  const visibleNav = allowed
+    .map((route) => DESTINATIONS.find((d) => d.to === route))
+    .filter((d): d is (typeof DESTINATIONS)[number] => d !== undefined);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
 

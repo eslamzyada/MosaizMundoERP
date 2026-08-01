@@ -13,7 +13,10 @@ import type { Me, Role } from '../types';
  * app.caller_may_manage_members.
  */
 const ADMINISTER: Role[] = ['owner', 'regional_manager', 'branch_manager'];
-const SELL: Role[] = [...ADMINISTER, 'cashier', 'staff'];
+// A waiter opening a tab is a sale in progress (0034). The kitchen is absent on
+// purpose: it is a reading role, and adding it here would be inventing a
+// capability rather than naming a job.
+const SELL: Role[] = [...ADMINISTER, 'cashier', 'waiter', 'staff'];
 const MANAGE_MEMBERS: Role[] = ['owner'];
 // Mirrors FINANCE_ROLES on the API. The accountant is read-only for operations
 // but is exactly who reads the books, so they are included even though they are
@@ -108,5 +111,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   branch_manager: 'مدير فرع',
   accountant: 'محاسب',
   cashier: 'كاشير',
+  waiter: 'نادل',
+  kitchen: 'مطبخ',
   staff: 'موظف',
 };

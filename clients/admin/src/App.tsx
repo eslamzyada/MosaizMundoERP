@@ -12,6 +12,10 @@ import Recipes from './pages/Recipes';
 import Members from './pages/Members';
 import Reports from './pages/Reports';
 import Insights from './pages/Insights';
+import Floor from './pages/Floor';
+import Kitchen from './pages/Kitchen';
+import Till from './pages/Till';
+import RoleLanding from './components/RoleLanding';
 import StocktakePage from './pages/Stocktake';
 import Suppliers from './pages/Suppliers';
 import Printers from './pages/Printers';
@@ -59,7 +63,14 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
-            <Route index element={<Dashboard />} />
+            {/* The index is a REDIRECT, not a page: where "home" is depends on
+                the role, and sending a waiter to a management dashboard is the
+                thing this phase exists to stop. */}
+            <Route index element={<RoleLanding />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="floor" element={<Floor />} />
+            <Route path="kitchen" element={<Kitchen />} />
+            <Route path="till" element={<Till />} />
             <Route path="menu" element={<Menu />} />
             <Route path="orders" element={<Orders />} />
             <Route path="inventory" element={<Inventory />} />
