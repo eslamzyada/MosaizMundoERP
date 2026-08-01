@@ -64,105 +64,36 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('Catalog: creating menu items (admin-only)', () => {
-  let createdId: string;
-
-  test('owner creates an item with a price (201), and it comes back priced', async () => {
+describe('Catalog: the menu is no longer written here (0035)', () => {
+  // These used to assert create / re-price / validation through this endpoint.
+  // Since 0035 the application role has no INSERT or UPDATE on sellable_items —
+  // the menu only changes through an approved menu_change_request — so the
+  // endpoint answers 409 and points at the cycle. The behaviour those tests
+  // covered now lives in menuChange.api.test.ts, where it is actually reachable.
+  it('creating answers 409 and names the route that works', async () => {
     const res = await request(app)
       .post('/api/catalog/items')
-      .set('Authorization', `Bearer ${tokens.owner}`)
-      .send({ name: 'Shawarma', price: 75, sku: 'SHW-1' });
+      .set({ Authorization: `Bearer ${tokens.owner}` })
+      .send({ name: 'Direct Item', price: 10 });
 
-    expect(res.status).toBe(201);
-    expect(res.body.name).toBe('Shawarma');
-    expect(res.body.organization_id).toBe(orgId);
-    expect(typeof res.body.price).toBe('number');
-    expect(res.body.price).toBe(75);
-    createdId = res.body.id;
-  });
-
-  test('the new item appears in the catalog list and the POS menu, priced', async () => {
-    const list = await request(app)
-      .get('/api/catalog/items')
-      .set('Authorization', `Bearer ${tokens.cashier}`);
-    expect(list.status).toBe(200);
-    const inList = list.body.find((i: { id: string }) => i.id === createdId);
-    expect(inList).toBeDefined();
-    expect(inList.price).toBe(75);
-
-    const menu = await request(app)
-      .get('/api/pos/menu')
-      .set('Authorization', `Bearer ${tokens.cashier}`);
-    expect(menu.body.some((i: { id: string }) => i.id === createdId)).toBe(true);
-  });
-
-  test('owner re-prices the item (200)', async () => {
-    const res = await request(app)
-      .patch(`/api/catalog/items/${createdId}`)
-      .set('Authorization', `Bearer ${tokens.owner}`)
-      .send({ price: 80 });
-    expect(res.status).toBe(200);
-    expect(res.body.price).toBe(80);
-  });
-
-  test('a duplicate SKU is rejected (409)', async () => {
-    const res = await request(app)
-      .post('/api/catalog/items')
-      .set('Authorization', `Bearer ${tokens.owner}`)
-      .send({ name: 'Another Shawarma', price: 70, sku: 'SHW-1' }); // SHW-1 already used above
     expect(res.status).toBe(409);
+    expect(res.body.code).toBe('menu_change_required');
+    expect(res.body.propose_at).toBe('/api/menu-changes');
   });
 
-  test('a cashier cannot create an item (403)', async () => {
+  it('re-pricing answers 409 and changes nothing', async () => {
     const res = await request(app)
-      .post('/api/catalog/items')
-      .set('Authorization', `Bearer ${tokens.cashier}`)
-      .send({ name: 'Sneaky Free Item', price: 0 });
-    expect(res.status).toBe(403);
-  });
-
-  test('a cashier cannot re-price an item (403), and the price is unchanged', async () => {
-    const res = await request(app)
-      .patch(`/api/catalog/items/${createdId}`)
-      .set('Authorization', `Bearer ${tokens.cashier}`)
+      .patch(`/api/catalog/items/${'00000000-0000-4000-8000-000000000001'}`)
+      .set({ Authorization: `Bearer ${tokens.owner}` })
       .send({ price: 1 });
-    expect(res.status).toBe(403);
 
-    const rows = await admin.$queryRaw<Array<{ price: unknown }>>`
-      SELECT price FROM public.sellable_items WHERE id = ${createdId}::uuid`;
-    expect(Number(rows[0].price)).toBe(80);
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('menu_change_required');
   });
 
-  test('a negative price is rejected (400)', async () => {
-    const res = await request(app)
-      .post('/api/catalog/items')
-      .set('Authorization', `Bearer ${tokens.owner}`)
-      .send({ name: 'Bad Price', price: -5 });
-    expect(res.status).toBe(400);
-  });
-
-  test('a missing name is rejected (400)', async () => {
-    const res = await request(app)
-      .post('/api/catalog/items')
-      .set('Authorization', `Bearer ${tokens.owner}`)
-      .send({ price: 10 });
-    expect(res.status).toBe(400);
-  });
-
-  test("cannot update another tenant's item (404), and it is unchanged", async () => {
-    const res = await request(app)
-      .patch(`/api/catalog/items/${itemBId}`)
-      .set('Authorization', `Bearer ${tokens.owner}`)
-      .send({ price: 0.01 });
-    expect(res.status).toBe(404);
-
-    const rows = await admin.$queryRaw<Array<{ price: unknown }>>`
-      SELECT price FROM public.sellable_items WHERE id = ${itemBId}::uuid`;
-    expect(Number(rows[0].price)).toBe(9.99);
-  });
-
-  test('unauthenticated create is rejected (401)', async () => {
-    const res = await request(app).post('/api/catalog/items').send({ name: 'X', price: 1 });
-    expect(res.status).toBe(401);
+  it('reading the catalog still works — the till sells from it', async () => {
+    const res = await request(app).get('/api/catalog/items').set({ Authorization: `Bearer ${tokens.owner}` });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 });

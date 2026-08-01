@@ -74,6 +74,14 @@ jobs:
           PGPASSWORD: ci_app_password
         run: bash db/tests/negative_checks.sh
 
+      # Since 0035 the app role cannot write sellable_items, so every dish a
+      # later suite needs is seeded here, as postgres.
+      - name: Menu fixture — seed the dishes the app role may no longer write (as postgres)
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/menu_fixture.sql
+
       - name: POS checkout verification — idempotency and isolation (as mosaiz_app_user)
         env:
           PGUSER: mosaiz_app_user
@@ -228,6 +236,14 @@ jobs:
           PGUSER: mosaiz_app_user
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/floor_roles_verification.sql
+
+      # The menu approval cycle (0035). Runs after the floor fixture because it
+      # needs the two roles that decide and the two that propose.
+      - name: Menu change verification — the cycle, and the closed direct path (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/menu_change_verification.sql
 
       # Order and line comments (0028). Also the regression guard for the
       # checkout procedure, which 0028 replaces wholesale to add two fields.

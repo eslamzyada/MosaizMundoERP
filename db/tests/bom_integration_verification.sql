@@ -17,7 +17,8 @@ DO $$
 DECLARE
     v_org    uuid := (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo');
     v_patty  uuid := 'beef0001-0001-4001-8001-000000000001';
-    v_burger uuid := 'bbbb0001-0001-4001-8001-000000000001';
+    -- Seeded by menu_fixture as postgres (0035).
+    v_burger uuid := 'b0b0b0b0-b0b0-4b0b-8b0b-b0b0b0b0b0b0';
     v_batch  uuid := 'ba7c1000-000a-4000-8000-00000000000a';
     v_remaining numeric;
     v_orders    integer;
@@ -25,8 +26,11 @@ BEGIN
     INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure)
     VALUES (v_patty, v_org, 'Beef Patty', 'pieces');
 
-    INSERT INTO public.sellable_items (id, organization_id, name, sku)
-    VALUES (v_burger, v_org, 'Burger', 'BURGER-1');
+    -- 0035 took the menu away from the application role, and this suite runs
+    -- as it, so the dish is seeded by menu_fixture and only checked here.
+    IF NOT EXISTS (SELECT FROM public.sellable_items WHERE id = v_burger) THEN
+        RAISE EXCEPTION 'menu fixture missing: Burger was not seeded';
+    END IF;
 
     INSERT INTO public.inventory_batches
         (id, organization_id, raw_item_id, quantity_received,
@@ -68,7 +72,8 @@ $$;
 DO $$
 DECLARE
     v_batch uuid := 'ba7c1000-000a-4000-8000-00000000000a';
-    v_burger uuid := 'bbbb0001-0001-4001-8001-000000000001';
+    -- Seeded by menu_fixture as postgres (0035).
+    v_burger uuid := 'b0b0b0b0-b0b0-4b0b-8b0b-b0b0b0b0b0b0';
     v_org uuid := (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo');
     v_remaining numeric;
 BEGIN
@@ -98,7 +103,8 @@ DO $$
 DECLARE
     v_org    uuid := (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo');
     v_patty  uuid := 'beef0001-0001-4001-8001-000000000001';
-    v_burger uuid := 'bbbb0001-0001-4001-8001-000000000001';
+    -- Seeded by menu_fixture as postgres (0035).
+    v_burger uuid := 'b0b0b0b0-b0b0-4b0b-8b0b-b0b0b0b0b0b0';
     v_batch  uuid := 'ba7c1000-000a-4000-8000-00000000000a';
     v_remaining numeric;
     v_deficit   numeric;
@@ -150,8 +156,10 @@ DECLARE
 BEGIN
     INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure)
     VALUES (v_raw, v_org, 'Coalesce Cheese', 'grams');   -- no batch: zero stock
-    INSERT INTO public.sellable_items (id, organization_id, name, sku)
-    VALUES (v_sell, v_org, 'Coalesce Item', 'COAL-1');
+    v_sell := 'c0a1e5ce-0000-4000-8000-00000000000f';
+    IF NOT EXISTS (SELECT FROM public.sellable_items WHERE id = v_sell) THEN
+        RAISE EXCEPTION 'menu fixture missing: Coalesce Item was not seeded';
+    END IF;
     INSERT INTO public.bill_of_materials
         (organization_id, sellable_item_id, raw_item_id, quantity_required)
     VALUES (v_org, v_sell, v_raw, 1);

@@ -102,10 +102,15 @@ BEGIN
         NULL;
     END;
 
+    -- Since 0035 nobody writes sellable_items directly, so "a waiter cannot"
+    -- would pass for a reason that has nothing to do with being a waiter. The
+    -- gate that still means something is who may PROPOSE a change.
     BEGIN
-        INSERT INTO public.sellable_items (organization_id, name, price)
-        VALUES ('f10c0000-0000-4000-8000-000000000000', 'صنف من النادل', 10);
-        RAISE EXCEPTION 'a waiter added a menu item';
+        INSERT INTO public.menu_change_requests
+            (organization_id, kind, proposed_name, proposed_price, reason, requested_by)
+        VALUES ('f10c0000-0000-4000-8000-000000000000', 'create', 'صنف من النادل', 10,
+                'اقتراح من النادل', 'f10c0001-0000-4000-8000-000000000001');
+        RAISE EXCEPTION 'a waiter proposed a menu change';
     EXCEPTION WHEN insufficient_privilege THEN
         NULL;
     END;
@@ -159,10 +164,13 @@ BEGIN
         NULL;
     END;
 
+    -- The kitchen MAY propose a menu change (0035) — that is the point of the
+    -- role. What it may not do is change the menu itself, and since the
+    -- privilege is revoked outright the refusal here is a privilege error.
     BEGIN
         INSERT INTO public.sellable_items (organization_id, name, price)
         VALUES ('f10c0000-0000-4000-8000-000000000000', 'صنف من المطبخ', 10);
-        RAISE EXCEPTION 'the kitchen added a menu item';
+        RAISE EXCEPTION 'the kitchen wrote the menu directly';
     EXCEPTION WHEN insufficient_privilege THEN
         NULL;
     END;
