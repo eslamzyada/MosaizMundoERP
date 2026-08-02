@@ -149,6 +149,7 @@ model organizations {
   employee_criterion_scores employee_criterion_scores[]
   employee_ratings          employee_ratings[]
   menu_change_requests      menu_change_requests[]
+  notifications             notifications[]
   orders                    orders[]
   organization_branding     organization_branding?
   organization_invitations  organization_invitations[]
@@ -257,6 +258,8 @@ model users {
   employee_ratings_employee_ratings_rated_byTousers                      employee_ratings[]          @relation("employee_ratings_rated_byTousers")
   menu_change_requests_menu_change_requests_decided_byTousers            menu_change_requests[]      @relation("menu_change_requests_decided_byTousers")
   menu_change_requests_menu_change_requests_requested_byTousers          menu_change_requests[]      @relation("menu_change_requests_requested_byTousers")
+  notifications_notifications_actor_idTousers                            notifications[]             @relation("notifications_actor_idTousers")
+  notifications_notifications_recipient_idTousers                        notifications[]             @relation("notifications_recipient_idTousers")
   orders_orders_served_byTousers                                         orders[]                    @relation("orders_served_byTousers")
   orders                                                                 orders[]
   organization_invitations                                               organization_invitations[]
@@ -551,4 +554,25 @@ model menu_change_requests {
   @@index([sellable_item_id, requested_at(sort: Desc)], map: "menu_change_requests_item_idx")
   @@index([organization_id, status, requested_at(sort: Desc)], map: "menu_change_requests_pending_idx")
   @@index([requested_by])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model notifications {
+  id                                      String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id                         String        @db.Uuid
+  recipient_id                            String        @db.Uuid
+  actor_id                                String?       @db.Uuid
+  kind                                    String
+  subject                                 String
+  body                                    String?
+  link                                    String?
+  read_at                                 DateTime?     @db.Timestamptz(6)
+  created_at                              DateTime      @default(now()) @db.Timestamptz(6)
+  users_notifications_actor_idTousers     users?        @relation("notifications_actor_idTousers", fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  organizations                           organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_notifications_recipient_idTousers users         @relation("notifications_recipient_idTousers", fields: [recipient_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([recipient_id, created_at(sort: Desc)], map: "notifications_inbox_idx")
 }

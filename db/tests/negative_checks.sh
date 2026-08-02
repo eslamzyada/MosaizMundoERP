@@ -119,4 +119,43 @@ expect_reject "back-dating a criterion score into a closed month"     "SET app.c
                WHERE o.slug = 'ci-bistro-cairo' ORDER BY c.sort_order LIMIT 1),
              (date_trunc('month', now()) - interval '1 month')::date, 4);"
 
+# ----------------------------------------------------------------------------
+# 0036. A notification is delivered outside the query path, so the app role has
+# no way to write one: no INSERT, no DELETE, and UPDATE only on read_at. Every
+# statement below must be refused on privilege alone — none of them depends on
+# a row existing, which is why they belong here rather than in a suite.
+# ----------------------------------------------------------------------------
+expect_reject "sending a notification to somebody else" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.notifications (organization_id, recipient_id, kind, subject)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             '99999999-9999-4999-8999-999999999999',
+             'phish', 'اضغط هنا لتأكيد كلمة المرور');"
+
+expect_reject "writing a notification to YOURSELF (the own-row policy would allow it)" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.notifications (organization_id, recipient_id, kind, subject)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'self', 'ملاحظة لنفسي');"
+
+expect_reject "calling the delivery function directly" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     SELECT app.notify_user(
+         (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+         '99999999-9999-4999-8999-999999999999', 'phish', 'رسالة منتحلة');"
+
+expect_reject "broadcasting to a whole role" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     SELECT app.notify_roles(
+         (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+         ARRAY['waiter'], 'phish', 'إعلان للجميع');"
+
+expect_reject "rewriting the message you were sent" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     UPDATE public.notifications SET subject = 'شيء آخر تمامًا';"
+
+expect_reject "deleting a notification you were sent" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.notifications;"
+
 exit "$fail"
