@@ -10,6 +10,7 @@ import userRoutes from './routes/user.routes';
 import memberRoutes from './routes/member.routes';
 import catalogRoutes from './routes/catalog.routes';
 import menuChangeRoutes from './routes/menuChange.routes';
+import notificationRoutes from './routes/notification.routes';
 import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
 import ratingCriteriaRoutes from './routes/ratingCriteria.routes';
@@ -139,6 +140,9 @@ app.use('/api/catalog', catalogRoutes);
 // The menu approval cycle (0035). Its own noun because the queue is a different
 // resource from the menu — readable by everyone, writable through a decision.
 app.use('/api/menu-changes', menuChangeRoutes);
+
+// Your own inbox (0036). Every role has one; nobody can write to anybody's.
+app.use('/api/notifications', notificationRoutes);
 
 // Profitability reporting, from the cost captured at each sale. Restricted to
 // FINANCE_ROLES inside the router — SELECT is ungated in the database.

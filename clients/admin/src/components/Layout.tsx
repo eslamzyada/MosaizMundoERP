@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import CommandPalette from './CommandPalette';
+import NotificationBell from './NotificationBell';
 import { NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS, useSession } from '../session/SessionProvider';
@@ -55,13 +56,16 @@ export default function Layout() {
           loses the contrast the whole layout is built on. Everything inside
           keeps the literal palette rather than the app-* tokens. */}
       <aside className="flex w-64 flex-shrink-0 flex-col border-e border-surface-dark-border bg-surface-dark text-slate-100">
-        <div className="flex h-16 items-center gap-3 border-b border-surface-dark-border px-6">
+        <div className="flex h-16 items-center gap-3 border-b border-surface-dark-border ps-6 pe-3">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sunset-500 to-twilight-600 text-base font-bold text-white">
             M
           </span>
-          <span className="font-numerals text-base font-semibold tracking-tight text-white">
+          <span className="font-numerals flex-1 text-base font-semibold tracking-tight text-white">
             Mosaiz&nbsp;Mundo
           </span>
+          {/* In the chrome, not on a page: what you are told does not depend on
+              which screen you happen to be looking at. */}
+          <NotificationBell />
         </div>
 
         {/* Dressed as a field rather than an icon, because a magnifying glass
