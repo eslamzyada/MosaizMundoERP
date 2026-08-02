@@ -52,11 +52,16 @@ CREATE TABLE public.notifications (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
 
-    -- Who is being told. NO ACTION: a notification that was sent stays sent.
-    recipient_id    uuid NOT NULL REFERENCES public.users (id),
+    -- Who is being told. CASCADE, and that is the own-row policy's consequence
+    -- rather than a convenience: only the recipient can ever read these rows,
+    -- so once that person is gone nobody can read them — they are unreadable by
+    -- definition, and keeping them would pin the user row forever.
+    recipient_id    uuid NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
     -- Who caused it. Null for something the system noticed rather than someone
-    -- doing it (a stock level crossing a threshold, say).
-    actor_id        uuid REFERENCES public.users (id),
+    -- doing it (a stock level crossing a threshold, say) — so SET NULL, because
+    -- "we no longer know who" is a state this column already expresses, and
+    -- losing the actor must not take the message with it.
+    actor_id        uuid REFERENCES public.users (id) ON DELETE SET NULL,
 
     -- A stable machine name, so a client can group or route without parsing
     -- Arabic prose. Deliberately not an enum: adding a kind should not need a

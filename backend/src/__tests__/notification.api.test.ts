@@ -201,6 +201,47 @@ describe('reading', () => {
   });
 });
 
+describe('when somebody leaves', () => {
+  const countFor = async (id: string) => {
+    const [row] = await admin.$queryRaw<Array<{ count: bigint }>>`
+      SELECT count(*) FROM public.notifications WHERE recipient_id = ${id}::uuid`;
+    return Number(row.count);
+  };
+
+  it('their inbox goes with them', async () => {
+    // Only the recipient can ever read these rows, so one that outlives its
+    // recipient is unreadable by anybody — and it pins the user row forever,
+    // which is how a fixture ends up unable to clean up after itself.
+    const goneId = randomUUID();
+    await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${goneId}::uuid, ${`ntf-gone-${goneId.slice(0, 8)}@dev.local`})`;
+    await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${goneId}::uuid, 'waiter')`;
+    await admin.$queryRaw`SELECT app.notify_user(${orgId}::uuid, ${goneId}::uuid, 'test', ${'رسالة إلى من سيغادر'})`;
+    expect(await countFor(goneId)).toBe(1);
+
+    await admin.$executeRaw`DELETE FROM public.organization_memberships WHERE user_id = ${goneId}::uuid`;
+    await admin.$executeRaw`DELETE FROM public.users WHERE id = ${goneId}::uuid`;
+
+    expect(await countFor(goneId)).toBe(0);
+  });
+
+  it('a message outlives the person who sent it', async () => {
+    // The opposite direction, and deliberately not symmetric: losing the actor
+    // must not take the message with it. "We no longer know who" is a state the
+    // column already expresses — it is nullable for events nobody caused.
+    const actorId = randomUUID();
+    await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${actorId}::uuid, ${`ntf-actor-${actorId.slice(0, 8)}@dev.local`})`;
+    await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${actorId}::uuid, 'kitchen')`;
+    await admin.$queryRaw`SELECT app.notify_user(${orgId}::uuid, ${waiterId}::uuid, 'test', ${'رسالة من شخص سيغادر'}, NULL, NULL, ${actorId}::uuid)`;
+
+    await admin.$executeRaw`DELETE FROM public.organization_memberships WHERE user_id = ${actorId}::uuid`;
+    await admin.$executeRaw`DELETE FROM public.users WHERE id = ${actorId}::uuid`;
+
+    const kept = (await inbox(waiterToken)).notifications.find((n) => n.kind === 'test');
+    expect(kept).toBeDefined();
+    expect(kept!.subject).toBe('رسالة من شخص سيغادر');
+  });
+});
+
 describe('there is no way to send one', () => {
   it('the API exposes no create endpoint at all', async () => {
     const res = await request(app)
