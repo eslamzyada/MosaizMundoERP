@@ -71,16 +71,30 @@ const setModule = (token: string, key: string, enabled: boolean) =>
   request(app).put(`/api/modules/${key}`).set(as(token)).send({ enabled });
 
 describe('a tenant that never chose', () => {
-  it('runs everything, without a single row of its own', async () => {
-    // The fallback to the catalogue default. Without it, every restaurant that
-    // predates a new module would find that module switched off on release day.
+  it('gets each module at its catalogue default, without a row of its own', async () => {
+    // This used to assert "everything is on", which was true only because
+    // every module in 0037 defaulted on. 0038's labour module ships OFF — it
+    // is a new capability rather than one anybody was already using — so the
+    // real contract is the one asserted here: the fallback reads the
+    // catalogue, per module, and does not assume a direction.
     const rows = await admin.$queryRaw<Array<{ count: bigint }>>`
       SELECT count(*) FROM public.organization_modules WHERE organization_id = ${orgId}::uuid`;
     expect(Number(rows[0].count)).toBe(0);
 
+    const defaults = await admin.$queryRaw<Array<{ key: string; default_enabled: boolean }>>`
+      SELECT key, default_enabled FROM public.modules`;
+    const expected = new Map(defaults.map((d) => [d.key, d.default_enabled]));
+
     const res = await request(app).get('/api/modules').set(as(ownerToken));
     expect(res.status).toBe(200);
-    expect(res.body.every((m: { enabled: boolean }) => m.enabled)).toBe(true);
+    for (const m of res.body as Array<{ key: string; enabled: boolean }>) {
+      expect([m.key, m.enabled]).toEqual([m.key, expected.get(m.key)]);
+    }
+
+    // ...and the two directions both genuinely occur, or the loop above would
+    // pass against a catalogue that had quietly become uniform.
+    expect([...expected.values()]).toContain(true);
+    expect([...expected.values()]).toContain(false);
   });
 
   it('reports the same set on /api/me, so the sidebar needs one request', async () => {

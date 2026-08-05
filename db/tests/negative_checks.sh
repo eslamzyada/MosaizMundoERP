@@ -187,4 +187,36 @@ expect_reject "switching a module in an organization you do not belong to" \
     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
      SELECT app.set_module('00000000-0000-4000-8000-000000000000', 'purchasing', false);"
 
+# ----------------------------------------------------------------------------
+# 0038. Hours are not writable by the application under any circumstances. The
+# clock is three SECURITY DEFINER procedures; the table itself is read-only to
+# mosaiz_app_user, which is what makes a time record a record and not a claim.
+# ----------------------------------------------------------------------------
+expect_reject "inventing an hour you did not work" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.time_entries (organization_id, user_id, started_at, ended_at)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+             now() - interval '9 hours', now());"
+
+expect_reject "back-dating the hours you did work" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     UPDATE public.time_entries SET started_at = now() - interval '12 hours';"
+
+expect_reject "deleting an hour somebody would rather forget" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.time_entries;"
+
+# The shift CHECK constraints are NOT asserted here. They would appear to pass:
+# this file runs before any fixture enables the labour module, so 0037's gate
+# refuses a shift INSERT before the constraints are ever consulted — a rejection
+# that would survive deleting the constraints outright. They are asserted in
+# labour_verification.sql instead, with the module switched on.
+expect_reject "scheduling a shift for a restaurant that does not run labour" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.shifts (organization_id, user_id, starts_at, ends_at)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+             now() + interval '1 day', now() + interval '1 day 8 hours');"
+
 exit "$fail"

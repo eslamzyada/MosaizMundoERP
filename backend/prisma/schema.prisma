@@ -159,8 +159,10 @@ model organizations {
   rating_criteria           rating_criteria[]
   raw_inventory_items       raw_inventory_items[]
   sellable_items            sellable_items[]
+  shifts                    shifts[]
   stocktakes                stocktakes[]
   suppliers                 suppliers[]
+  time_entries              time_entries[]
   user_preferences          user_preferences[]
 }
 
@@ -266,7 +268,11 @@ model users {
   organization_invitations                                               organization_invitations[]
   organization_memberships                                               organization_memberships[]
   organization_modules                                                   organization_modules[]
+  shifts_shifts_created_byTousers                                        shifts[]                    @relation("shifts_created_byTousers")
+  shifts_shifts_user_idTousers                                           shifts[]                    @relation("shifts_user_idTousers")
   stock_write_offs                                                       stock_write_offs[]
+  time_entries_time_entries_amended_byTousers                            time_entries[]              @relation("time_entries_amended_byTousers")
+  time_entries_time_entries_user_idTousers                               time_entries[]              @relation("time_entries_user_idTousers")
   user_preferences                                                       user_preferences[]
 }
 
@@ -608,4 +614,51 @@ model organization_modules {
   organizations   organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([organization_id, module_key])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model shifts {
+  id                             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id                String         @db.Uuid
+  user_id                        String         @db.Uuid
+  starts_at                      DateTime       @db.Timestamptz(6)
+  ends_at                        DateTime       @db.Timestamptz(6)
+  note                           String?
+  created_by                     String?        @db.Uuid
+  created_at                     DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime       @default(now()) @db.Timestamptz(6)
+  users_shifts_created_byTousers users?         @relation("shifts_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  organizations                  organizations  @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_shifts_user_idTousers    users          @relation("shifts_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  time_entries                   time_entries[]
+
+  @@index([organization_id, starts_at], map: "shifts_org_window_idx")
+  @@index([user_id, starts_at(sort: Desc)], map: "shifts_user_window_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model time_entries {
+  id                                   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id                      String        @db.Uuid
+  user_id                              String        @db.Uuid
+  shift_id                             String?       @db.Uuid
+  started_at                           DateTime      @default(now()) @db.Timestamptz(6)
+  ended_at                             DateTime?     @db.Timestamptz(6)
+  amended_by                           String?       @db.Uuid
+  amended_at                           DateTime?     @db.Timestamptz(6)
+  amendment_reason                     String?
+  created_at                           DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime      @default(now()) @db.Timestamptz(6)
+  users_time_entries_amended_byTousers users?        @relation("time_entries_amended_byTousers", fields: [amended_by], references: [id], onUpdate: NoAction)
+  organizations                        organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  shifts                               shifts?       @relation(fields: [shift_id], references: [id], onUpdate: NoAction)
+  users_time_entries_user_idTousers    users         @relation("time_entries_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([organization_id, started_at(sort: Desc)], map: "time_entries_org_window_idx")
+  @@index([user_id, started_at(sort: Desc)], map: "time_entries_user_window_idx")
 }
