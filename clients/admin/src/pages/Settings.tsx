@@ -143,9 +143,18 @@ export default function Settings() {
 
           {/* The sample carries the candidate size ITSELF, so the choice can be
               judged without the rest of the page having changed yet. */}
+          {/* zoom, NOT fontSize.
+              font-size on this box did nothing at all: every class inside is
+              rem-based (text-sm, text-xs, p-4), and rem resolves against the
+              ROOT element, never the parent — so the sample sat at 100% no
+              matter which stop was selected. zoom is also the truer preview,
+              because the real setting scales the root and therefore takes the
+              spacing and the controls with it, which is exactly what this
+              section promises above. */}
           <div
+            data-testid="text-scale-sample"
             className="mt-4 rounded-lg border border-dashed border-app-border p-4"
-            style={{ fontSize: `${pendingScale}%` }}
+            style={{ zoom: pendingScale / 100 }}
           >
             <p className="text-sm text-app-ink">مثال على النص بالحجم المختار.</p>
             <p className="mt-1 text-xs text-app-ink-muted">
