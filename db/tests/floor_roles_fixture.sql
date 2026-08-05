@@ -69,6 +69,22 @@ VALUES ('0e17e400-000f-400f-800f-00000000000f',
         'f10c0006-0000-4000-8000-000000000006')
 ON CONFLICT DO NOTHING;
 
+-- A table belonging to the OTHER restaurant (0039), with a literal id.
+--
+-- Seeded here as postgres for the same reason as the foreign menu change
+-- request above: the app role cannot create a row in an organization it does
+-- not belong to, and RLS hides other tenants' rows from it entirely — so a
+-- suite that tried to seed this as itself would be asserting against nothing.
+--
+-- It exists so the reservation suite can attempt the one case that isolates
+-- the COMPOSITE foreign key: our own organization_id paired with a table that
+-- is not ours. RLS permits that row (the org is ours); only the composite key
+-- refuses it.
+INSERT INTO public.restaurant_tables (id, organization_id, label, seats)
+VALUES ('7ab1e000-000f-400f-800f-00000000000f',
+        'f10c1000-0000-4000-8000-000000000000', 'طاولة المنشأة الأخرى', 4)
+ON CONFLICT DO NOTHING;
+
 DO $$
 DECLARE
     missing text[] := '{}';
@@ -76,6 +92,10 @@ BEGIN
     IF NOT EXISTS (SELECT FROM public.organization_memberships
                     WHERE user_id = 'f10c0001-0000-4000-8000-000000000001' AND role = 'waiter') THEN
         missing := missing || 'waiter membership'; END IF;
+
+    IF NOT EXISTS (SELECT FROM public.restaurant_tables
+                    WHERE id = '7ab1e000-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'foreign table'; END IF;
     IF NOT EXISTS (SELECT FROM public.organization_memberships
                     WHERE user_id = 'f10c0002-0000-4000-8000-000000000002' AND role = 'kitchen') THEN
         missing := missing || 'kitchen membership'; END IF;

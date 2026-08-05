@@ -23,6 +23,7 @@ import Settings from './pages/Settings';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Menu from './pages/Menu';
 import Schedule from './pages/Schedule';
+import Reservations from './pages/Reservations';
 import { SessionProvider } from './session/SessionProvider';
 
 export default function App() {
@@ -70,6 +71,7 @@ export default function App() {
             <Route index element={<RoleLanding />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="schedule" element={<Schedule />} />
+            <Route path="reservations" element={<Reservations />} />
             <Route path="floor" element={<Floor />} />
             <Route path="kitchen" element={<Kitchen />} />
             <Route path="till" element={<Till />} />

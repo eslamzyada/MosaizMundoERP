@@ -158,6 +158,8 @@ model organizations {
   printers                  printers[]
   rating_criteria           rating_criteria[]
   raw_inventory_items       raw_inventory_items[]
+  reservations              reservations[]
+  restaurant_tables         restaurant_tables[]
   sellable_items            sellable_items[]
   shifts                    shifts[]
   stocktakes                stocktakes[]
@@ -268,6 +270,7 @@ model users {
   organization_invitations                                               organization_invitations[]
   organization_memberships                                               organization_memberships[]
   organization_modules                                                   organization_modules[]
+  reservations                                                           reservations[]
   shifts_shifts_created_byTousers                                        shifts[]                    @relation("shifts_created_byTousers")
   shifts_shifts_user_idTousers                                           shifts[]                    @relation("shifts_user_idTousers")
   stock_write_offs                                                       stock_write_offs[]
@@ -661,4 +664,49 @@ model time_entries {
 
   @@index([organization_id, started_at(sort: Desc)], map: "time_entries_org_window_idx")
   @@index([user_id, started_at(sort: Desc)], map: "time_entries_user_window_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model reservations {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String            @db.Uuid
+  table_id          String            @db.Uuid
+  guest_name        String
+  guest_phone       String?
+  party_size        Int
+  starts_at         DateTime          @db.Timestamptz(6)
+  ends_at           DateTime          @db.Timestamptz(6)
+  status            String            @default("booked")
+  note              String?
+  created_by        String?           @db.Uuid
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  users             users?            @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  organizations     organizations     @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  restaurant_tables restaurant_tables @relation(fields: [table_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "reservations_table_same_tenant")
+
+  @@index([organization_id, starts_at], map: "reservations_service_idx")
+  @@index([table_id, starts_at(sort: Desc)], map: "reservations_table_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model restaurant_tables {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String         @db.Uuid
+  label           String
+  area            String?
+  seats           Int            @default(2)
+  is_active       Boolean        @default(true)
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime       @default(now()) @db.Timestamptz(6)
+  reservations    reservations[]
+  organizations   organizations  @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([organization_id, label], map: "restaurant_tables_label_unique")
+  @@unique([id, organization_id], map: "restaurant_tables_tenant_key")
 }

@@ -153,3 +153,37 @@ describe('the sidebar is role ∩ modules (0037)', () => {
     expect(waiter).toContain('/floor');
   });
 });
+
+describe('the capabilities added in 0038 and 0039', () => {
+  it('hides الورديات and الحجوزات from a tenant that runs neither', () => {
+    // Both ship switched off, so this is the state a new restaurant is in.
+    const none = navFor('owner', ['inventory', 'purchasing']);
+    expect(none).not.toContain('/schedule');
+    expect(none).not.toContain('/reservations');
+  });
+
+  it('offers each one only when its own module is on', () => {
+    const labourOnly = navFor('owner', ['labour']);
+    expect(labourOnly).toContain('/schedule');
+    expect(labourOnly).not.toContain('/reservations');
+
+    const bookingsOnly = navFor('owner', ['reservations']);
+    expect(bookingsOnly).toContain('/reservations');
+    expect(bookingsOnly).not.toContain('/schedule');
+  });
+
+  it('gives a waiter both, because both are floor work', () => {
+    // The rota is theirs to read and the phone is theirs to answer. Neither is
+    // a management screen, and putting them behind one would mean the shift
+    // board lives in an office nobody on the floor can open.
+    const waiter = navFor('waiter', ['labour', 'reservations']);
+    expect(waiter).toContain('/schedule');
+    expect(waiter).toContain('/reservations');
+  });
+
+  it('does not give the kitchen bookings — they do not seat anybody', () => {
+    const kitchen = navFor('kitchen', ['labour', 'reservations']);
+    expect(kitchen).toContain('/schedule');
+    expect(kitchen).not.toContain('/reservations');
+  });
+});

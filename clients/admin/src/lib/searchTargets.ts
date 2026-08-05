@@ -38,6 +38,7 @@ export const DESTINATIONS: Destination[] = [
   { to: '/menu', label: 'القائمة', end: false, keywords: ['الأصناف', 'الأسعار', 'menu'] },
   { to: '/orders', label: 'الطلبات', end: false, keywords: ['الفواتير', 'المبيعات', 'orders'] },
   { to: '/schedule', label: 'الورديات', end: false, keywords: ['الجدول', 'الحضور', 'الانصراف', 'الدوام', 'shifts', 'rota', 'schedule'] },
+  { to: '/reservations', label: 'الحجوزات', end: false, keywords: ['الطاولات', 'حجز', 'الضيوف', 'booking', 'reservations', 'tables'] },
   {
     to: '/inventory',
     label: 'المخزون',
