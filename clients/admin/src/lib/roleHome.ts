@@ -85,7 +85,41 @@ export function homeFor(role: Role | null | undefined): string {
  * looks like a broken app; a sidebar with two looks like a limited account,
  * which is the truth.
  */
-export function navFor(role: Role | null | undefined): string[] {
+export function navFor(role: Role | null | undefined, modules?: string[]): string[] {
   if (!role) return ['/settings'];
-  return ROLE_NAV[role] ?? ['/orders', '/menu', '/settings'];
+  const offered = ROLE_NAV[role] ?? ['/orders', '/menu', '/settings'];
+  return offered.filter((route) => routeIsAvailable(route, modules));
+}
+
+/**
+ * Which capability owns each destination (0037).
+ *
+ * Routes absent from this map belong to no module and are always offered — the
+ * till, the floor, orders, the team, settings. A restaurant that could switch
+ * off its own settings screen would have no way back.
+ */
+export const ROUTE_MODULE: Record<string, string> = {
+  '/inventory': 'inventory',
+  '/stocktake': 'stocktake',
+  '/recipes': 'recipes',
+  '/suppliers': 'purchasing',
+  '/purchase-orders': 'purchasing',
+  '/insights': 'insights',
+  '/printers': 'printers',
+};
+
+/**
+ * True when this destination's module is on for the tenant.
+ *
+ * An UNDEFINED module list means the answer is not known yet — a client talking
+ * to an older API, or the first paint before /api/me resolves. That reads as
+ * "everything", because hiding navigation on missing information would make the
+ * app look broken to somebody whose restaurant runs all of it. An EMPTY list is
+ * different: it is an answer, and it means nothing modular is on.
+ */
+export function routeIsAvailable(route: string, modules?: string[]): boolean {
+  const required = ROUTE_MODULE[route];
+  if (!required) return true;
+  if (modules === undefined) return true;
+  return modules.includes(required);
 }

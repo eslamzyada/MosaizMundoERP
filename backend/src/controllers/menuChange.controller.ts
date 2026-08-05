@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { contextFor, invalidate } from '../lib/cache';
+import { postgresErrorCode } from '../lib/postgresError';
 
 /**
  * Proposing and deciding a change to the menu (0035).
@@ -18,28 +19,8 @@ type Kind = (typeof CHANGE_KINDS)[number];
 const REASON_MIN = 3;
 const REASON_MAX = 1000;
 
-/**
- * The SQLSTATE behind a Prisma error, however Prisma chose to wrap it.
- *
- * Three shapes, and only checking the first is how a policy refusal becomes a
- * 500: a typed call that violates a constraint raises a KNOWN error carrying
- * `meta.code`; some raise the Prisma code itself; and a RESTRICTIVE policy
- * refusing an INSERT comes back as an UNKNOWN error whose SQLSTATE exists only
- * inside the message text. Measured, not guessed — the waiter refusal in this
- * suite arrived as the third.
- */
-function postgresErrorCode(err: unknown): string | undefined {
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    const meta = err.meta as { code?: unknown } | undefined;
-    if (meta && typeof meta.code === 'string') return meta.code;
-    return err.code;
-  }
-  if (err instanceof Error) {
-    const match = err.message.match(/code:\s*"(\w+)"/);
-    if (match) return match[1];
-  }
-  return undefined;
-}
+// Moved to lib/postgresError.ts so 0037's module gate maps refusals by exactly
+// the same rule — see that file for why three shapes have to be checked.
 
 async function resolveOrgId(req: Request): Promise<string | null> {
   const membership = await req.tx!.organization_memberships.findFirst({

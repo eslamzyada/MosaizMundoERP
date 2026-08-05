@@ -6,6 +6,7 @@ import type { Branding } from '../api/BrandingRepository';
 import { useSession } from '../session/SessionProvider';
 import { classifyLoadFailure } from '../lib/loadFailure';
 import CriteriaManager from '../components/CriteriaManager';
+import ModulesPanel from '../components/ModulesPanel';
 
 /**
  * Appearance settings.
@@ -144,6 +145,14 @@ export default function Settings() {
         {/* Also organisation-wide rather than personal, and gated the same way.
             Everyone may READ the rubric — that is the point of it. */}
         <CriteriaManager canManage={can('administer')} />
+
+        {/* The widest-reaching thing on this page: not what one reader sees,
+            not what customers see, but which parts of the system exist for
+            this restaurant at all. Spans both columns because turning one of
+            these off changes the sidebar. */}
+        <div className="lg:col-span-2">
+          <ModulesPanel />
+        </div>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import memberRoutes from './routes/member.routes';
 import catalogRoutes from './routes/catalog.routes';
 import menuChangeRoutes from './routes/menuChange.routes';
 import notificationRoutes from './routes/notification.routes';
+import moduleRoutes from './routes/module.routes';
 import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
 import ratingCriteriaRoutes from './routes/ratingCriteria.routes';
@@ -143,6 +144,11 @@ app.use('/api/menu-changes', menuChangeRoutes);
 
 // Your own inbox (0036). Every role has one; nobody can write to anybody's.
 app.use('/api/notifications', notificationRoutes);
+
+// Which parts of the system this restaurant runs (0037). Readable by every
+// member, writable only by an owner — and the write goes through a procedure,
+// not through this router.
+app.use('/api/modules', moduleRoutes);
 
 // Profitability reporting, from the cost captured at each sale. Restricted to
 // FINANCE_ROLES inside the router — SELECT is ungated in the database.

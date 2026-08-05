@@ -112,3 +112,44 @@ describe('a role this build has never heard of', () => {
     expect(homeFor(null)).toBe('/dashboard');
   });
 });
+
+describe('the sidebar is role ∩ modules (0037)', () => {
+  it('drops a destination whose module the restaurant does not run', () => {
+    // The owner is OFFERED purchase orders; a café that does not run
+    // purchasing should not meet them at all.
+    const withPurchasing = navFor('owner', ['inventory', 'purchasing', 'insights']);
+    expect(withPurchasing).toContain('/purchase-orders');
+
+    const without = navFor('owner', ['inventory', 'insights']);
+    expect(without).not.toContain('/purchase-orders');
+    expect(without).not.toContain('/suppliers');
+  });
+
+  it('never drops a destination that belongs to no module', () => {
+    // Settings above all: a restaurant that could switch off its own settings
+    // screen would have no way back.
+    const nothing = navFor('owner', []);
+    expect(nothing).toContain('/settings');
+    expect(nothing).toContain('/dashboard');
+    expect(nothing).toContain('/orders');
+    expect(nothing).toContain('/menu');
+  });
+
+  it('treats an unknown module list as "everything", not as "nothing"', () => {
+    // undefined means the answer has not arrived (older API, or first paint).
+    // Hiding navigation on missing information would look like a broken app.
+    expect(navFor('owner', undefined)).toEqual(navFor('owner'));
+    expect(navFor('owner', undefined)).toContain('/inventory');
+  });
+
+  it('an EMPTY list is an answer, and it is different from no answer', () => {
+    expect(navFor('owner', []).length).toBeLessThan(navFor('owner', undefined).length);
+  });
+
+  it('still respects the role: modules cannot widen what a waiter is offered', () => {
+    const waiter = navFor('waiter', ['inventory', 'purchasing', 'insights', 'printers']);
+    expect(waiter).not.toContain('/inventory');
+    expect(waiter).not.toContain('/purchase-orders');
+    expect(waiter).toContain('/floor');
+  });
+});

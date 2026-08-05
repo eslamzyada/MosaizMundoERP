@@ -158,4 +158,33 @@ expect_reject "deleting a notification you were sent" \
     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
      DELETE FROM public.notifications;"
 
+# ----------------------------------------------------------------------------
+# 0037. Which capabilities a tenant runs is not a thing the tenant's own client
+# gets to answer about itself: the catalogue is read-only, the subscription is
+# written only by app.set_module, and set_module refuses an organization the
+# caller does not belong to.
+# ----------------------------------------------------------------------------
+expect_reject "adding a module to the catalogue from the application" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.modules (key, name_ar, description_ar)
+     VALUES ('rogue', 'وحدة مزروعة', 'وحدة لم تمر بترحيل');"
+
+expect_reject "granting yourself a module by writing the table directly" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.organization_modules (organization_id, module_key, enabled)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'purchasing', true);"
+
+expect_reject "editing your own subscription directly" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     UPDATE public.organization_modules SET enabled = true;"
+
+expect_reject "dropping a module row to fall back to the default" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.organization_modules;"
+
+expect_reject "switching a module in an organization you do not belong to" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     SELECT app.set_module('00000000-0000-4000-8000-000000000000', 'purchasing', false);"
+
 exit "$fail"

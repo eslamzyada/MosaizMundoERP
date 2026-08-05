@@ -22,13 +22,26 @@ import { NextFunction, Request, Response } from 'express';
  * Returns null when there is no active membership.
  */
 export async function callerRole(req: Request): Promise<string | null> {
+  return (await resolveMembership(req))?.role ?? null;
+}
+
+/**
+ * The caller's membership — organization AND role — by that same single rule.
+ *
+ * Exported because the module gate (0037) needs the organization id as well as
+ * the role, and a second lookup written its own way is a second rule that can
+ * disagree with this one about which membership counts.
+ */
+export async function resolveMembership(
+  req: Request,
+): Promise<{ organization_id: string; role: string } | null> {
   if (!req.tx || !req.userId) return null;
   const membership = await req.tx.organization_memberships.findFirst({
     where: { user_id: req.userId, is_active: true },
     orderBy: { created_at: 'asc' },
-    select: { role: true },
+    select: { organization_id: true, role: true },
   });
-  return membership?.role ?? null;
+  return membership ?? null;
 }
 
 export function requireRole(...allowedRoles: string[]) {
