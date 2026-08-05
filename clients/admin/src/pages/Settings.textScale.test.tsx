@@ -110,3 +110,42 @@ describe('picking a text size', () => {
     expect(screen.queryByTestId('text-scale-apply')).not.toBeInTheDocument();
   });
 });
+
+describe('the sample box', () => {
+  /**
+   * This is the test that was missing, and its absence is why the bug shipped:
+   * the previous suite checked that picking a size did not change the PAGE, and
+   * never checked that it changed the SAMPLE. So a preview that could not
+   * possibly work — font-size on a box whose children are all rem-based — passed.
+   */
+  it('shows the candidate size, not the one in force', async () => {
+    stub(100);
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const sample = screen.getByTestId('text-scale-sample');
+    expect(sample.style.zoom).toBe('1');
+
+    await user.click(screen.getByRole('button', { name: 'كبير' })); // 130
+    expect(sample.style.zoom).toBe('1.3');
+  });
+
+  it('follows every stop, including back down', async () => {
+    stub(100);
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const sample = screen.getByTestId('text-scale-sample');
+    await user.click(screen.getByRole('button', { name: 'كبير جدًا' }));
+    expect(sample.style.zoom).toBe('1.5');
+
+    await user.click(screen.getByRole('button', { name: 'أصغر' }));
+    expect(sample.style.zoom).toBe('0.9');
+  });
+
+  it('starts from the size already applied', async () => {
+    stub(115);
+    render(<Settings />);
+    expect(screen.getByTestId('text-scale-sample').style.zoom).toBe('1.15');
+  });
+});
