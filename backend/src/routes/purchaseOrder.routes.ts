@@ -10,12 +10,18 @@ import {
   placePurchaseOrder,
   receivePurchaseOrder,
 } from '../controllers/purchaseOrder.controller';
+import { requireModule } from '../middleware/requireModule';
 
 // Purchase order routes. authMiddleware applies to the whole router, so every
 // handler runs inside an authenticated, RLS-bound transaction.
 const router = Router();
 
 router.use(authMiddleware);
+
+// 0037: the database refuses these writes when the module is off. This turns
+// that refusal into an answer that names the module and says where to switch
+// it back on — the policy stays the thing that actually enforces it.
+router.use(requireModule('purchasing'));
 
 // Reads stay open: an accountant checking what the business is committed to
 // needs to see outstanding orders.

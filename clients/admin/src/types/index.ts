@@ -144,6 +144,14 @@ export interface Me {
   user_id: string;
   organization_id: string;
   role: Role;
+  /**
+   * The capabilities this RESTAURANT runs (0037) — a different question from
+   * what this ROLE may do. The sidebar is the intersection of the two.
+   *
+   * Optional so that a client built against an older API still renders: an
+   * absent list means "no opinion", which `navFor` reads as everything on.
+   */
+  modules?: string[];
 }
 
 /** GET /api/members — one row of the team roster. */

@@ -22,7 +22,7 @@ export default function Layout() {
    * Ordered by the role's list rather than by the shared DESTINATIONS order, so
    * each role's first item is its own home.
    */
-  const allowed = navFor(me?.role);
+  const allowed = navFor(me?.role, me?.modules);
   const visibleNav = allowed
     .map((route) => DESTINATIONS.find((d) => d.to === route))
     .filter((d): d is (typeof DESTINATIONS)[number] => d !== undefined);
