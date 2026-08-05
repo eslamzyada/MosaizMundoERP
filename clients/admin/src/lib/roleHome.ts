@@ -44,18 +44,27 @@ export const ROLE_HOME: Record<Role, string> = {
  * part of their job, and it is not.
  */
 export const ROLE_NAV: Record<Role, string[]> = {
+  // الصالة and المطبخ sit second and third on purpose. They were reachable only
+  // through the search box — the routes were never role-gated, they were simply
+  // never OFFERED to the people who run the place, which made two live
+  // operational screens undiscoverable unless you already knew to look for
+  // them. What is happening on the floor right now is a manager's first
+  // question of the day, not an afterthought behind the books.
   owner: [
-    '/dashboard', '/menu', '/orders', '/inventory', '/stocktake', '/recipes',
+    '/dashboard', '/floor', '/kitchen', '/menu', '/orders',
+    '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
   regional_manager: [
-    '/dashboard', '/menu', '/orders', '/inventory', '/stocktake', '/recipes',
+    '/dashboard', '/floor', '/kitchen', '/menu', '/orders',
+    '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
   branch_manager: [
-    '/dashboard', '/menu', '/orders', '/inventory', '/stocktake', '/recipes',
+    '/dashboard', '/floor', '/kitchen', '/menu', '/orders',
+    '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],

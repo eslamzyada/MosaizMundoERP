@@ -41,6 +41,15 @@ export default function Settings() {
     usePreferences();
   const { can } = useSession();
 
+  // The size being CONSIDERED, which is not yet the size in force. Seeded from
+  // the saved value and re-seeded when that arrives, so a slow load does not
+  // leave the picker showing a size nobody chose.
+  const [pendingScale, setPendingScale] = useState(text_scale);
+  const [applying, setApplying] = useState(false);
+  useEffect(() => {
+    setPendingScale(text_scale);
+  }, [text_scale]);
+
   return (
     <div className="p-8">
       <header className="mb-6">
@@ -102,16 +111,21 @@ export default function Settings() {
             يُكبّر الواجهة كلها — المسافات والأزرار معها، لا الحروف وحدها.
           </p>
 
+          {/* PICKED, not applied. Every stop used to resize the whole interface
+              the instant it was clicked, which means comparing two sizes moves
+              the buttons you are comparing them with — and at 200% the page you
+              are standing on reflows under the cursor. The sample below shows
+              the candidate at its real size; nothing else moves until تطبيق. */}
           <div className="mt-4 flex flex-wrap gap-2">
             {SCALES.map((stop) => (
               <button
                 key={stop.value}
                 type="button"
                 disabled={!loaded}
-                onClick={() => void setTextScale(stop.value)}
-                aria-pressed={text_scale === stop.value}
+                onClick={() => setPendingScale(stop.value)}
+                aria-pressed={pendingScale === stop.value}
                 className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                  text_scale === stop.value
+                  pendingScale === stop.value
                     ? 'border-twilight-600 bg-twilight-600 text-white'
                     : 'border-app-border text-app-ink hover:bg-app-surface-alt'
                 }`}
@@ -127,14 +141,56 @@ export default function Settings() {
             {' '}(من {TEXT_SCALE_MIN}% إلى {TEXT_SCALE_MAX}%)
           </p>
 
-          {/* Shown at the chosen size, so the effect is visible before leaving
-              the page rather than discovered on the next screen. */}
-          <div className="mt-4 rounded-lg border border-dashed border-app-border p-4">
+          {/* The sample carries the candidate size ITSELF, so the choice can be
+              judged without the rest of the page having changed yet. */}
+          <div
+            className="mt-4 rounded-lg border border-dashed border-app-border p-4"
+            style={{ fontSize: `${pendingScale}%` }}
+          >
             <p className="text-sm text-app-ink">مثال على النص بالحجم المختار.</p>
             <p className="mt-1 text-xs text-app-ink-muted">
               نصّ ثانوي — الملاحظات والتفاصيل تظهر بهذا الحجم.
             </p>
           </div>
+
+          {/* Appears only when there is something to apply. A button that is
+              always there, usually doing nothing, teaches people to ignore it. */}
+          {pendingScale !== text_scale && (
+            <div
+              data-testid="text-scale-apply"
+              className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-twilight-300 bg-twilight-50 px-4 py-3"
+            >
+              <p className="text-xs text-twilight-900">
+                سيتغيّر حجم الواجهة من{' '}
+                <span className="font-numerals font-semibold">{text_scale}%</span> إلى{' '}
+                <span className="font-numerals font-semibold">{pendingScale}%</span>.
+              </p>
+              <span className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingScale(text_scale)}
+                  className="rounded-lg border border-app-border px-3 py-1.5 text-xs font-semibold text-app-ink hover:bg-app-surface-alt"
+                >
+                  تراجع
+                </button>
+                <button
+                  type="button"
+                  disabled={applying}
+                  onClick={async () => {
+                    setApplying(true);
+                    try {
+                      await setTextScale(pendingScale);
+                    } finally {
+                      setApplying(false);
+                    }
+                  }}
+                  className="rounded-lg bg-twilight-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-twilight-700 disabled:opacity-50"
+                >
+                  {applying ? 'جارٍ التطبيق…' : 'تطبيق'}
+                </button>
+              </span>
+            </div>
+          )}
         </section>
 
         {/* Branding is the one thing on this page that is NOT personal, so it

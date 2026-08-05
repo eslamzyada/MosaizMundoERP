@@ -24,6 +24,8 @@ export default function ModulesPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  /** The module the owner is being asked about before it is switched off. */
+  const [confirming, setConfirming] = useState<TenantModule | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -38,7 +40,26 @@ export default function ModulesPanel() {
     void load();
   }, [load]);
 
+  /**
+   * Switching a module OFF is asked about; switching one ON is not.
+   *
+   * They are not symmetrical acts. Turning something on adds a screen somebody
+   * can ignore. Turning it off removes a section of the system from everyone in
+   * the restaurant at once — the sidebar changes under people who are mid-task,
+   * and the next person to reach for أوامر الشراء finds it gone with no idea
+   * why. That deserves a sentence naming what will happen, and it deserves it
+   * BEFORE the request, not as an undo afterwards.
+   */
+  async function requestToggle(mod: TenantModule) {
+    if (mod.enabled) {
+      setConfirming(mod);
+      return;
+    }
+    await toggle(mod);
+  }
+
   async function toggle(mod: TenantModule) {
+    setConfirming(null);
     setBusy(mod.key);
     setProblem(null);
     try {
@@ -101,6 +122,41 @@ export default function ModulesPanel() {
         </p>
       )}
 
+      {confirming && (
+        <div
+          data-testid="module-confirm"
+          role="alertdialog"
+          aria-label={`إيقاف ${confirming.name}`}
+          className="mt-4 rounded-lg border border-sunset-300 bg-sunset-50 p-4"
+        >
+          <p className="text-sm font-semibold text-sunset-900">
+            إيقاف «{confirming.name}» لكل من في المطعم؟
+          </p>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-sunset-800">
+            <li>ستختفي من القائمة الجانبية لكل المستخدمين، وتُرفض أي عملية جديدة فيها.</li>
+            {/* The promise that makes this reversible without fear. */}
+            <li>لن يتغيّر شيء في التقارير عمّا مضى — السجلّ السابق يبقى كما هو.</li>
+            <li>يمكنك إعادة تشغيلها من هنا في أي وقت.</li>
+          </ul>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => toggle(confirming)}
+              className="rounded-lg bg-sunset-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-sunset-700"
+            >
+              إيقاف الوحدة
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(null)}
+              className="rounded-lg border border-app-border bg-app-surface px-4 py-1.5 text-xs font-semibold text-app-ink"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
       <ul className="mt-4 space-y-2">
         {(modules ?? []).map((mod) => (
           <li
@@ -124,7 +180,7 @@ export default function ModulesPanel() {
               aria-checked={mod.enabled}
               aria-label={mod.name}
               disabled={!canDecide || busy === mod.key}
-              onClick={() => toggle(mod)}
+              onClick={() => requestToggle(mod)}
               className={[
                 'mt-1 h-6 w-11 flex-shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500',
                 mod.enabled ? 'bg-twilight-600' : 'bg-app-border',

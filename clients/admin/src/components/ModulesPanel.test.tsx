@@ -87,6 +87,10 @@ describe('switching one', () => {
     const row = await screen.findByTestId('module-purchasing');
     await user.click(within(row).getByRole('switch'));
 
+    // Switching OFF asks first, so nothing has been sent yet.
+    expect(put).not.toHaveBeenCalled();
+    await user.click(within(screen.getByTestId('module-confirm')).getByText('إيقاف الوحدة'));
+
     expect(put).toHaveBeenCalledWith('/api/modules/purchasing', { enabled: false });
   });
 
@@ -99,6 +103,7 @@ describe('switching one', () => {
 
     const row = await screen.findByTestId('module-purchasing');
     await user.click(within(row).getByRole('switch'));
+    await user.click(within(screen.getByTestId('module-confirm')).getByText('إيقاف الوحدة'));
 
     await waitFor(() => expect(reload).toHaveBeenCalled());
   });
@@ -115,6 +120,7 @@ describe('switching one', () => {
 
     const row = await screen.findByTestId('module-inventory');
     await user.click(within(row).getByRole('switch'));
+    await user.click(within(screen.getByTestId('module-confirm')).getByText('إيقاف الوحدة'));
 
     const problem = await screen.findByTestId('module-problem');
     // The blocker by NAME, not by key: «المشتريات», not "purchasing".
@@ -134,6 +140,7 @@ describe('switching one', () => {
 
     const row = await screen.findByTestId('module-purchasing');
     await user.click(within(row).getByRole('switch'));
+    await user.click(within(screen.getByTestId('module-confirm')).getByText('إيقاف الوحدة'));
 
     expect(await screen.findByTestId('module-problem')).toHaveTextContent(/المالك/);
   });
@@ -155,5 +162,60 @@ describe('what it shows', () => {
     render(<ModulesPanel />);
 
     expect(await screen.findByText(/تعذّر تحميل قائمة الوحدات/)).toBeInTheDocument();
+  });
+});
+
+describe('switching one OFF is asked about first', () => {
+  it('does not send anything until the warning is accepted', async () => {
+    stubSession('owner');
+    vi.spyOn(apiClient, 'get').mockResolvedValue({ data: modules });
+    const put = vi.spyOn(apiClient, 'put').mockResolvedValue({ data: {} });
+    const user = userEvent.setup();
+    render(<ModulesPanel />);
+
+    const row = await screen.findByTestId('module-purchasing');
+    await user.click(within(row).getByRole('switch'));
+
+    const dialog = screen.getByTestId('module-confirm');
+    expect(dialog).toHaveTextContent('المشتريات');
+    // The promise that makes it safe to say yes.
+    expect(dialog).toHaveTextContent(/لن يتغيّر شيء في التقارير/);
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it('cancelling sends nothing and leaves the module on', async () => {
+    stubSession('owner');
+    vi.spyOn(apiClient, 'get').mockResolvedValue({ data: modules });
+    const put = vi.spyOn(apiClient, 'put').mockResolvedValue({ data: {} });
+    const user = userEvent.setup();
+    render(<ModulesPanel />);
+
+    const row = await screen.findByTestId('module-purchasing');
+    await user.click(within(row).getByRole('switch'));
+    await user.click(within(screen.getByTestId('module-confirm')).getByText('إلغاء'));
+
+    expect(put).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('module-confirm')).not.toBeInTheDocument();
+    expect(within(row).getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('switching one ON is NOT asked about — the two are not symmetrical', async () => {
+    // Turning something on adds a screen somebody can ignore. Turning it off
+    // takes a section away from everyone at once.
+    stubSession('owner');
+    vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: [{ ...modules[1], enabled: false }],
+    });
+    const put = vi.spyOn(apiClient, 'put').mockResolvedValue({ data: {} });
+    const user = userEvent.setup();
+    render(<ModulesPanel />);
+
+    const row = await screen.findByTestId('module-purchasing');
+    await user.click(within(row).getByRole('switch'));
+
+    expect(screen.queryByTestId('module-confirm')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith('/api/modules/purchasing', { enabled: true }),
+    );
   });
 });
