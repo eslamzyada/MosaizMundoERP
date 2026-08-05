@@ -12,6 +12,7 @@ import catalogRoutes from './routes/catalog.routes';
 import menuChangeRoutes from './routes/menuChange.routes';
 import notificationRoutes from './routes/notification.routes';
 import moduleRoutes from './routes/module.routes';
+import labourRoutes from './routes/labour.routes';
 import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
 import ratingCriteriaRoutes from './routes/ratingCriteria.routes';
@@ -149,6 +150,10 @@ app.use('/api/notifications', notificationRoutes);
 // member, writable only by an owner — and the write goes through a procedure,
 // not through this router.
 app.use('/api/modules', moduleRoutes);
+
+// The rota and the time clock (0038). Gated by the labour module, which ships
+// switched off — it is a new capability, not one anybody was already using.
+app.use('/api/labour', labourRoutes);
 
 // Profitability reporting, from the cost captured at each sale. Restricted to
 // FINANCE_ROLES inside the router — SELECT is ungated in the database.

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import CommandPalette from './CommandPalette';
 import NotificationBell from './NotificationBell';
+import ClockWidget from './ClockWidget';
 import { NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS, useSession } from '../session/SessionProvider';
@@ -131,6 +132,10 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        {/* Starting and ending a shift (0038). Renders nothing when the
+            restaurant does not run labour. */}
+        <ClockWidget />
 
         {/* Who you are and the way out. Pinned: these are the two things you
             reach for when a screen has gone wrong, and hunting for them at the

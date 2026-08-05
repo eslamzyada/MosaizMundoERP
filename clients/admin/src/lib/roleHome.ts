@@ -51,19 +51,19 @@ export const ROLE_NAV: Record<Role, string[]> = {
   // them. What is happening on the floor right now is a manager's first
   // question of the day, not an afterthought behind the books.
   owner: [
-    '/dashboard', '/floor', '/kitchen', '/menu', '/orders',
+    '/dashboard', '/floor', '/kitchen', '/menu', '/orders', '/schedule',
     '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
   regional_manager: [
-    '/dashboard', '/floor', '/kitchen', '/menu', '/orders',
+    '/dashboard', '/floor', '/kitchen', '/menu', '/orders', '/schedule',
     '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
   branch_manager: [
-    '/dashboard', '/floor', '/kitchen', '/menu', '/orders',
+    '/dashboard', '/floor', '/kitchen', '/menu', '/orders', '/schedule',
     '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
@@ -72,12 +72,12 @@ export const ROLE_NAV: Record<Role, string[]> = {
   // the stocktake that produces it does not.
   accountant: ['/reports', '/insights', '/orders', '/inventory', '/settings'],
   // The floor: my tables, what is on them, and what the kitchen is doing.
-  waiter: ['/floor', '/orders', '/menu', '/settings'],
+  waiter: ['/floor', '/orders', '/menu', '/schedule', '/settings'],
   // The pass: what has been fired, and what it is made of.
-  kitchen: ['/kitchen', '/orders', '/menu', '/recipes', '/settings'],
+  kitchen: ['/kitchen', '/orders', '/menu', '/recipes', '/schedule', '/settings'],
   // One page, and it says to use the till.
   cashier: ['/till', '/settings'],
-  staff: ['/floor', '/orders', '/menu', '/settings'],
+  staff: ['/floor', '/orders', '/menu', '/schedule', '/settings'],
 };
 
 /** The landing route for a role, falling back to the floor for an unknown one. */
@@ -115,6 +115,7 @@ export const ROUTE_MODULE: Record<string, string> = {
   '/purchase-orders': 'purchasing',
   '/insights': 'insights',
   '/printers': 'printers',
+  '/schedule': 'labour',
 };
 
 /**
