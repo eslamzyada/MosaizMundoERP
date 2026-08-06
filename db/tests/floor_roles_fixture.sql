@@ -23,7 +23,12 @@ INSERT INTO public.users (id, email) VALUES
     ('f10c0005-0000-4000-8000-000000000005', 'floor-regional@ci.test'),
     -- A lone owner in a SECOND organization, for the one case where the
     -- two-person rule has to yield: a restaurant with nobody else to ask.
-    ('f10c0006-0000-4000-8000-000000000006', 'solo-owner@ci.test');
+    ('f10c0006-0000-4000-8000-000000000006', 'solo-owner@ci.test'),
+    -- A cashier, who exists here to be LEFT OUT of things. Without somebody in
+    -- the fixture who should not be notified, every "we did not disturb them"
+    -- assertion skips itself — which is exactly how 0041's containment check
+    -- passed while the cashier was being dragged into the online queue.
+    ('f10c0007-0000-4000-8000-000000000007', 'floor-cashier@ci.test');
 
 -- The two new roles, plus a manager so the suite has somebody who CAN do the
 -- things the other two must not.
@@ -32,7 +37,8 @@ INSERT INTO public.organization_memberships (organization_id, user_id, role) VAL
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0002-0000-4000-8000-000000000002', 'kitchen'),
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0003-0000-4000-8000-000000000003', 'branch_manager'),
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0004-0000-4000-8000-000000000004', 'owner'),
-    ('f10c0000-0000-4000-8000-000000000000', 'f10c0005-0000-4000-8000-000000000005', 'regional_manager');
+    ('f10c0000-0000-4000-8000-000000000000', 'f10c0005-0000-4000-8000-000000000005', 'regional_manager'),
+    ('f10c0000-0000-4000-8000-000000000000', 'f10c0007-0000-4000-8000-000000000007', 'cashier');
 
 -- The one-approver restaurant.
 INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES
