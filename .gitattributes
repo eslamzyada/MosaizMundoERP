@@ -1,0 +1,33 @@
+# Line endings and file types, stated rather than left to each machine.
+#
+# This repository is developed on Windows with core.autocrlf=true and built on
+# Linux runners. That combination is fine for source files and fatal for two
+# specific things, both of which arrived with the Gradle wrapper:
+#
+#   * gradlew is a SHELL SCRIPT that CI executes on Ubuntu. Committed with CRLF
+#     it fails with "bad interpreter: /bin/sh^M" — a build failure whose
+#     message says nothing about line endings.
+#   * gradle-wrapper.jar is a BINARY. Any end-of-line translation corrupts it.
+#
+# Everything else is left to git's own detection, which is good at it.
+
+# The wrapper script must reach Linux exactly as written.
+gradlew text eol=lf
+
+# ...and its Windows counterpart must keep CRLF, for the same reason in reverse.
+gradlew.bat text eol=crlf
+
+# Never translate anything inside an archive.
+*.jar binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
+
+# Shell scripts generally: db/tests/negative_checks.sh runs on the CI runner.
+*.sh text eol=lf
+
+# SQL migrations are applied by psql on Linux in CI and on Windows locally.
+# LF everywhere keeps the checksum of a file the same on both.
+*.sql text eol=lf
