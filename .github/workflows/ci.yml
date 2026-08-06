@@ -245,6 +245,55 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/menu_change_verification.sql
 
+      # Notifications (0036). After the menu cycle, because the two events it
+      # delivers are that cycle's.
+      - name: Notification verification — delivery, and who cannot send (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/notification_verification.sql
+
+      # Per-tenant modules (0037). Last, because it switches capabilities off
+      # and on for the floor fixture's organization — every suite that depends
+      # on those capabilities has already run.
+      - name: Module verification — off refuses writes, and changes no history (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/module_verification.sql
+
+      # Labour (0038). After the module suite, because the labour module ships
+      # switched off and this suite turns it on with app.set_module.
+      - name: Labour verification — nobody writes their own hours (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/labour_verification.sql
+
+      # Tables and bookings (0039). Also switched off by default, so this suite
+      # turns it on the same way.
+      - name: Reservation verification — one table, one party, one time (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/reservation_verification.sql
+
+      # Public ordering (0040). The only surface a stranger can reach, so this
+      # suite spends most of its length on what an anonymous caller CANNOT do.
+      - name: Public ordering verification — the customer cannot set a price (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/public_ordering_verification.sql
+
+      # Notifications for the queues 0038-0040 created (0041). Last, because it
+      # asserts against inboxes the suites above have been filling.
+      - name: Queue notifications — who is told, and who is left alone (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/notify_queues_verification.sql
+
       # Order and line comments (0028). Also the regression guard for the
       # checkout procedure, which 0028 replaces wholesale to add two fields.
       - name: Order comment verification — notes, and attribution still intact (as mosaiz_app_user)

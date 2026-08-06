@@ -35,13 +35,6 @@ const WINDOWS = [
   { days: 90, label: '٩٠ يومًا' },
 ];
 
-// One hue, two steps, validated as an ordinal ramp against the white card:
-// profit is the dark end, the cost it came out of the light end. Revenue we
-// cannot cost is not a third colour — it is a texture, because it is not data
-// of the same kind.
-const PROFIT_FILL = '#6930bd'; // twilight-700
-const COGS_FILL = '#a687f0'; // twilight-400
-
 const money = (n: number) =>
   n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -262,8 +255,6 @@ export default function Reports() {
           <CoverageNote summary={summary} />
 
           <CoverageGaps gaps={report.coverage_gaps} />
-
-          <DailyChart report={report} />
 
           <ItemTable report={report} period={window} />
         </>
@@ -521,125 +512,6 @@ function CoverageGaps({ gaps }: { gaps: CoverageGap[] }) {
 }
 
 /**
- * Where each day's takings went: profit, the cost it came out of, and revenue
- * that could not be costed. The three segments sum to that day's revenue.
- *
- * One measure, one axis — margin percentage deliberately does NOT share this
- * chart, because a second scale on the same plot invites reading a percentage
- * off a money axis.
- */
-function DailyChart({ report }: { report: ProfitabilityReport }) {
-  const days = report.by_day;
-  const peak = Math.max(...days.map((d) => d.revenue), 0);
-  if (peak <= 0) return null;
-
-  const H = 168;
-  const GAP = 2; // surface gap between stacked fills
-  const slot = 100 / days.length;
-  const barW = Math.min(slot * 0.62, 7);
-
-  return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-border px-6 py-4">
-        <h2 className="text-sm font-bold text-app-ink">الإيراد اليومي وتوزيعه</h2>
-        {/* Two or more series always carry a legend: identity is never colour alone. */}
-        <ul className="flex flex-wrap items-center gap-4 text-[11px] text-app-ink-muted">
-          <LegendKey label="مجمل الربح" swatch={<span style={{ background: PROFIT_FILL }} className="block h-2.5 w-2.5 rounded-sm" />} />
-          <LegendKey label="تكلفة المبيعات" swatch={<span style={{ background: COGS_FILL }} className="block h-2.5 w-2.5 rounded-sm" />} />
-          <LegendKey
-            label="إيراد بلا تكلفة معروفة"
-            swatch={
-              <span className="block h-2.5 w-2.5 rounded-sm border border-slate-300 bg-[repeating-linear-gradient(45deg,#cbd5e1_0_2px,transparent_2px_4px)]" />
-            }
-          />
-        </ul>
-      </div>
-
-      {/* dir=ltr so the time axis reads oldest -> newest regardless of page direction. */}
-      <div dir="ltr" className="px-6 py-5">
-        <svg
-          viewBox={`0 0 100 ${H}`}
-          preserveAspectRatio="none"
-          className="h-44 w-full"
-          role="img"
-          aria-label={`إيراد يومي على مدى ${report.days} يومًا، أعلى قيمة ${money(peak)} جنيه`}
-        >
-          <defs>
-            <pattern id="uncostedHatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <rect width="4" height="4" fill="#f1f5f9" />
-              <line x1="0" y1="0" x2="0" y2="4" stroke="#cbd5e1" strokeWidth="2" />
-            </pattern>
-          </defs>
-
-          {/* Recessive baseline. */}
-          <line x1="0" y1={H - 12} x2="100" y2={H - 12} stroke="#e6dcc8" strokeWidth="1" />
-
-          {days.map((d, i) => {
-            const scale = (v: number) => (v / peak) * (H - 24);
-            const x = i * slot + (slot - barW) / 2;
-            const profitH = Math.max(scale(Math.max(d.gross_profit, 0)), 0);
-            const cogsH = Math.max(scale(d.cogs), 0);
-            const uncostedH = Math.max(scale(d.uncosted_revenue), 0);
-
-            let y = H - 12;
-            const segs: Array<{ h: number; fill: string; label: string }> = [];
-            if (uncostedH > 0) segs.push({ h: uncostedH, fill: 'url(#uncostedHatch)', label: 'بلا تكلفة معروفة' });
-            if (cogsH > 0) segs.push({ h: cogsH, fill: COGS_FILL, label: 'تكلفة المبيعات' });
-            if (profitH > 0) segs.push({ h: profitH, fill: PROFIT_FILL, label: 'مجمل الربح' });
-
-            return (
-              <g key={d.day}>
-                {segs.map((s, idx) => {
-                  y -= s.h;
-                  const rect = (
-                    <rect
-                      key={s.label}
-                      x={x}
-                      y={y}
-                      width={barW}
-                      height={Math.max(s.h - (idx < segs.length - 1 ? GAP : 0), 0.5)}
-                      rx={idx === segs.length - 1 ? 1.5 : 0}
-                      fill={s.fill}
-                    >
-                      {/* Native tooltip: hover detail without a JS layer. */}
-                      <title>
-                        {`${d.day} — ${s.label}: ${money(
-                          s.label === 'مجمل الربح'
-                            ? d.gross_profit
-                            : s.label === 'تكلفة المبيعات'
-                              ? d.cogs
-                              : d.uncosted_revenue,
-                        )} ج.م (إيراد اليوم ${money(d.revenue)} ج.م)`}
-                      </title>
-                    </rect>
-                  );
-                  y -= idx < segs.length - 1 ? GAP : 0;
-                  return rect;
-                })}
-              </g>
-            );
-          })}
-        </svg>
-
-        <div className="mt-1 flex justify-between font-numerals text-[10px] text-app-ink-muted">
-          <span>{days[0]?.day}</span>
-          <span>{days[days.length - 1]?.day}</span>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function LegendKey({ label, swatch }: { label: string; swatch: ReactNode }) {
-  return (
-    <li className="flex items-center gap-1.5">
-      {swatch}
-      <span>{label}</span>
-    </li>
-  );
-}
-
-/**
  * Which dishes actually earn. Also the table view that gives the chart's lighter
  * fill its required relief — every figure in the plot is legible as text here.
  */
@@ -737,7 +609,6 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
     </div>
   );
 }
-
 
 /**
  * What the bin cost, by cause, by ingredient and by supplier (0023).

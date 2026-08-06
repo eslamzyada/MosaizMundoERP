@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { enabledModules } from '../lib/modules';
 
 /**
  * GET /api/me
@@ -34,10 +35,17 @@ export async function getMe(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // The modules ride along with the identity because the client needs both
+    // to build one sidebar: what this ROLE is offered, intersected with what
+    // this RESTAURANT runs. Two requests would mean a first paint that is
+    // wrong in one of the two ways.
+    const modules = await enabledModules(req.tx, membership.organization_id);
+
     res.status(200).json({
       user_id: req.userId,
       organization_id: membership.organization_id,
       role: membership.role,
+      modules,
     });
   } catch (err) {
     // eslint-disable-next-line no-console

@@ -119,4 +119,129 @@ expect_reject "back-dating a criterion score into a closed month"     "SET app.c
                WHERE o.slug = 'ci-bistro-cairo' ORDER BY c.sort_order LIMIT 1),
              (date_trunc('month', now()) - interval '1 month')::date, 4);"
 
+# ----------------------------------------------------------------------------
+# 0036. A notification is delivered outside the query path, so the app role has
+# no way to write one: no INSERT, no DELETE, and UPDATE only on read_at. Every
+# statement below must be refused on privilege alone — none of them depends on
+# a row existing, which is why they belong here rather than in a suite.
+# ----------------------------------------------------------------------------
+expect_reject "sending a notification to somebody else" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.notifications (organization_id, recipient_id, kind, subject)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             '99999999-9999-4999-8999-999999999999',
+             'phish', 'اضغط هنا لتأكيد كلمة المرور');"
+
+expect_reject "writing a notification to YOURSELF (the own-row policy would allow it)" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.notifications (organization_id, recipient_id, kind, subject)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'self', 'ملاحظة لنفسي');"
+
+expect_reject "calling the delivery function directly" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     SELECT app.notify_user(
+         (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+         '99999999-9999-4999-8999-999999999999', 'phish', 'رسالة منتحلة');"
+
+expect_reject "broadcasting to a whole role" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     SELECT app.notify_roles(
+         (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+         ARRAY['waiter'], 'phish', 'إعلان للجميع');"
+
+expect_reject "rewriting the message you were sent" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     UPDATE public.notifications SET subject = 'شيء آخر تمامًا';"
+
+expect_reject "deleting a notification you were sent" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.notifications;"
+
+# ----------------------------------------------------------------------------
+# 0037. Which capabilities a tenant runs is not a thing the tenant's own client
+# gets to answer about itself: the catalogue is read-only, the subscription is
+# written only by app.set_module, and set_module refuses an organization the
+# caller does not belong to.
+# ----------------------------------------------------------------------------
+expect_reject "adding a module to the catalogue from the application" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.modules (key, name_ar, description_ar)
+     VALUES ('rogue', 'وحدة مزروعة', 'وحدة لم تمر بترحيل');"
+
+expect_reject "granting yourself a module by writing the table directly" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.organization_modules (organization_id, module_key, enabled)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'purchasing', true);"
+
+expect_reject "editing your own subscription directly" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     UPDATE public.organization_modules SET enabled = true;"
+
+expect_reject "dropping a module row to fall back to the default" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.organization_modules;"
+
+expect_reject "switching a module in an organization you do not belong to" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     SELECT app.set_module('00000000-0000-4000-8000-000000000000', 'purchasing', false);"
+
+# ----------------------------------------------------------------------------
+# 0038. Hours are not writable by the application under any circumstances. The
+# clock is three SECURITY DEFINER procedures; the table itself is read-only to
+# mosaiz_app_user, which is what makes a time record a record and not a claim.
+# ----------------------------------------------------------------------------
+expect_reject "inventing an hour you did not work" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.time_entries (organization_id, user_id, started_at, ended_at)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+             now() - interval '9 hours', now());"
+
+expect_reject "back-dating the hours you did work" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     UPDATE public.time_entries SET started_at = now() - interval '12 hours';"
+
+expect_reject "deleting an hour somebody would rather forget" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.time_entries;"
+
+# The shift CHECK constraints are NOT asserted here. They would appear to pass:
+# this file runs before any fixture enables the labour module, so 0037's gate
+# refuses a shift INSERT before the constraints are ever consulted — a rejection
+# that would survive deleting the constraints outright. They are asserted in
+# labour_verification.sql instead, with the module switched on.
+expect_reject "scheduling a shift for a restaurant that does not run labour" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.shifts (organization_id, user_id, starts_at, ends_at)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+             now() + interval '1 day', now() + interval '1 day 8 hours');"
+
+# ----------------------------------------------------------------------------
+# 0040. The public queue is not writable by the application under any
+# circumstances: requests arrive only through app.place_public_order, which
+# prices every line from the menu. A controller that could insert one directly
+# is a controller that could set its own prices.
+# ----------------------------------------------------------------------------
+expect_reject "filing a public order directly, at a price of your choosing" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.public_orders
+         (organization_id, customer_name, customer_phone, quoted_total)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'مزيّف', '0100000', 0.01);"
+
+expect_reject "adding a line to a public order directly" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.public_order_lines
+         (public_order_id, organization_id, sellable_item_id, quantity, unit_price, item_name)
+     VALUES (gen_random_uuid(),
+             (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             gen_random_uuid(), 1, 0.01, 'مزيّف');"
+
+expect_reject "deleting a request somebody would rather forget" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.public_orders;"
+
 exit "$fail"

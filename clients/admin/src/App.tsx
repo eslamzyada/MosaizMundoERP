@@ -22,6 +22,10 @@ import Printers from './pages/Printers';
 import Settings from './pages/Settings';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Menu from './pages/Menu';
+import Schedule from './pages/Schedule';
+import Reservations from './pages/Reservations';
+import OnlineOrders from './pages/OnlineOrders';
+import Storefront, { TrackOrder } from './pages/Storefront';
 import { SessionProvider } from './session/SessionProvider';
 
 export default function App() {
@@ -43,24 +47,49 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-app-bg text-sm text-app-ink-muted">
-        جارٍ التحميل…
-      </div>
-    );
-  }
-
-  if (!session) {
-    return <Login />;
-  }
-
   // SessionProvider sits inside the auth gate: it resolves GET /api/me once for
   // the whole app, so every page knows the caller's role without refetching it.
   return (
+    <BrowserRouter>
+      <Routes>
+        {/* PUBLIC (0040), outside the authentication gate entirely.
+
+            The gate used to return <Login /> before any router existed, which
+            meant a customer could not be routed anywhere at all. These two
+            routes therefore sit above it — and outside PreferencesProvider and
+            SessionProvider, both of which fetch as an authenticated user. A
+            stranger ordering lunch should not trigger a call to /api/me, nor
+            inherit a staff member's saved text scale. */}
+        <Route path="/order/track/:token" element={<TrackOrder />} />
+        <Route path="/order/:slug" element={<Storefront />} />
+
+        <Route
+          path="/*"
+          element={
+            loading ? (
+              <div className="grid min-h-screen place-items-center bg-app-bg text-sm text-app-ink-muted">
+                جارٍ التحميل…
+              </div>
+            ) : !session ? (
+              <Login />
+            ) : (
+              <AuthenticatedApp />
+            )
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+/**
+ * Everything behind the sign-in. SessionProvider resolves GET /api/me once for
+ * the whole app, so every page knows the caller's role without refetching it.
+ */
+function AuthenticatedApp() {
+  return (
     <PreferencesProvider>
       <SessionProvider>
-      <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
             {/* The index is a REDIRECT, not a page: where "home" is depends on
@@ -68,6 +97,9 @@ export default function App() {
                 thing this phase exists to stop. */}
             <Route index element={<RoleLanding />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="schedule" element={<Schedule />} />
+            <Route path="reservations" element={<Reservations />} />
+            <Route path="online-orders" element={<OnlineOrders />} />
             <Route path="floor" element={<Floor />} />
             <Route path="kitchen" element={<Kitchen />} />
             <Route path="till" element={<Till />} />
@@ -86,8 +118,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
-      </BrowserRouter>
-    </SessionProvider>
+      </SessionProvider>
     </PreferencesProvider>
   );
 }

@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { contextFor, invalidate } from '../lib/cache';
+import { postgresErrorCode } from '../lib/postgresError';
 
 /**
  * Proposing and deciding a change to the menu (0035).
@@ -17,28 +19,8 @@ type Kind = (typeof CHANGE_KINDS)[number];
 const REASON_MIN = 3;
 const REASON_MAX = 1000;
 
-/**
- * The SQLSTATE behind a Prisma error, however Prisma chose to wrap it.
- *
- * Three shapes, and only checking the first is how a policy refusal becomes a
- * 500: a typed call that violates a constraint raises a KNOWN error carrying
- * `meta.code`; some raise the Prisma code itself; and a RESTRICTIVE policy
- * refusing an INSERT comes back as an UNKNOWN error whose SQLSTATE exists only
- * inside the message text. Measured, not guessed — the waiter refusal in this
- * suite arrived as the third.
- */
-function postgresErrorCode(err: unknown): string | undefined {
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    const meta = err.meta as { code?: unknown } | undefined;
-    if (meta && typeof meta.code === 'string') return meta.code;
-    return err.code;
-  }
-  if (err instanceof Error) {
-    const match = err.message.match(/code:\s*"(\w+)"/);
-    if (match) return match[1];
-  }
-  return undefined;
-}
+// Moved to lib/postgresError.ts so 0037's module gate maps refusals by exactly
+// the same rule — see that file for why three shapes have to be checked.
 
 async function resolveOrgId(req: Request): Promise<string | null> {
   const membership = await req.tx!.organization_memberships.findFirst({
@@ -245,6 +227,15 @@ export async function decideChange(req: Request, res: Response): Promise<void> {
     // anyway. (A void-returning function through $queryRaw is also the P2010
     // that bit the delete path once already.)
     await req.tx.$executeRaw`SELECT app.decide_menu_change(${req.params.id}::uuid, ${body.approve}, ${note})`;
+
+    // An approval changes what every till in this restaurant should be
+    // offering, so the cached menu is dropped for EVERY role — clearing only
+    // the approver's own entry would leave the waiters reading old prices.
+    if (body.approve) {
+      const ctx = await contextFor(req);
+      if (ctx.organizationId) await invalidate('pos-menu', ctx.organizationId);
+    }
+
     res.status(200).json({ id: req.params.id, status: body.approve ? 'approved' : 'rejected' });
   } catch (err) {
     const code = postgresErrorCode(err);

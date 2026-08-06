@@ -9,6 +9,7 @@ import {
   updateCriterion,
   upsertCriterionScore,
 } from '../controllers/ratingCriteria.controller';
+import { requireModule } from '../middleware/requireModule';
 
 /**
  * The review rubric (0033).
@@ -25,6 +26,11 @@ import {
 const router = Router();
 
 router.use(authMiddleware);
+
+// 0037: the database refuses these writes when the module is off. This turns
+// that refusal into an answer that names the module and says where to switch
+// it back on — the policy stays the thing that actually enforces it.
+router.use(requireModule('performance'));
 
 // /scores is declared BEFORE /:id, or Express matches "scores" as an id and
 // every request for the scores becomes a lookup for a criterion called scores.

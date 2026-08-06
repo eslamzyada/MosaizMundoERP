@@ -10,6 +10,12 @@ import userRoutes from './routes/user.routes';
 import memberRoutes from './routes/member.routes';
 import catalogRoutes from './routes/catalog.routes';
 import menuChangeRoutes from './routes/menuChange.routes';
+import notificationRoutes from './routes/notification.routes';
+import moduleRoutes from './routes/module.routes';
+import labourRoutes from './routes/labour.routes';
+import reservationRoutes from './routes/reservation.routes';
+import publicRoutes from './routes/public.routes';
+import publicOrderRoutes from './routes/publicOrder.routes';
 import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
 import ratingCriteriaRoutes from './routes/ratingCriteria.routes';
@@ -73,13 +79,29 @@ app.use(
 // Capture the raw request bytes so the webhook middleware can verify the HMAC
 // signature over exactly what Supabase signed (a re-serialized object would not
 // byte-match).
+// An EXPLICIT body ceiling. Express defaults to 100kb, which is fine — but a
+// default is a thing nobody chose, and the one request in this API that can
+// legitimately be large (a logo) does not come through here at all: multer
+// handles it with its own 2 MB limit. Naming the number means a future endpoint
+// that needs more has to say so.
 app.use(
   express.json({
+    limit: process.env.JSON_BODY_LIMIT ?? '256kb',
     verify: (req, _res, buf) => {
       (req as express.Request).rawBody = buf;
     },
   }),
 );
+
+// A body over the ceiling is the caller's to fix, and Express's default is an
+// HTML error page from the generic handler. This says what happened.
+app.use((err: Error & { type?: string }, _req: Request, res: Response, next: NextFunction) => {
+  if (err?.type === 'entity.too.large') {
+    res.status(413).json({ error: 'Request body is too large' });
+    return;
+  }
+  next(err);
+});
 
 // Serialize Prisma Decimal fields as JSON numbers across every endpoint. This
 // interceptor (rather than a prisma.$extends result extension) keeps the
@@ -123,6 +145,32 @@ app.use('/api/catalog', catalogRoutes);
 // The menu approval cycle (0035). Its own noun because the queue is a different
 // resource from the menu — readable by everyone, writable through a decision.
 app.use('/api/menu-changes', menuChangeRoutes);
+
+// Your own inbox (0036). Every role has one; nobody can write to anybody's.
+app.use('/api/notifications', notificationRoutes);
+
+// Which parts of the system this restaurant runs (0037). Readable by every
+// member, writable only by an owner — and the write goes through a procedure,
+// not through this router.
+app.use('/api/modules', moduleRoutes);
+
+// The rota and the time clock (0038). Gated by the labour module, which ships
+// switched off — it is a new capability, not one anybody was already using.
+app.use('/api/labour', labourRoutes);
+
+// Tables and bookings (0039). The first time this system has had a table at
+// all — the floor screen shows open tabs, not tables.
+app.use('/api/reservations', reservationRoutes);
+
+// The staff side of the shopfront (0040).
+app.use('/api/public-orders', publicOrderRoutes);
+
+// THE ONE UNAUTHENTICATED SURFACE. Mounted at /public rather than under /api,
+// because it is a different kind of thing: no JWT, no RLS identity, and
+// therefore nothing reachable but three SECURITY DEFINER functions. A router
+// under /api would be one refactor away from inheriting auth that cannot apply
+// to a customer who has no account.
+app.use('/public', publicRoutes);
 
 // Profitability reporting, from the cost captured at each sale. Restricted to
 // FINANCE_ROLES inside the router — SELECT is ungated in the database.

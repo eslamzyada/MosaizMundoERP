@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import CommandPalette from './CommandPalette';
+import NotificationBell from './NotificationBell';
+import ClockWidget from './ClockWidget';
 import { NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS, useSession } from '../session/SessionProvider';
@@ -21,7 +23,7 @@ export default function Layout() {
    * Ordered by the role's list rather than by the shared DESTINATIONS order, so
    * each role's first item is its own home.
    */
-  const allowed = navFor(me?.role);
+  const allowed = navFor(me?.role, me?.modules);
   const visibleNav = allowed
     .map((route) => DESTINATIONS.find((d) => d.to === route))
     .filter((d): d is (typeof DESTINATIONS)[number] => d !== undefined);
@@ -49,25 +51,33 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex h-full min-h-screen bg-app-bg text-app-ink">
+    /* h-screen, not h-full + min-h-screen: the two together let the layout grow
+       past the viewport, and the sidebar is the one thing that must not. */
+    <div className="flex h-screen bg-app-bg text-app-ink">
       {/* Sidebar — deep twilight/charcoal chrome, and deliberately the SAME in
           both themes: it is the app's anchor, and a light theme without it
           loses the contrast the whole layout is built on. Everything inside
-          keeps the literal palette rather than the app-* tokens. */}
-      <aside className="flex w-64 flex-shrink-0 flex-col border-e border-surface-dark-border bg-surface-dark text-slate-100">
-        <div className="flex h-16 items-center gap-3 border-b border-surface-dark-border px-6">
+          keeps the literal palette rather than the app-* tokens.
+
+          NOT overflow-hidden: the notification panel is anchored in the header
+          and has to escape this box. The scrolling belongs to the nav alone. */}
+      <aside className="flex h-full w-64 flex-shrink-0 flex-col border-e border-surface-dark-border bg-surface-dark text-slate-100">
+        <div className="flex h-16 flex-shrink-0 items-center gap-3 border-b border-surface-dark-border ps-6 pe-3">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sunset-500 to-twilight-600 text-base font-bold text-white">
             M
           </span>
-          <span className="font-numerals text-base font-semibold tracking-tight text-white">
+          <span className="font-numerals flex-1 text-base font-semibold tracking-tight text-white">
             Mosaiz&nbsp;Mundo
           </span>
+          {/* In the chrome, not on a page: what you are told does not depend on
+              which screen you happen to be looking at. */}
+          <NotificationBell />
         </div>
 
         {/* Dressed as a field rather than an icon, because a magnifying glass
             alone does not tell anyone the keyboard shortcut exists — and the
             shortcut is what makes this worth having. */}
-        <div className="px-3 pt-4">
+        <div className="flex-shrink-0 px-3 pt-4">
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
@@ -93,7 +103,14 @@ export default function Layout() {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-5" aria-label="التنقّل الرئيسي">
+        {/* min-h-0 is the whole fix: a flex child's default min-height is auto,
+            so without it this list refuses to shrink below its own content and
+            shoves everything after it out of the sidebar entirely. Thirteen
+            destinations at a larger text scale is not an edge case. */}
+        <nav
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-5"
+          aria-label="التنقّل الرئيسي"
+        >
           <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
             الإدارة الخلفية
           </p>
@@ -116,7 +133,14 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="border-t border-surface-dark-border p-3">
+        {/* Starting and ending a shift (0038). Renders nothing when the
+            restaurant does not run labour. */}
+        <ClockWidget />
+
+        {/* Who you are and the way out. Pinned: these are the two things you
+            reach for when a screen has gone wrong, and hunting for them at the
+            bottom of a scroll is exactly the wrong moment to have to. */}
+        <div className="flex-shrink-0 border-t border-surface-dark-border p-3">
           {/* Who am I signed in as, and with what authority — otherwise a
               missing button just looks like a bug. */}
           {me && (

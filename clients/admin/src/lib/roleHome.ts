@@ -44,18 +44,27 @@ export const ROLE_HOME: Record<Role, string> = {
  * part of their job, and it is not.
  */
 export const ROLE_NAV: Record<Role, string[]> = {
+  // الصالة and المطبخ sit second and third on purpose. They were reachable only
+  // through the search box — the routes were never role-gated, they were simply
+  // never OFFERED to the people who run the place, which made two live
+  // operational screens undiscoverable unless you already knew to look for
+  // them. What is happening on the floor right now is a manager's first
+  // question of the day, not an afterthought behind the books.
   owner: [
-    '/dashboard', '/menu', '/orders', '/inventory', '/stocktake', '/recipes',
+    '/dashboard', '/floor', '/reservations', '/online-orders', '/kitchen', '/menu', '/orders', '/schedule',
+    '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
   regional_manager: [
-    '/dashboard', '/menu', '/orders', '/inventory', '/stocktake', '/recipes',
+    '/dashboard', '/floor', '/reservations', '/online-orders', '/kitchen', '/menu', '/orders', '/schedule',
+    '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
   branch_manager: [
-    '/dashboard', '/menu', '/orders', '/inventory', '/stocktake', '/recipes',
+    '/dashboard', '/floor', '/reservations', '/online-orders', '/kitchen', '/menu', '/orders', '/schedule',
+    '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
@@ -63,12 +72,12 @@ export const ROLE_NAV: Record<Role, string[]> = {
   // the stocktake that produces it does not.
   accountant: ['/reports', '/insights', '/orders', '/inventory', '/settings'],
   // The floor: my tables, what is on them, and what the kitchen is doing.
-  waiter: ['/floor', '/orders', '/menu', '/settings'],
+  waiter: ['/floor', '/reservations', '/online-orders', '/orders', '/menu', '/schedule', '/settings'],
   // The pass: what has been fired, and what it is made of.
-  kitchen: ['/kitchen', '/orders', '/menu', '/recipes', '/settings'],
+  kitchen: ['/kitchen', '/online-orders', '/orders', '/menu', '/recipes', '/schedule', '/settings'],
   // One page, and it says to use the till.
   cashier: ['/till', '/settings'],
-  staff: ['/floor', '/orders', '/menu', '/settings'],
+  staff: ['/floor', '/reservations', '/orders', '/menu', '/schedule', '/settings'],
 };
 
 /** The landing route for a role, falling back to the floor for an unknown one. */
@@ -85,7 +94,44 @@ export function homeFor(role: Role | null | undefined): string {
  * looks like a broken app; a sidebar with two looks like a limited account,
  * which is the truth.
  */
-export function navFor(role: Role | null | undefined): string[] {
+export function navFor(role: Role | null | undefined, modules?: string[]): string[] {
   if (!role) return ['/settings'];
-  return ROLE_NAV[role] ?? ['/orders', '/menu', '/settings'];
+  const offered = ROLE_NAV[role] ?? ['/orders', '/menu', '/settings'];
+  return offered.filter((route) => routeIsAvailable(route, modules));
+}
+
+/**
+ * Which capability owns each destination (0037).
+ *
+ * Routes absent from this map belong to no module and are always offered — the
+ * till, the floor, orders, the team, settings. A restaurant that could switch
+ * off its own settings screen would have no way back.
+ */
+export const ROUTE_MODULE: Record<string, string> = {
+  '/inventory': 'inventory',
+  '/stocktake': 'stocktake',
+  '/recipes': 'recipes',
+  '/suppliers': 'purchasing',
+  '/purchase-orders': 'purchasing',
+  '/insights': 'insights',
+  '/printers': 'printers',
+  '/schedule': 'labour',
+  '/reservations': 'reservations',
+  '/online-orders': 'public_ordering',
+};
+
+/**
+ * True when this destination's module is on for the tenant.
+ *
+ * An UNDEFINED module list means the answer is not known yet — a client talking
+ * to an older API, or the first paint before /api/me resolves. That reads as
+ * "everything", because hiding navigation on missing information would make the
+ * app look broken to somebody whose restaurant runs all of it. An EMPTY list is
+ * different: it is an answer, and it means nothing modular is on.
+ */
+export function routeIsAvailable(route: string, modules?: string[]): boolean {
+  const required = ROUTE_MODULE[route];
+  if (!required) return true;
+  if (modules === undefined) return true;
+  return modules.includes(required);
 }

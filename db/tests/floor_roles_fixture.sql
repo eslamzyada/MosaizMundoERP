@@ -23,7 +23,12 @@ INSERT INTO public.users (id, email) VALUES
     ('f10c0005-0000-4000-8000-000000000005', 'floor-regional@ci.test'),
     -- A lone owner in a SECOND organization, for the one case where the
     -- two-person rule has to yield: a restaurant with nobody else to ask.
-    ('f10c0006-0000-4000-8000-000000000006', 'solo-owner@ci.test');
+    ('f10c0006-0000-4000-8000-000000000006', 'solo-owner@ci.test'),
+    -- A cashier, who exists here to be LEFT OUT of things. Without somebody in
+    -- the fixture who should not be notified, every "we did not disturb them"
+    -- assertion skips itself — which is exactly how 0041's containment check
+    -- passed while the cashier was being dragged into the online queue.
+    ('f10c0007-0000-4000-8000-000000000007', 'floor-cashier@ci.test');
 
 -- The two new roles, plus a manager so the suite has somebody who CAN do the
 -- things the other two must not.
@@ -32,7 +37,8 @@ INSERT INTO public.organization_memberships (organization_id, user_id, role) VAL
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0002-0000-4000-8000-000000000002', 'kitchen'),
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0003-0000-4000-8000-000000000003', 'branch_manager'),
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0004-0000-4000-8000-000000000004', 'owner'),
-    ('f10c0000-0000-4000-8000-000000000000', 'f10c0005-0000-4000-8000-000000000005', 'regional_manager');
+    ('f10c0000-0000-4000-8000-000000000000', 'f10c0005-0000-4000-8000-000000000005', 'regional_manager'),
+    ('f10c0000-0000-4000-8000-000000000000', 'f10c0007-0000-4000-8000-000000000007', 'cashier');
 
 -- The one-approver restaurant.
 INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES
@@ -69,6 +75,48 @@ VALUES ('0e17e400-000f-400f-800f-00000000000f',
         'f10c0006-0000-4000-8000-000000000006')
 ON CONFLICT DO NOTHING;
 
+-- A DISH and a QUEUED ORDER belonging to the other restaurant (0040), with
+-- literal ids.
+--
+-- Both exist for the same reason as everything else in this block: a
+-- cross-tenant assertion needs a foreign row that actually exists, or it
+-- "passes" by finding nothing. Two counterfactuals proved that the hard way —
+-- dropping the tenant filter from the public order path, and opening the queue
+-- to every tenant, were both undetected until these rows existed.
+INSERT INTO public.sellable_items (id, organization_id, name, price, is_active)
+VALUES ('5e11ab1e-000f-400f-800f-00000000000f',
+        'f10c1000-0000-4000-8000-000000000000', 'طبق المنشأة الأخرى', 99.00, true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.storefronts (organization_id, slug, display_name, is_accepting)
+VALUES ('f10c1000-0000-4000-8000-000000000000', 'other-restaurant',
+        'المنشأة الأخرى', true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.public_orders
+    (id, organization_id, tracking_token, customer_name, customer_phone, quoted_total)
+VALUES ('0d0e4000-000f-400f-800f-00000000000f',
+        'f10c1000-0000-4000-8000-000000000000',
+        'f0f0f0f0-000f-400f-800f-00000000000f',
+        'زبون المنشأة الأخرى', '01099999999', 99.00)
+ON CONFLICT DO NOTHING;
+
+-- A table belonging to the OTHER restaurant (0039), with a literal id.
+--
+-- Seeded here as postgres for the same reason as the foreign menu change
+-- request above: the app role cannot create a row in an organization it does
+-- not belong to, and RLS hides other tenants' rows from it entirely — so a
+-- suite that tried to seed this as itself would be asserting against nothing.
+--
+-- It exists so the reservation suite can attempt the one case that isolates
+-- the COMPOSITE foreign key: our own organization_id paired with a table that
+-- is not ours. RLS permits that row (the org is ours); only the composite key
+-- refuses it.
+INSERT INTO public.restaurant_tables (id, organization_id, label, seats)
+VALUES ('7ab1e000-000f-400f-800f-00000000000f',
+        'f10c1000-0000-4000-8000-000000000000', 'طاولة المنشأة الأخرى', 4)
+ON CONFLICT DO NOTHING;
+
 DO $$
 DECLARE
     missing text[] := '{}';
@@ -76,6 +124,18 @@ BEGIN
     IF NOT EXISTS (SELECT FROM public.organization_memberships
                     WHERE user_id = 'f10c0001-0000-4000-8000-000000000001' AND role = 'waiter') THEN
         missing := missing || 'waiter membership'; END IF;
+
+    IF NOT EXISTS (SELECT FROM public.restaurant_tables
+                    WHERE id = '7ab1e000-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'foreign table'; END IF;
+
+    IF NOT EXISTS (SELECT FROM public.sellable_items
+                    WHERE id = '5e11ab1e-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'foreign dish'; END IF;
+
+    IF NOT EXISTS (SELECT FROM public.public_orders
+                    WHERE id = '0d0e4000-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'foreign public order'; END IF;
     IF NOT EXISTS (SELECT FROM public.organization_memberships
                     WHERE user_id = 'f10c0002-0000-4000-8000-000000000002' AND role = 'kitchen') THEN
         missing := missing || 'kitchen membership'; END IF;

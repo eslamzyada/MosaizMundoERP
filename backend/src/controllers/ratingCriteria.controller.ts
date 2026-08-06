@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { currentMonth, monthStart } from './rating.controller';
+import { cached, contextFor, invalidate } from '../lib/cache';
 
 /**
  * The rubric, and the scores against it (0033).
@@ -88,10 +89,21 @@ export async function listCriteria(req: Request, res: Response): Promise<void> {
   }
   try {
     const includeRetired = req.query.include_retired === 'true';
-    const rows = await req.tx.rating_criteria.findMany({
-      where: includeRetired ? {} : { is_active: true },
-      orderBy: [{ is_active: 'desc' }, { sort_order: 'asc' }, { name: 'asc' }],
-    });
+    const ctx = await contextFor(req);
+    // The variant matters: "with retired" and "without" are different answers
+    // to the same url, and sharing one entry would show a retired criterion on
+    // a live review sheet.
+    const rows = await cached(
+      'criteria',
+      ctx,
+      includeRetired ? 'all' : 'active',
+      120,
+      async () =>
+        req.tx!.rating_criteria.findMany({
+          where: includeRetired ? {} : { is_active: true },
+          orderBy: [{ is_active: 'desc' }, { sort_order: 'asc' }, { name: 'asc' }],
+        }),
+    );
 
     res.status(200).json(
       rows.map((c) => ({
@@ -157,6 +169,8 @@ export async function createCriterion(req: Request, res: Response): Promise<void
         sort_order: sortOrder,
       },
     });
+
+    await invalidate('criteria', (await contextFor(req)).organizationId ?? '');
 
     res.status(201).json({
       id: created.id,
@@ -268,6 +282,8 @@ export async function updateCriterion(req: Request, res: Response): Promise<void
       return;
     }
 
+    await invalidate('criteria', (await contextFor(req)).organizationId ?? '');
+
     const updated = await req.tx.rating_criteria.findFirst({ where: { id: req.params.id } });
     res.status(200).json(
       updated && {
@@ -320,6 +336,7 @@ export async function deleteCriterion(req: Request, res: Response): Promise<void
       res.status(404).json({ error: 'Criterion not found' });
       return;
     }
+    await invalidate('criteria', (await contextFor(req)).organizationId ?? '');
     res.status(204).end();
   } catch (err) {
     const code = postgresErrorCode(err);

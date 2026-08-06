@@ -10,6 +10,7 @@ import {
 } from '../controllers/report.controller';
 import { getTrends } from '../controllers/trends.controller';
 import { getPurchasing } from '../controllers/purchasing.controller';
+import { requireModule } from '../middleware/requireModule';
 
 // Financial reporting. authMiddleware applies to the whole router, so every
 // handler runs inside an authenticated, RLS-bound transaction.
@@ -42,7 +43,9 @@ router.get('/employees', requireRole(...FINANCE_ROLES), getEmployeePerformance);
 
 // Sales, waste and buying on ONE shared timeline, bucketed and gap-filled, so
 // the figures can be drawn rather than read. Same gate — it is all money.
-router.get('/trends', requireRole(...FINANCE_ROLES), getTrends);
+// The one feed that only المؤشرات consumes, so it is the one report route the
+// insights module can gate without taking a figure away from الأرباح too.
+router.get('/trends', requireModule('insights'), requireRole(...FINANCE_ROLES), getTrends);
 
 // What was bought, from whom, and what has been paid for but has not arrived.
 // The one side of the business that had no report at all.

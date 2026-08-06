@@ -7,12 +7,18 @@ import {
   listPrinters,
   updatePrinter,
 } from '../controllers/printer.controller';
+import { requireModule } from '../middleware/requireModule';
 
 // Printer routes. authMiddleware applies to the whole router, so every handler
 // runs inside an authenticated, RLS-bound transaction and must use req.tx.
 const router = Router();
 
 router.use(authMiddleware);
+
+// 0037: the database refuses these writes when the module is off. This turns
+// that refusal into an answer that names the module and says where to switch
+// it back on — the policy stays the thing that actually enforces it.
+router.use(requireModule('printers'));
 
 // Reading is open to every member: a cashier who cannot read the address cannot
 // print, and printing is the whole point.

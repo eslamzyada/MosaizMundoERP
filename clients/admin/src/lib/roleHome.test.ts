@@ -112,3 +112,95 @@ describe('a role this build has never heard of', () => {
     expect(homeFor(null)).toBe('/dashboard');
   });
 });
+
+describe('the sidebar is role ∩ modules (0037)', () => {
+  it('drops a destination whose module the restaurant does not run', () => {
+    // The owner is OFFERED purchase orders; a café that does not run
+    // purchasing should not meet them at all.
+    const withPurchasing = navFor('owner', ['inventory', 'purchasing', 'insights']);
+    expect(withPurchasing).toContain('/purchase-orders');
+
+    const without = navFor('owner', ['inventory', 'insights']);
+    expect(without).not.toContain('/purchase-orders');
+    expect(without).not.toContain('/suppliers');
+  });
+
+  it('never drops a destination that belongs to no module', () => {
+    // Settings above all: a restaurant that could switch off its own settings
+    // screen would have no way back.
+    const nothing = navFor('owner', []);
+    expect(nothing).toContain('/settings');
+    expect(nothing).toContain('/dashboard');
+    expect(nothing).toContain('/orders');
+    expect(nothing).toContain('/menu');
+  });
+
+  it('treats an unknown module list as "everything", not as "nothing"', () => {
+    // undefined means the answer has not arrived (older API, or first paint).
+    // Hiding navigation on missing information would look like a broken app.
+    expect(navFor('owner', undefined)).toEqual(navFor('owner'));
+    expect(navFor('owner', undefined)).toContain('/inventory');
+  });
+
+  it('an EMPTY list is an answer, and it is different from no answer', () => {
+    expect(navFor('owner', []).length).toBeLessThan(navFor('owner', undefined).length);
+  });
+
+  it('still respects the role: modules cannot widen what a waiter is offered', () => {
+    const waiter = navFor('waiter', ['inventory', 'purchasing', 'insights', 'printers']);
+    expect(waiter).not.toContain('/inventory');
+    expect(waiter).not.toContain('/purchase-orders');
+    expect(waiter).toContain('/floor');
+  });
+});
+
+describe('the capabilities added in 0038 and 0039', () => {
+  it('hides الورديات and الحجوزات from a tenant that runs neither', () => {
+    // Both ship switched off, so this is the state a new restaurant is in.
+    const none = navFor('owner', ['inventory', 'purchasing']);
+    expect(none).not.toContain('/schedule');
+    expect(none).not.toContain('/reservations');
+  });
+
+  it('offers each one only when its own module is on', () => {
+    const labourOnly = navFor('owner', ['labour']);
+    expect(labourOnly).toContain('/schedule');
+    expect(labourOnly).not.toContain('/reservations');
+
+    const bookingsOnly = navFor('owner', ['reservations']);
+    expect(bookingsOnly).toContain('/reservations');
+    expect(bookingsOnly).not.toContain('/schedule');
+  });
+
+  it('gives a waiter both, because both are floor work', () => {
+    // The rota is theirs to read and the phone is theirs to answer. Neither is
+    // a management screen, and putting them behind one would mean the shift
+    // board lives in an office nobody on the floor can open.
+    const waiter = navFor('waiter', ['labour', 'reservations']);
+    expect(waiter).toContain('/schedule');
+    expect(waiter).toContain('/reservations');
+  });
+
+  it('does not give the kitchen bookings — they do not seat anybody', () => {
+    const kitchen = navFor('kitchen', ['labour', 'reservations']);
+    expect(kitchen).toContain('/schedule');
+    expect(kitchen).not.toContain('/reservations');
+  });
+});
+
+describe('online ordering in the sidebar (0040)', () => {
+  it('is offered only when the module is on', () => {
+    expect(navFor('owner', ['reservations'])).not.toContain('/online-orders');
+    expect(navFor('owner', ['public_ordering'])).toContain('/online-orders');
+  });
+
+  it('reaches the kitchen as well as the floor', () => {
+    // A request that nobody at the pass can see is a request that goes cold.
+    expect(navFor('kitchen', ['public_ordering'])).toContain('/online-orders');
+    expect(navFor('waiter', ['public_ordering'])).toContain('/online-orders');
+  });
+
+  it('is not offered to the accountant', () => {
+    expect(navFor('accountant', ['public_ordering'])).not.toContain('/online-orders');
+  });
+});

@@ -112,6 +112,7 @@ model orders {
   organizations                 organizations           @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users_orders_served_byTousers users?                  @relation("orders_served_byTousers", fields: [served_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users                         users?                  @relation(fields: [voided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  public_orders                 public_orders[]
 
   @@unique([id, organization_id])
   @@unique([organization_id, client_offline_id])
@@ -149,16 +150,25 @@ model organizations {
   employee_criterion_scores employee_criterion_scores[]
   employee_ratings          employee_ratings[]
   menu_change_requests      menu_change_requests[]
+  notifications             notifications[]
   orders                    orders[]
   organization_branding     organization_branding?
   organization_invitations  organization_invitations[]
   organization_memberships  organization_memberships[]
+  organization_modules      organization_modules[]
   printers                  printers[]
+  public_order_lines        public_order_lines[]
+  public_orders             public_orders[]
   rating_criteria           rating_criteria[]
   raw_inventory_items       raw_inventory_items[]
+  reservations              reservations[]
+  restaurant_tables         restaurant_tables[]
   sellable_items            sellable_items[]
+  shifts                    shifts[]
   stocktakes                stocktakes[]
+  storefronts               storefronts?
   suppliers                 suppliers[]
+  time_entries              time_entries[]
   user_preferences          user_preferences[]
 }
 
@@ -202,6 +212,7 @@ model sellable_items {
   bill_of_materials    bill_of_materials[]
   menu_change_requests menu_change_requests[]
   order_items          order_items[]
+  public_order_lines   public_order_lines[]
   organizations        organizations          @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([id, organization_id])
@@ -257,11 +268,20 @@ model users {
   employee_ratings_employee_ratings_rated_byTousers                      employee_ratings[]          @relation("employee_ratings_rated_byTousers")
   menu_change_requests_menu_change_requests_decided_byTousers            menu_change_requests[]      @relation("menu_change_requests_decided_byTousers")
   menu_change_requests_menu_change_requests_requested_byTousers          menu_change_requests[]      @relation("menu_change_requests_requested_byTousers")
+  notifications_notifications_actor_idTousers                            notifications[]             @relation("notifications_actor_idTousers")
+  notifications_notifications_recipient_idTousers                        notifications[]             @relation("notifications_recipient_idTousers")
   orders_orders_served_byTousers                                         orders[]                    @relation("orders_served_byTousers")
   orders                                                                 orders[]
   organization_invitations                                               organization_invitations[]
   organization_memberships                                               organization_memberships[]
+  organization_modules                                                   organization_modules[]
+  public_orders                                                          public_orders[]
+  reservations                                                           reservations[]
+  shifts_shifts_created_byTousers                                        shifts[]                    @relation("shifts_created_byTousers")
+  shifts_shifts_user_idTousers                                           shifts[]                    @relation("shifts_user_idTousers")
   stock_write_offs                                                       stock_write_offs[]
+  time_entries_time_entries_amended_byTousers                            time_entries[]              @relation("time_entries_amended_byTousers")
+  time_entries_time_entries_user_idTousers                               time_entries[]              @relation("time_entries_user_idTousers")
   user_preferences                                                       user_preferences[]
 }
 
@@ -551,4 +571,208 @@ model menu_change_requests {
   @@index([sellable_item_id, requested_at(sort: Desc)], map: "menu_change_requests_item_idx")
   @@index([organization_id, status, requested_at(sort: Desc)], map: "menu_change_requests_pending_idx")
   @@index([requested_by])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model notifications {
+  id                                      String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id                         String        @db.Uuid
+  recipient_id                            String        @db.Uuid
+  actor_id                                String?       @db.Uuid
+  kind                                    String
+  subject                                 String
+  body                                    String?
+  link                                    String?
+  read_at                                 DateTime?     @db.Timestamptz(6)
+  created_at                              DateTime      @default(now()) @db.Timestamptz(6)
+  users_notifications_actor_idTousers     users?        @relation("notifications_actor_idTousers", fields: [actor_id], references: [id], onUpdate: NoAction)
+  organizations                           organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_notifications_recipient_idTousers users         @relation("notifications_recipient_idTousers", fields: [recipient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([recipient_id, created_at(sort: Desc)], map: "notifications_inbox_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model modules {
+  key                  String                 @id
+  name_ar              String
+  description_ar       String
+  depends_on           String[]               @default([])
+  enforced_in          String                 @default("database")
+  default_enabled      Boolean                @default(true)
+  sort_order           Int                    @default(0)
+  organization_modules organization_modules[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model organization_modules {
+  organization_id String        @db.Uuid
+  module_key      String
+  enabled         Boolean
+  decided_by      String?       @db.Uuid
+  decided_at      DateTime      @default(now()) @db.Timestamptz(6)
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  users           users?        @relation(fields: [decided_by], references: [id], onUpdate: NoAction)
+  modules         modules       @relation(fields: [module_key], references: [key], onDelete: NoAction, onUpdate: NoAction)
+  organizations   organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([organization_id, module_key])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model shifts {
+  id                             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id                String         @db.Uuid
+  user_id                        String         @db.Uuid
+  starts_at                      DateTime       @db.Timestamptz(6)
+  ends_at                        DateTime       @db.Timestamptz(6)
+  note                           String?
+  created_by                     String?        @db.Uuid
+  created_at                     DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime       @default(now()) @db.Timestamptz(6)
+  users_shifts_created_byTousers users?         @relation("shifts_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  organizations                  organizations  @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_shifts_user_idTousers    users          @relation("shifts_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  time_entries                   time_entries[]
+
+  @@index([organization_id, starts_at], map: "shifts_org_window_idx")
+  @@index([user_id, starts_at(sort: Desc)], map: "shifts_user_window_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model time_entries {
+  id                                   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id                      String        @db.Uuid
+  user_id                              String        @db.Uuid
+  shift_id                             String?       @db.Uuid
+  started_at                           DateTime      @default(now()) @db.Timestamptz(6)
+  ended_at                             DateTime?     @db.Timestamptz(6)
+  amended_by                           String?       @db.Uuid
+  amended_at                           DateTime?     @db.Timestamptz(6)
+  amendment_reason                     String?
+  created_at                           DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime      @default(now()) @db.Timestamptz(6)
+  users_time_entries_amended_byTousers users?        @relation("time_entries_amended_byTousers", fields: [amended_by], references: [id], onUpdate: NoAction)
+  organizations                        organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  shifts                               shifts?       @relation(fields: [shift_id], references: [id], onUpdate: NoAction)
+  users_time_entries_user_idTousers    users         @relation("time_entries_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([organization_id, started_at(sort: Desc)], map: "time_entries_org_window_idx")
+  @@index([user_id, started_at(sort: Desc)], map: "time_entries_user_window_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model reservations {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String            @db.Uuid
+  table_id          String            @db.Uuid
+  guest_name        String
+  guest_phone       String?
+  party_size        Int
+  starts_at         DateTime          @db.Timestamptz(6)
+  ends_at           DateTime          @db.Timestamptz(6)
+  status            String            @default("booked")
+  note              String?
+  created_by        String?           @db.Uuid
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  users             users?            @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  organizations     organizations     @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  restaurant_tables restaurant_tables @relation(fields: [table_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "reservations_table_same_tenant")
+
+  @@index([organization_id, starts_at], map: "reservations_service_idx")
+  @@index([table_id, starts_at(sort: Desc)], map: "reservations_table_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model restaurant_tables {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String         @db.Uuid
+  label           String
+  area            String?
+  seats           Int            @default(2)
+  is_active       Boolean        @default(true)
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime       @default(now()) @db.Timestamptz(6)
+  reservations    reservations[]
+  organizations   organizations  @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([organization_id, label], map: "restaurant_tables_label_unique")
+  @@unique([id, organization_id], map: "restaurant_tables_tenant_key")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model public_order_lines {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  public_order_id  String         @db.Uuid
+  organization_id  String         @db.Uuid
+  sellable_item_id String         @db.Uuid
+  quantity         Int
+  unit_price       Decimal        @db.Decimal(10, 2)
+  item_name        String
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime       @default(now()) @db.Timestamptz(6)
+  sellable_items   sellable_items @relation(fields: [sellable_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "public_order_lines_item_same_tenant")
+  organizations    organizations  @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  public_orders    public_orders  @relation(fields: [public_order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([public_order_id], map: "public_order_lines_order_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model public_orders {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id    String               @db.Uuid
+  tracking_token     String               @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_name      String
+  customer_phone     String
+  note               String?
+  status             String               @default("pending")
+  quoted_total       Decimal              @db.Decimal(10, 2)
+  accepted_order_id  String?              @db.Uuid
+  decided_by         String?              @db.Uuid
+  decided_at         DateTime?            @db.Timestamptz(6)
+  rejection_reason   String?
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  public_order_lines public_order_lines[]
+  users              users?               @relation(fields: [decided_by], references: [id], onUpdate: NoAction)
+  orders             orders?              @relation(fields: [accepted_order_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "public_orders_order_same_tenant")
+  organizations      organizations        @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([organization_id, created_at(sort: Desc)], map: "public_orders_org_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model storefronts {
+  organization_id String        @id @db.Uuid
+  slug            String        @unique
+  display_name    String
+  greeting        String?
+  is_accepting    Boolean       @default(false)
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  organizations   organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
