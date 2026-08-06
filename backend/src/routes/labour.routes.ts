@@ -11,6 +11,8 @@ import {
   deleteShift,
   hours,
   listShifts,
+  listWages,
+  setWage,
 } from '../controllers/labour.controller';
 
 /**
@@ -47,5 +49,17 @@ router.post('/clock-out', clockOut);
 router.get('/hours', hours);
 
 router.post('/entries/:id/amend', requireRole(...ADMIN_ROLES), amendEntry);
+
+// Pay (0042).
+//
+// No requireRole on the READ, deliberately: 0042's policy decides what comes
+// back — your own always, everybody's for payroll — and a role gate here would
+// be a second rule that can disagree with it. On this table, disagreeing means
+// leaking somebody's salary.
+//
+// Writing IS gated here, and gated again in the database, including the part a
+// role check cannot express: not your own, unless you own the place.
+router.get('/wages', listWages);
+router.post('/wages', requireRole(...ADMIN_ROLES), setWage);
 
 export default router;

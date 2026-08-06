@@ -244,4 +244,25 @@ expect_reject "deleting a request somebody would rather forget" \
     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
      DELETE FROM public.public_orders;"
 
+# ----------------------------------------------------------------------------
+# 0042. Pay is the most confidential data here. It is not deletable, and the
+# rate history is not editable into a different past — a raise is a new row.
+# ----------------------------------------------------------------------------
+expect_reject "deleting a pay record" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.employee_wages;"
+
+# Labelled for what it actually proves. This identity holds no membership at
+# the point this file runs, so the refusal is the ORGANIZATION policy — not the
+# module gate, and not the payroll role gate. Those two are asserted in
+# wages_verification.sql, where the identities are real members and the
+# distinction can be made honestly.
+expect_reject "recording pay in an organization you do not belong to" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.employee_wages
+         (organization_id, user_id, hourly_rate, effective_from, set_by)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 100.00, current_date,
+             'cccccccc-cccc-4ccc-8ccc-cccccccccccc');"
+
 exit "$fail"
