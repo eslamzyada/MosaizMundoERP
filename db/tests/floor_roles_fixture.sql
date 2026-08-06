@@ -28,7 +28,11 @@ INSERT INTO public.users (id, email) VALUES
     -- the fixture who should not be notified, every "we did not disturb them"
     -- assertion skips itself — which is exactly how 0041's containment check
     -- passed while the cashier was being dragged into the online queue.
-    ('f10c0007-0000-4000-8000-000000000007', 'floor-cashier@ci.test');
+    ('f10c0007-0000-4000-8000-000000000007', 'floor-cashier@ci.test'),
+    -- An accountant: the interesting middle case for 0042. They may READ
+    -- everybody's pay, because running payroll is their job, and may set
+    -- nobody's, because deciding pay is not.
+    ('f10c0008-0000-4000-8000-000000000008', 'floor-accountant@ci.test');
 
 -- The two new roles, plus a manager so the suite has somebody who CAN do the
 -- things the other two must not.
@@ -38,7 +42,8 @@ INSERT INTO public.organization_memberships (organization_id, user_id, role) VAL
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0003-0000-4000-8000-000000000003', 'branch_manager'),
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0004-0000-4000-8000-000000000004', 'owner'),
     ('f10c0000-0000-4000-8000-000000000000', 'f10c0005-0000-4000-8000-000000000005', 'regional_manager'),
-    ('f10c0000-0000-4000-8000-000000000000', 'f10c0007-0000-4000-8000-000000000007', 'cashier');
+    ('f10c0000-0000-4000-8000-000000000000', 'f10c0007-0000-4000-8000-000000000007', 'cashier'),
+    ('f10c0000-0000-4000-8000-000000000000', 'f10c0008-0000-4000-8000-000000000008', 'accountant');
 
 -- The one-approver restaurant.
 INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES

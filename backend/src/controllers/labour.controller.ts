@@ -264,28 +264,72 @@ export async function hours(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const rows = await req.tx.$queryRaw<Array<{ user_id: string; minutes: number; entries: number }>>`
-      SELECT t.user_id,
-             -- An entry still open counts up to now, so today's total is not
-             -- a lie by omission while somebody is still on the floor.
-             COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(t.ended_at, now()) - t.started_at)) / 60), 0)::int
-               AS minutes,
-             COUNT(*)::int AS entries
-        FROM public.time_entries t
-       WHERE t.started_at >= ${range.from}
-         AND t.started_at < ${range.to}
-       GROUP BY t.user_id
+    /**
+     * Cost is computed PER ENTRY, at the rate that applied on the day it was
+     * worked — not by multiplying a period's total hours by today's rate. Give
+     * somebody a raise mid-month and the two answers differ, and only one of
+     * them is what you owe.
+     *
+     * app.wage_at runs as the caller (0042), so a branch manager gets NULL for
+     * colleagues whose pay they may not read. That is why `cost` is nullable
+     * and why `uncosted_entries` exists: unknown and zero are different
+     * answers, exactly as cost_is_complete distinguishes them for COGS.
+     */
+    const rows = await req.tx.$queryRaw<
+      Array<{
+        user_id: string;
+        minutes: number;
+        entries: number;
+        cost: string | null;
+        uncosted_entries: number;
+      }>
+    >`
+      WITH costed AS (
+        SELECT t.user_id,
+               -- An entry still open counts up to now, so today's total is not
+               -- a lie by omission while somebody is still on the floor.
+               EXTRACT(EPOCH FROM (COALESCE(t.ended_at, now()) - t.started_at)) / 60
+                 AS minutes,
+               app.wage_at(t.user_id, t.started_at::date) AS rate
+          FROM public.time_entries t
+         WHERE t.started_at >= ${range.from}
+           AND t.started_at < ${range.to}
+      )
+      SELECT user_id,
+             COALESCE(SUM(minutes), 0)::int AS minutes,
+             COUNT(*)::int AS entries,
+             -- NULL when nothing could be costed, rather than 0.00.
+             CASE WHEN COUNT(rate) = 0 THEN NULL
+                  ELSE ROUND(SUM(minutes / 60 * rate) FILTER (WHERE rate IS NOT NULL), 2)
+             END AS cost,
+             COUNT(*) FILTER (WHERE rate IS NULL)::int AS uncosted_entries
+        FROM costed
+       GROUP BY user_id
        ORDER BY minutes DESC`;
+
+    const byEmployee = rows.map((r) => ({
+      user_id: r.user_id,
+      minutes: Number(r.minutes),
+      hours: Math.round((Number(r.minutes) / 60) * 100) / 100,
+      entries: Number(r.entries),
+      // null, not 0: nobody's pay is unknown AND free.
+      cost: r.cost === null ? null : Number(r.cost),
+      uncosted_entries: Number(r.uncosted_entries),
+    }));
+
+    const costed = byEmployee.filter((r) => r.cost !== null);
 
     res.status(200).json({
       from: range.from.toISOString(),
       to: range.to.toISOString(),
-      by_employee: rows.map((r) => ({
-        user_id: r.user_id,
-        minutes: Number(r.minutes),
-        hours: Math.round((Number(r.minutes) / 60) * 100) / 100,
-        entries: Number(r.entries),
-      })),
+      by_employee: byEmployee,
+      // The total is only the part that could be costed, and the count beside
+      // it says how much was left out. A single number with silent gaps in it
+      // is worse than no number, because somebody will budget against it.
+      total_cost: costed.length
+        ? Math.round(costed.reduce((sum, r) => sum + (r.cost ?? 0), 0) * 100) / 100
+        : null,
+      uncosted_entries: byEmployee.reduce((sum, r) => sum + r.uncosted_entries, 0),
     });
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -346,6 +390,120 @@ export async function amendEntry(req: Request, res: Response): Promise<void> {
     }
     // eslint-disable-next-line no-console
     console.error('[labour.amendEntry] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
+ * GET /api/labour/wages?user_id= — pay history.
+ *
+ * No role branch here on purpose. 0042's policy decides what comes back: your
+ * own always, everybody's for the owner, the regional manager and the
+ * accountant. A filter in this handler would be a second rule that can
+ * disagree with the first — and on this table, disagreeing means leaking pay.
+ */
+export async function listWages(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  const userId = req.query.user_id ? String(req.query.user_id) : null;
+  if (userId !== null && !UUID_RE.test(userId)) {
+    res.status(400).json({ error: 'user_id must be a uuid' });
+    return;
+  }
+
+  try {
+    const rows = await req.tx.employee_wages.findMany({
+      where: userId ? { user_id: userId } : {},
+      orderBy: [{ user_id: 'asc' }, { effective_from: 'desc' }],
+    });
+    res.status(200).json(rows);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[labour.listWages] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
+ * POST /api/labour/wages — record a rate from a date.
+ *
+ * A raise is a new row, never an edit, so there is deliberately no PATCH: an
+ * edit would rewrite what somebody was owed last month.
+ */
+export async function setWage(req: Request, res: Response): Promise<void> {
+  if (!req.tx || !req.userId) {
+    res.status(500).json({ error: 'No authenticated transaction on request' });
+    return;
+  }
+
+  const { user_id, hourly_rate, effective_from, note } = req.body ?? {};
+  if (!UUID_RE.test(String(user_id ?? ''))) {
+    res.status(400).json({ error: 'user_id must be a uuid' });
+    return;
+  }
+
+  const rate = Number(hourly_rate);
+  if (!Number.isFinite(rate) || rate < 0) {
+    res.status(400).json({ error: 'hourly_rate must be a number, and not negative' });
+    return;
+  }
+
+  // A DATE STRING, never a JS Date. `@db.Date` takes the UTC portion, so a
+  // Date built at local midnight east of UTC lands on the previous day — the
+  // same trap 0033 hit with period_month, and here it would date a raise to
+  // the wrong day.
+  const from = String(effective_from ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    res.status(400).json({ error: 'effective_from must be a date, as YYYY-MM-DD' });
+    return;
+  }
+
+  try {
+    const membership = await resolveMembership(req);
+    if (!membership) {
+      res.status(404).json({ error: 'No active organization membership found for this user' });
+      return;
+    }
+
+    const [row] = await req.tx.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO public.employee_wages
+          (organization_id, user_id, hourly_rate, effective_from, note, set_by)
+      VALUES (${membership.organization_id}::uuid, ${user_id}::uuid, ${rate},
+              ${from}::date, ${note ? String(note).slice(0, 300) : null}, ${req.userId}::uuid)
+      RETURNING id`;
+
+    res.status(201).json({ id: row.id, user_id, hourly_rate: rate, effective_from: from });
+  } catch (err) {
+    const code = postgresErrorCode(err);
+
+    if (code === '23505') {
+      res.status(409).json({
+        error: 'A rate already starts on that date for this person',
+        code: 'duplicate_effective_date',
+      });
+      return;
+    }
+    if (code === '23514') {
+      res.status(400).json({ error: 'That rate is not valid' });
+      return;
+    }
+    if (code === '42501') {
+      // Covers three different refusals — not a manager, your own rate, or the
+      // module is off — and they share a SQLSTATE. Saying which would mean
+      // guessing, so this says what to do instead.
+      res.status(403).json({
+        error:
+          'Only an owner or regional manager may set pay, and nobody but the owner may set their own',
+        code: 'wage_refused',
+      });
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.error('[labour.setWage] failed:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
