@@ -219,4 +219,29 @@ expect_reject "scheduling a shift for a restaurant that does not run labour" \
              'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
              now() + interval '1 day', now() + interval '1 day 8 hours');"
 
+# ----------------------------------------------------------------------------
+# 0040. The public queue is not writable by the application under any
+# circumstances: requests arrive only through app.place_public_order, which
+# prices every line from the menu. A controller that could insert one directly
+# is a controller that could set its own prices.
+# ----------------------------------------------------------------------------
+expect_reject "filing a public order directly, at a price of your choosing" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.public_orders
+         (organization_id, customer_name, customer_phone, quoted_total)
+     VALUES ((SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             'مزيّف', '0100000', 0.01);"
+
+expect_reject "adding a line to a public order directly" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     INSERT INTO public.public_order_lines
+         (public_order_id, organization_id, sellable_item_id, quantity, unit_price, item_name)
+     VALUES (gen_random_uuid(),
+             (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+             gen_random_uuid(), 1, 0.01, 'مزيّف');"
+
+expect_reject "deleting a request somebody would rather forget" \
+    "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.public_orders;"
+
 exit "$fail"
