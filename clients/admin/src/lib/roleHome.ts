@@ -51,19 +51,19 @@ export const ROLE_NAV: Record<Role, string[]> = {
   // them. What is happening on the floor right now is a manager's first
   // question of the day, not an afterthought behind the books.
   owner: [
-    '/dashboard', '/floor', '/reservations', '/kitchen', '/menu', '/orders', '/schedule',
+    '/dashboard', '/floor', '/reservations', '/online-orders', '/kitchen', '/menu', '/orders', '/schedule',
     '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
   regional_manager: [
-    '/dashboard', '/floor', '/reservations', '/kitchen', '/menu', '/orders', '/schedule',
+    '/dashboard', '/floor', '/reservations', '/online-orders', '/kitchen', '/menu', '/orders', '/schedule',
     '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
   ],
   branch_manager: [
-    '/dashboard', '/floor', '/reservations', '/kitchen', '/menu', '/orders', '/schedule',
+    '/dashboard', '/floor', '/reservations', '/online-orders', '/kitchen', '/menu', '/orders', '/schedule',
     '/inventory', '/stocktake', '/recipes',
     '/suppliers', '/purchase-orders', '/reports', '/insights',
     '/members', '/printers', '/settings',
@@ -72,9 +72,9 @@ export const ROLE_NAV: Record<Role, string[]> = {
   // the stocktake that produces it does not.
   accountant: ['/reports', '/insights', '/orders', '/inventory', '/settings'],
   // The floor: my tables, what is on them, and what the kitchen is doing.
-  waiter: ['/floor', '/reservations', '/orders', '/menu', '/schedule', '/settings'],
+  waiter: ['/floor', '/reservations', '/online-orders', '/orders', '/menu', '/schedule', '/settings'],
   // The pass: what has been fired, and what it is made of.
-  kitchen: ['/kitchen', '/orders', '/menu', '/recipes', '/schedule', '/settings'],
+  kitchen: ['/kitchen', '/online-orders', '/orders', '/menu', '/recipes', '/schedule', '/settings'],
   // One page, and it says to use the till.
   cashier: ['/till', '/settings'],
   staff: ['/floor', '/reservations', '/orders', '/menu', '/schedule', '/settings'],
@@ -117,6 +117,7 @@ export const ROUTE_MODULE: Record<string, string> = {
   '/printers': 'printers',
   '/schedule': 'labour',
   '/reservations': 'reservations',
+  '/online-orders': 'public_ordering',
 };
 
 /**
