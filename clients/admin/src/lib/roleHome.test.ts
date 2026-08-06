@@ -187,3 +187,20 @@ describe('the capabilities added in 0038 and 0039', () => {
     expect(kitchen).not.toContain('/reservations');
   });
 });
+
+describe('online ordering in the sidebar (0040)', () => {
+  it('is offered only when the module is on', () => {
+    expect(navFor('owner', ['reservations'])).not.toContain('/online-orders');
+    expect(navFor('owner', ['public_ordering'])).toContain('/online-orders');
+  });
+
+  it('reaches the kitchen as well as the floor', () => {
+    // A request that nobody at the pass can see is a request that goes cold.
+    expect(navFor('kitchen', ['public_ordering'])).toContain('/online-orders');
+    expect(navFor('waiter', ['public_ordering'])).toContain('/online-orders');
+  });
+
+  it('is not offered to the accountant', () => {
+    expect(navFor('accountant', ['public_ordering'])).not.toContain('/online-orders');
+  });
+});

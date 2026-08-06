@@ -88,7 +88,11 @@ describe('finding a page', () => {
     renderPalette();
     await user.type(screen.getByRole('combobox'), 'ط');
 
-    expect(await screen.findByRole('option', { name: /الطلبات/ })).toBeInTheDocument();
+    // Anchored, not a substring: 0040 added «الطلبات أونلاين», which a loose
+    // pattern matches too. The accessible name is the label plus the row's
+    // chip, so this names exactly one destination — which is what the
+    // assertion is about.
+    expect(await screen.findByRole('option', { name: /^الطلبات صفحة$/ })).toBeInTheDocument();
     // Past the debounce before concluding nothing was sent. Asserting straight
     // away passes even with the guard removed — the request simply had not been
     // made YET.
