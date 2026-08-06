@@ -13,6 +13,7 @@ import menuChangeRoutes from './routes/menuChange.routes';
 import notificationRoutes from './routes/notification.routes';
 import moduleRoutes from './routes/module.routes';
 import labourRoutes from './routes/labour.routes';
+import reservationRoutes from './routes/reservation.routes';
 import reportRoutes from './routes/report.routes';
 import ratingRoutes from './routes/rating.routes';
 import ratingCriteriaRoutes from './routes/ratingCriteria.routes';
@@ -154,6 +155,10 @@ app.use('/api/modules', moduleRoutes);
 // The rota and the time clock (0038). Gated by the labour module, which ships
 // switched off — it is a new capability, not one anybody was already using.
 app.use('/api/labour', labourRoutes);
+
+// Tables and bookings (0039). The first time this system has had a table at
+// all — the floor screen shows open tabs, not tables.
+app.use('/api/reservations', reservationRoutes);
 
 // Profitability reporting, from the cost captured at each sale. Restricted to
 // FINANCE_ROLES inside the router — SELECT is ungated in the database.
