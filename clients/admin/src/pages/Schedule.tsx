@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { labourRepository, type HoursRow, type Shift } from '../api/LabourRepository';
+import {
+  labourRepository,
+  type HoursReport,
+  type HoursRow,
+  type Shift,
+  type Wage,
+} from '../api/LabourRepository';
 import { apiClient } from '../api/client';
 import { useSession } from '../session/SessionProvider';
 import { classifyLoadFailure } from '../lib/loadFailure';
@@ -46,6 +52,9 @@ export default function Schedule() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [hours, setHours] = useState<HoursRow[]>([]);
+  // The whole report, not just the rows: the total and the uncosted count are
+  // a pair, and showing one without the other is how a gap becomes invisible.
+  const [report, setReport] = useState<HoursReport | null>(null);
   const [failure, setFailure] = useState<ReturnType<typeof classifyLoadFailure> | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -59,6 +68,7 @@ export default function Schedule() {
       ]);
       setShifts(s);
       setHours(h.by_employee);
+      setReport(h);
       setFailure(null);
     } catch (err) {
       setFailure(classifyLoadFailure(err));
@@ -221,12 +231,54 @@ export default function Schedule() {
                 <span className="truncate text-app-ink">{nameOf(h.user_id)}</span>
                 <span className="font-numerals text-app-ink-muted">
                   {h.hours} ساعة · {h.entries} تسجيل
+                  {/* Cost only when it is KNOWN. Null means either nobody has
+                      recorded a rate or you may not read this person's pay,
+                      and printing 0.00 for either would be a lie somebody
+                      budgets against. */}
+                  {h.cost !== null && (
+                    <span className="ms-2 font-semibold text-app-ink">
+                      {h.cost.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                    </span>
+                  )}
+                  {h.cost === null && h.minutes > 0 && (
+                    <span className="ms-2 text-app-ink-muted">التكلفة غير معروفة</span>
+                  )}
                 </span>
               </li>
             ))}
           </ul>
         )}
+
+        {/* The total says what it left out, in the same breath. */}
+        {report && (report.total_cost !== null || report.uncosted_entries > 0) && (
+          <p
+            data-testid="labour-cost-total"
+            className="mt-3 border-t border-app-border pt-3 text-xs text-app-ink-muted"
+          >
+            {report.total_cost !== null && (
+              <>
+                تكلفة العمالة:{' '}
+                <span className="font-numerals font-semibold text-app-ink">
+                  {report.total_cost.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                </span>
+              </>
+            )}
+            {report.uncosted_entries > 0 && (
+              <span className="ms-2">
+                (<span className="font-numerals">{report.uncosted_entries}</span> تسجيل بلا أجر
+                معروف — غير محسوب)
+              </span>
+            )}
+          </p>
+        )}
       </section>
+
+      {/* Pay (0042). Offered to whoever may schedule; the database is what
+          decides whether they may actually set a rate — owner and regional
+          manager only, and not their own. A branch manager sees this panel and
+          gets a refusal with the reason, which is more useful than an absence
+          they have to guess about. */}
+      {canSchedule && <WagePanel members={members} onSaved={load} />}
     </div>
   );
 }
@@ -337,5 +389,159 @@ function ScheduleForm({
         {busy ? 'جارٍ الإضافة…' : 'إضافة وردية'}
       </button>
     </form>
+  );
+}
+
+/**
+ * Pay (0042).
+ *
+ * A raise is a NEW ROW from a date, so this form has no "edit" — the history
+ * below it is what somebody was owed, and editing it would rewrite that.
+ *
+ * What comes back in that history is decided by the database, not here: your
+ * own always, everybody's for the owner, the regional manager and the
+ * accountant. A branch manager opening this sees their own rate and nobody
+ * else's, which is the correct answer rather than a bug.
+ */
+function WagePanel({
+  members,
+  onSaved,
+}: {
+  members: Member[];
+  onSaved: () => Promise<void>;
+}) {
+  const [wages, setWages] = useState<Wage[]>([]);
+  const [userId, setUserId] = useState('');
+  const [rate, setRate] = useState('');
+  const [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setWages(await labourRepository.wages());
+    } catch {
+      setWages([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const nameOf = (id: string) => members.find((m) => m.user_id === id)?.email ?? id.slice(0, 8);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setProblem(null);
+
+    const value = Number(rate);
+    if (!userId) return setProblem('اختر الموظف.');
+    if (!Number.isFinite(value) || value < 0) return setProblem('أدخل أجرًا صحيحًا.');
+
+    setBusy(true);
+    try {
+      // A date STRING. Sending a Date would serialise to UTC and land on the
+      // previous day east of UTC — the raise would be dated wrongly.
+      await labourRepository.setWage({ user_id: userId, hourly_rate: value, effective_from: from });
+      setRate('');
+      await Promise.all([load(), onSaved()]);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setProblem('يوجد أجر يبدأ من هذا التاريخ لهذا الموظف بالفعل.');
+      } else if (axios.isAxiosError(err) && err.response?.status === 403) {
+        setProblem('يحدّد الأجور المالك أو المدير الإقليمي فقط، ولا يحدّد أحد أجر نفسه.');
+      } else {
+        setProblem('تعذّر حفظ الأجر.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      className="mt-6 rounded-xl border border-app-border bg-app-surface p-4"
+      data-testid="wage-panel"
+    >
+      <h2 className="text-sm font-bold text-app-ink">الأجور</h2>
+      <p className="mt-1 text-xs text-app-ink-muted">
+        الأجر يبدأ من تاريخ. العلاوة سجلّ جديد — لا يُعدَّل السابق، حتى لا يتغيّر ما استُحقّ فعلًا.
+      </p>
+
+      {problem && (
+        <p className="mt-3 rounded-lg border border-sunset-300 bg-sunset-50 px-3 py-2 text-xs text-sunset-800">
+          {problem}
+        </p>
+      )}
+
+      <form onSubmit={submit} className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="text-xs text-app-ink-muted">
+          الموظف
+          <select
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            aria-label="الموظف"
+            className="mt-1 block rounded-lg border border-app-border bg-app-bg px-3 py-2 text-sm text-app-ink"
+          >
+            <option value="">—</option>
+            {members.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.email}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-app-ink-muted">
+          الأجر بالساعة
+          <input
+            type="number"
+            min={0}
+            step="0.25"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            aria-label="الأجر بالساعة"
+            className="font-numerals mt-1 block w-28 rounded-lg border border-app-border bg-app-bg px-3 py-2 text-sm text-app-ink"
+          />
+        </label>
+        <label className="text-xs text-app-ink-muted">
+          يبدأ من
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            aria-label="يبدأ من"
+            className="font-numerals mt-1 block rounded-lg border border-app-border bg-app-bg px-3 py-2 text-sm text-app-ink"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy}
+          data-testid="save-wage"
+          className="rounded-lg bg-twilight-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {busy ? 'جارٍ الحفظ…' : 'حفظ الأجر'}
+        </button>
+      </form>
+
+      {wages.length === 0 ? (
+        <p className="mt-3 text-xs text-app-ink-muted">لا توجد أجور مسجّلة تظهر لك.</p>
+      ) : (
+        <ul className="mt-3 space-y-1" data-testid="wage-history">
+          {wages.map((w) => (
+            <li
+              key={w.id}
+              className="flex items-center justify-between rounded-lg bg-app-bg px-3 py-2 text-sm"
+            >
+              <span className="truncate text-app-ink">{nameOf(w.user_id)}</span>
+              <span className="font-numerals text-app-ink-muted">
+                {Number(w.hourly_rate).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م /
+                ساعة · من {String(w.effective_from).slice(0, 10)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
