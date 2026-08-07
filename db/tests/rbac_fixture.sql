@@ -18,7 +18,9 @@ INSERT INTO public.users (id, email) VALUES
     ('a11c0004-0000-4000-8000-000000000004', 'rbac-accountant@ci.test');
 
 INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES
-    ('a11c0000-0000-4000-8000-000000000000', 'RBAC Test Org', 'ci-rbac-org', 'basic');
+    -- Enterprise (0044): the role assertions below reach recipes,
+    -- purchasing and performance, none of which basic includes.
+    ('a11c0000-0000-4000-8000-000000000000', 'RBAC Test Org', 'ci-rbac-org', 'enterprise');
 
 INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES
     ('a11c0000-0000-4000-8000-000000000000', 'a11c0001-0000-4000-8000-000000000001', 'owner'),

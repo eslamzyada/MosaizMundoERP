@@ -39,7 +39,7 @@ let regionalToken = '';
 const as = (t: string) => ({ Authorization: `Bearer ${t}` });
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Notify Org'}, ${`ntf-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Notify Org'}, ${`ntf-${orgId.slice(0, 8)}`}, 'enterprise')`;
 
   for (const [id, prefix, role] of [
     [ownerId, 'ntf-own', 'owner'],

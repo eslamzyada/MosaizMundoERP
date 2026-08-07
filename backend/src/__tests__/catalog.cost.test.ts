@@ -47,7 +47,7 @@ async function fetchItems(): Promise<Item[]> {
 
 beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userId}::uuid, ${`catcost-${userId}@dev.local`})`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Catalog Cost Org'}, ${`catcost-${userId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Catalog Cost Org'}, ${`catcost-${userId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${userId}::uuid, 'owner')`;
 
   await admin.$executeRaw`INSERT INTO public.sellable_items (id, organization_id, name, sku, price) VALUES (${pricedId}::uuid, ${orgId}::uuid, ${'Priced Dish'}, ${'CC-PRICED'}, 100)`;

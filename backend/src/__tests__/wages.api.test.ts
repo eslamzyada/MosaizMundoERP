@@ -45,7 +45,7 @@ const dayOffset = (days: number) => {
 };
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Wage Org'}, ${`wg-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Wage Org'}, ${`wg-${orgId.slice(0, 8)}`}, 'enterprise')`;
 
   for (const [id, prefix, role] of [
     [ownerId, 'wg-own', 'owner'],

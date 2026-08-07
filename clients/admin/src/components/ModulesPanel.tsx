@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { moduleRepository, type TenantModule } from '../api/ModuleRepository';
+import { moduleRepository, planName, type TenantModule } from '../api/ModuleRepository';
 import { useSession } from '../session/SessionProvider';
 
 /**
@@ -15,6 +15,13 @@ import { useSession } from '../session/SessionProvider';
  *   2. It does not pretend a dependency does not exist. Switching المخزون off
  *      while المشتريات is still on comes back 409 naming the blocker, and that
  *      name is shown as-is.
+ *
+ * Since 0044 there is a THIRD reason a switch will not move, and it is the one
+ * that must never be confused with the other two: the plan does not reach it.
+ * A greyed switch that says "ask your owner" when the owner is the one reading
+ * it is worse than no explanation. So a capability above the plan is shown,
+ * named, and labelled with the tier that would unlock it — visible, because
+ * you cannot want what you cannot see, and locked, because it is not included.
  */
 export default function ModulesPanel() {
   const { me, reload } = useSession();
@@ -76,6 +83,16 @@ export default function ModulesPanel() {
             ? `لا يمكن إيقاف «${mod.name}» بينما «${nameOf(body.blocked_by)}» ما زالت مفعّلة.`
             : (body.error ?? 'تعذّر إجراء هذا التغيير.'),
         );
+      } else if (axios.isAxiosError(err) && err.response?.status === 402) {
+        // The backstop for a downgrade that lands between this screen loading
+        // and the switch being pressed. The button is already disabled for the
+        // cases we know about; this covers the one we cannot.
+        const body = err.response.data as { required_plan?: string };
+        setProblem(
+          body.required_plan
+            ? `«${mod.name}» غير مشمولة في خطتك الحالية — تحتاج خطة ${planName(body.required_plan)}.`
+            : 'هذه الوحدة غير مشمولة في خطتك الحالية.',
+        );
       } else if (axios.isAxiosError(err) && err.response?.status === 403) {
         setProblem('تغيير الوحدات من صلاحية المالك أو المدير الإقليمي فقط.');
       } else {
@@ -87,6 +104,22 @@ export default function ModulesPanel() {
   }
 
   const nameOf = (key: string) => modules?.find((m) => m.key === key)?.name ?? key;
+
+  /**
+   * Whether the plan holds this switch down.
+   *
+   * Only on the way ON. A capability above the plan that is somehow running —
+   * grandfathered, or switched on before a downgrade — must stay switchable
+   * OFF, or a tenant is stuck with a screen they cannot use and cannot clear.
+   *
+   * An ABSENT `entitled` means no opinion, not "locked". This screen is not
+   * the gate — the database is, and the API answers 402 either way. Reading a
+   * missing field as a lock would freeze every switch against an older API,
+   * which is a broken screen in exchange for a guarantee we already have.
+   * Same reading `navFor` gives an absent module list.
+   */
+  const locked = (mod: TenantModule) =>
+    !mod.enabled && mod.entitled === false && !mod.grandfathered;
 
   if (failed) {
     return (
@@ -106,6 +139,15 @@ export default function ModulesPanel() {
         شغّل ما يخدم مطعمك وأوقف ما لا يخدمه. إيقاف وحدة يمنع العمليات الجديدة فيها،
         ولا يغيّر شيئًا في التقارير عمّا مضى.
       </p>
+
+      {me?.plan && (
+        <p
+          data-testid="current-plan"
+          className="mt-3 inline-block rounded-lg bg-app-bg px-3 py-1.5 text-xs text-app-ink-muted"
+        >
+          خطة الاشتراك الحالية: <span className="font-semibold text-app-ink">{planName(me.plan)}</span>
+        </p>
+      )}
 
       {!canDecide && (
         <p className="mt-3 rounded-lg bg-app-bg px-3 py-2 text-xs text-app-ink-muted">
@@ -172,6 +214,29 @@ export default function ModulesPanel() {
                   تحتاج: {mod.depends_on.map(nameOf).join('، ')}
                 </span>
               )}
+
+              {/* Locked by the plan, and by nothing else — this is the label a
+                  reader needs in order to know the fix costs money rather than
+                  a click. Shown to everyone, not only to whoever may decide. */}
+              {!mod.entitled && !mod.grandfathered && (
+                <span
+                  data-testid={`locked-${mod.key}`}
+                  className="mt-1 inline-block rounded bg-sunset-50 px-2 py-0.5 text-[11px] font-medium text-sunset-700"
+                >
+                  متاحة في خطة {planName(mod.min_plan)}
+                </span>
+              )}
+
+              {/* On despite the ceiling, because it was on before there were
+                  plans. Saying so beats a reader concluding the lock is broken. */}
+              {!mod.entitled && mod.grandfathered && (
+                <span
+                  data-testid={`kept-${mod.key}`}
+                  className="mt-1 inline-block rounded bg-app-bg px-2 py-0.5 text-[11px] text-app-ink-muted"
+                >
+                  محتفظ بها من اشتراكك السابق
+                </span>
+              )}
             </span>
 
             <button
@@ -179,12 +244,12 @@ export default function ModulesPanel() {
               role="switch"
               aria-checked={mod.enabled}
               aria-label={mod.name}
-              disabled={!canDecide || busy === mod.key}
+              disabled={!canDecide || busy === mod.key || locked(mod)}
               onClick={() => requestToggle(mod)}
               className={[
                 'mt-1 h-6 w-11 flex-shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500',
                 mod.enabled ? 'bg-twilight-600' : 'bg-app-border',
-                !canDecide ? 'cursor-not-allowed opacity-50' : '',
+                !canDecide || locked(mod) ? 'cursor-not-allowed opacity-50' : '',
               ].join(' ')}
             >
               <span

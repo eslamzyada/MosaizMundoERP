@@ -51,7 +51,7 @@ const at = (hoursFromBase: number) =>
   new Date(BASE + hoursFromBase * 3600_000).toISOString();
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Res Org'}, ${`res-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Res Org'}, ${`res-${orgId.slice(0, 8)}`}, 'enterprise')`;
 
   for (const [id, prefix, role] of [
     [ownerId, 'res-own', 'owner'],

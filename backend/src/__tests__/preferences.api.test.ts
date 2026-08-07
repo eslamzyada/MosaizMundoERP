@@ -37,7 +37,7 @@ const asManager = () => ({ Authorization: `Bearer ${managerToken}` });
 const asCashier = () => ({ Authorization: `Bearer ${cashierToken}` });
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Prefs Org'}, ${`prefs-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Prefs Org'}, ${`prefs-${orgId.slice(0, 8)}`}, 'enterprise')`;
 
   for (const [id, prefix, role] of [
     [managerId, 'prefs-mgr', 'branch_manager'],

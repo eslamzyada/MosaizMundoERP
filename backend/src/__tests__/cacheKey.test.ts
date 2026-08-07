@@ -106,3 +106,58 @@ describe('invalidation', () => {
     expect(criteria.startsWith(pattern.slice(0, -1))).toBe(false);
   });
 });
+
+/**
+ * The plan in the key (0044).
+ *
+ * This is not tenant isolation — that is the organization's job, above. It is
+ * isolation ACROSS TIME. app.change_plan runs in the database as an operator,
+ * so no request passes through this process when a tenant is downgraded and
+ * there is nothing to hang an invalidation on. Naming the entries after the
+ * plan means nobody goes looking for the old ones again.
+ */
+describe('a downgrade cannot be served out of the cache', () => {
+  it('gives the same reader on two plans two different keys', () => {
+    const premium = cacheKey('criteria', { organizationId: ORG_A, role: 'owner', plan: 'premium' });
+    const basic = cacheKey('criteria', { organizationId: ORG_A, role: 'owner', plan: 'basic' });
+
+    expect(premium).not.toBeNull();
+    expect(premium).not.toEqual(basic);
+  });
+
+  it('treats an unknown plan as the FLOOR, never as the ceiling', () => {
+    // Same rule as app.plan_rank. A caller that cannot work out the plan
+    // shares a name with the cheapest tenants — reading a basic answer on a
+    // premium plan is a bad afternoon; the reverse is giving the product away.
+    const missing = cacheKey('criteria', { organizationId: ORG_A, role: 'owner' });
+    const basic = cacheKey('criteria', { organizationId: ORG_A, role: 'owner', plan: 'basic' });
+    const premium = cacheKey('criteria', { organizationId: ORG_A, role: 'owner', plan: 'premium' });
+
+    expect(missing).toEqual(basic);
+    expect(missing).not.toEqual(premium);
+  });
+
+  it('still refuses to build a key at all without an organization', () => {
+    // The plan must not become a substitute for the identity.
+    expect(cacheKey('criteria', { organizationId: null, role: 'owner', plan: 'premium' })).toBeNull();
+    expect(cacheKey('criteria', { organizationId: ORG_A, role: null, plan: 'premium' })).toBeNull();
+  });
+
+  it('is still cleared by an explicit invalidation, on every plan it has been on', () => {
+    // The plan sits inside the wildcard, so a menu change clears the tenant's
+    // entries whatever tier they were computed under.
+    const pattern = invalidationPattern('criteria', ORG_A);
+    const prefix = pattern.slice(0, -1);
+
+    for (const plan of ['basic', 'standard', 'premium', 'enterprise']) {
+      const key = cacheKey('criteria', { organizationId: ORG_A, role: 'owner', plan })!;
+      expect(key.startsWith(prefix)).toBe(true);
+    }
+  });
+
+  it('does not let another restaurant in by way of the plan', () => {
+    const pattern = invalidationPattern('criteria', ORG_A);
+    const other = cacheKey('criteria', { organizationId: ORG_B, role: 'owner', plan: 'premium' })!;
+    expect(other.startsWith(pattern.slice(0, -1))).toBe(false);
+  });
+});

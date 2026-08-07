@@ -1,8 +1,18 @@
 # Composable tenancy: modules, plans and entitlements
 
 Research and design notes for making Mosaiz Mundo adjustable per tenant.
-Written after 0037 shipped the module system; the plan layer (0038) is
-specified here but not yet built.
+Written after 0037 shipped the module system. **The plan layer shipped in
+0044** — this document is the design it was built from, and §4–§5 now describe
+what exists rather than what is proposed. Two things changed in the building:
+
+- The matrix gained the three modules that shipped after this was written:
+  `labour` and `reservations` at standard, `public_ordering` at premium.
+- `app.org_has_module`'s fallback had to change too. 0037 made "no row" mean
+  the catalogue default, which after 0044 would have handed the premium shelf
+  to every restaurant created tomorrow — nobody would need to switch anything
+  on, so the ceiling would never be asked. An absent row is now the default
+  INTERSECTED with the plan; an explicit row still wins outright, which is
+  where both tenant choice and grandfathering live.
 
 **Read this before adding a module, a plan, or anything that gates a feature.**
 
@@ -89,7 +99,7 @@ capability, ahead of anything cosmetic.
 
 ---
 
-## 4. Plans (0038, not yet built)
+## 4. Plans (0044, shipped)
 
 `organizations.plan_tier` has existed since 0001 with four values and is read by
 nothing. The module system deliberately shipped without touching it, so that
@@ -157,7 +167,7 @@ that money-shaped paths stay uncached.
 
 ---
 
-## 5. What 0038 adds
+## 5. What 0044 added
 
 1. `modules.min_plan` (`basic` | `standard` | `premium` | `enterprise`) and a
    plan-ordering helper, so "included in this plan" is data rather than code.

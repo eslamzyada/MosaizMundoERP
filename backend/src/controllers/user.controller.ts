@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { enabledModules } from '../lib/modules';
+import { enabledModules, readPlan } from '../lib/modules';
 
 /**
  * GET /api/me
@@ -41,11 +41,18 @@ export async function getMe(req: Request, res: Response): Promise<void> {
     // wrong in one of the two ways.
     const modules = await enabledModules(req.tx, membership.organization_id);
 
+    // The plan rides along too (0044). The sidebar is built from what is ON,
+    // but the الوحدات screen has to explain what is OFF, and "not included in
+    // your plan" reads very differently from "your owner switched this off" —
+    // one of those is worth a phone call to sales and the other is not.
+    const plan = await readPlan(req.tx, membership.organization_id);
+
     res.status(200).json({
       user_id: req.userId,
       organization_id: membership.organization_id,
       role: membership.role,
       modules,
+      plan,
     });
   } catch (err) {
     // eslint-disable-next-line no-console

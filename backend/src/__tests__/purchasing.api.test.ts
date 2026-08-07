@@ -89,7 +89,7 @@ beforeAll(async () => {
     [orgId, 'Buying Org'],
     [otherOrgId, 'Other Buying Org'],
   ] as const) {
-    await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${id}::uuid, ${label}, ${`buy-${id.slice(0, 8)}`}, 'basic')`;
+    await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${id}::uuid, ${label}, ${`buy-${id.slice(0, 8)}`}, 'enterprise')`;
   }
 
   for (const [id, prefix, role] of [

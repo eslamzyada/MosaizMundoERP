@@ -45,7 +45,7 @@ async function burgerLines(): Promise<
 
 beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userId}::uuid, ${`rec-${userId}@dev.local`})`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Recipe Org'}, ${`rec-${userId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Recipe Org'}, ${`rec-${userId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${userId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.sellable_items (id, organization_id, name, sku) VALUES (${burgerId}::uuid, ${orgId}::uuid, ${'Burger'}, ${'REC-BRG'})`;
   await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${pattyId}::uuid, ${orgId}::uuid, ${'Patty'}, ${'pieces'})`;
@@ -59,7 +59,7 @@ beforeAll(async () => {
 
   // A second tenant with its own recipe line.
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${otherUserId}::uuid, ${`rec-other-${otherUserId}@dev.local`})`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${otherOrgId}::uuid, ${'Other Recipe Org'}, ${`rec-oth-${otherUserId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${otherOrgId}::uuid, ${'Other Recipe Org'}, ${`rec-oth-${otherUserId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${otherOrgId}::uuid, ${otherUserId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.sellable_items (id, organization_id, name, sku) VALUES (${otherSellableId}::uuid, ${otherOrgId}::uuid, ${'Other Dish'}, ${'REC-OTH'})`;
   await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${otherRawId}::uuid, ${otherOrgId}::uuid, ${'Other Spice'}, ${'grams'})`;

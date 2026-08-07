@@ -21,16 +21,28 @@ export interface ModuleRow {
   depends_on: string[];
   enforced_in: string;
   enabled: boolean;
+  /** The cheapest plan that may switch this on (0044). */
+  min_plan: string;
+  /** Whether this tenant's plan reaches it — separate from whether it is on. */
+  entitled: boolean;
+  /** Kept from before plans existed, so the ceiling lets it through anyway. */
+  grandfathered: boolean;
   sort_order: number;
 }
 
 /**
  * The catalogue with this organization's answer for each row.
  *
- * LEFT JOIN with a COALESCE onto the catalogue default, not an inner join: a
- * tenant that predates a module has no row for it, and inner-joining would
- * silently report a brand-new capability as switched off for every existing
- * restaurant.
+ * `enabled` is asked of app.org_has_module rather than computed here. It used
+ * to be COALESCE(om.enabled, m.default_enabled), which was the same answer
+ * until 0044 — after which an absent row means "the default, IF the plan
+ * reaches it", and a reimplementation in SQL up here would drift from the
+ * policy the moment either changed. The rule was always that the policy wins;
+ * this makes it structural rather than aspirational.
+ *
+ * The LEFT JOIN stays for `grandfathered`, which has no row for most tenants:
+ * a tenant that predates a module has no row at all, and an inner join would
+ * silently drop every capability nobody has ever decided about.
  */
 export async function readModules(
   tx: Prisma.TransactionClient,
@@ -47,7 +59,10 @@ export async function readModules(
            m.description_ar,
            m.depends_on,
            m.enforced_in,
-           COALESCE(om.enabled, m.default_enabled) AS enabled,
+           app.org_has_module(${organizationId}::uuid, m.key) AS enabled,
+           m.min_plan,
+           app.plan_includes(${organizationId}::uuid, m.key) AS entitled,
+           COALESCE(om.grandfathered, false) AS grandfathered,
            m.sort_order
       FROM public.modules m
       LEFT JOIN public.organization_modules om
@@ -63,4 +78,21 @@ export async function enabledModules(
 ): Promise<string[]> {
   const rows = await readModules(tx, organizationId);
   return rows.filter((r) => r.enabled).map((r) => r.key);
+}
+
+/**
+ * Which plan this tenant is on (0044).
+ *
+ * Separate from readModules because the plan is one string and the catalogue
+ * is thirteen rows: the sidebar needs the rows, and "you are on basic" needs
+ * only this. Falls back to `basic` rather than to nothing — the same
+ * fail-closed rule app.plan_rank applies, for the same reason.
+ */
+export async function readPlan(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+): Promise<string> {
+  const rows = await tx.$queryRaw<Array<{ plan_tier: string }>>`
+    SELECT o.plan_tier FROM public.organizations o WHERE o.id = ${organizationId}::uuid`;
+  return rows[0]?.plan_tier ?? 'basic';
 }

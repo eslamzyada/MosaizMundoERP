@@ -77,6 +77,8 @@ export async function disconnectCache(): Promise<void> {
 export interface CacheContext {
   organizationId: string | null;
   role: string | null;
+  /** The plan, so an entry cannot outlive the entitlement that produced it. */
+  plan?: string | null;
 }
 
 /**
@@ -160,8 +162,20 @@ export async function contextFor(req: Request): Promise<CacheContext> {
     select: { organization_id: true, role: true },
   });
 
+  if (!membership) return { organizationId: null, role: null };
+
+  // One primary-key lookup, on a request that was about to hit Redis anyway.
+  // It is the price of a cache that cannot outlive a downgrade, and it is
+  // cheaper than the alternative — which is a tenant reading premium answers
+  // for a minute after they stopped paying for them.
+  const org = await req.tx.organizations.findUnique({
+    where: { id: membership.organization_id },
+    select: { plan_tier: true },
+  });
+
   return {
-    organizationId: membership?.organization_id ?? null,
-    role: membership?.role ?? null,
+    organizationId: membership.organization_id,
+    role: membership.role,
+    plan: org?.plan_tier ?? 'basic',
   };
 }

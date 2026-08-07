@@ -52,7 +52,7 @@ async function writeOff(rawId: string, quantity: number, reason: string, note?: 
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Waste Org'}, ${`waste-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Waste Org'}, ${`waste-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [ownerId, 'waste-owner', 'owner'],
     [cashierId, 'waste-cash', 'cashier'],

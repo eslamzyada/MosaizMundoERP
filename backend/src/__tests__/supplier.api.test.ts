@@ -77,7 +77,7 @@ async function priceHistory(who = 'owner'): Promise<PriceRow[]> {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Supplier Org'}, ${`sup-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Supplier Org'}, ${`sup-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [ownerId, 'sup-owner', 'owner'],
     [cashierId, 'sup-cash', 'cashier'],
@@ -93,7 +93,7 @@ beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${flourId}::uuid, ${orgId}::uuid, ${'Sup Flour'}, ${'grams'})`;
 
   // Tenant B and its supplier.
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Supplier Org B'}, ${`sup-b-${userBId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Supplier Org B'}, ${`sup-b-${userBId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`sup-b-${userBId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.suppliers (id, organization_id, name) VALUES (${supplierBId}::uuid, ${orgBId}::uuid, ${'Tenant B Supplier'})`;
