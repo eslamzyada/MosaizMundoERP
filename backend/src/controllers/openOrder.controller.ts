@@ -110,10 +110,16 @@ function requireUuid(value: unknown, res: Response, what: string): value is stri
 
 /**
  * POST /api/pos/orders/open
- *   { organization_id, client_offline_id, note?, items?: [{ sellable_item_id, quantity, note? }] }
+ *   { organization_id, client_offline_id, table_id?, note?, items?: [...] }
  *
  * Opens a tab. `items` is OPTIONAL: a table is seated and given menus before it
  * orders anything, and an empty tab is the honest record of that.
+ *
+ * `table_id` is optional too, and stays that way (0045). Takeaway has no
+ * table, and a restaurant that does not run the `reservations` module has no
+ * floor plan to choose from — for them a tab is what it always was. When it IS
+ * given, app.open_order refuses a table that is another restaurant's (400) or
+ * one already running a tab (409, naming the table).
  *
  * Idempotent on client_offline_id exactly as checkout is — the till may be
  * offline and retrying, and a retry must not open a second tab for one table.
@@ -164,6 +170,10 @@ export async function listOpenOrders(req: Request, res: Response): Promise<void>
           include: { sellable_items: { select: { name: true, sku: true } } },
           orderBy: { created_at: 'asc' },
         },
+        // The table's LABEL, not just its id (0045). A till showing a uuid is
+        // a till nobody can use, and the alternative — a second request per
+        // tab to resolve names — is a request per table on a busy floor.
+        restaurant_tables: { select: { id: true, label: true, area: true } },
       },
       orderBy: { created_at: 'asc' },
     });

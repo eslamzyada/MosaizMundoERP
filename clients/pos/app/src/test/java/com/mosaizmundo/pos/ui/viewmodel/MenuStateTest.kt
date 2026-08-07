@@ -1,6 +1,7 @@
 package com.mosaizmundo.pos.ui.viewmodel
 
 import com.mosaizmundo.pos.domain.CartItem
+import com.mosaizmundo.pos.domain.FloorTable
 import com.mosaizmundo.pos.domain.ConfiguredPrinter
 import com.mosaizmundo.pos.domain.OpenTab
 import com.mosaizmundo.pos.domain.OrderState
@@ -63,7 +64,9 @@ class MenuStateTest {
         ) = Unit
 
         override suspend fun openTabs(): List<OpenTab> = emptyList()
-        override suspend fun openTab(note: String, items: List<CartItem>): String {
+        override suspend fun tables(): List<FloorTable> = emptyList()
+
+        override suspend fun openTab(note: String, items: List<CartItem>, tableId: String?): String {
             openedNote = note
             openedItems = items
             return "t-1"

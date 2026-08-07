@@ -15,10 +15,33 @@ package com.mosaizmundo.pos.domain
  * Both states are shown, never filtered, because "what has the kitchen already
  * got?" is the question a server is actually asking when they look at a table.
  */
+/**
+ * A table on the floor plan (0039).
+ *
+ * [busy] is not a column — it is computed against the open tabs, because "one
+ * table, one tab" is enforced in the database and a picker that offered a
+ * table already running one would just be collecting refusals.
+ */
+data class FloorTable(
+    val id: String,
+    val label: String,
+    val area: String?,
+    val seats: Int?,
+    val busy: Boolean = false,
+)
+
 data class OpenTab(
     val id: String,
-    /** Table number, takeaway, an allergy warning — context for the whole tab. */
+    /** Takeaway, an allergy warning — context for the whole tab. */
     val note: String?,
+    /**
+     * The table, when there is one (0045). Null for takeaway, and null for
+     * every tab in a restaurant that does not run the reservations module.
+     *
+     * Before 0045 this was written into [note] as free text, which meant
+     * "طاولة ٥" and "T5" were two tables to the database and one to the floor.
+     */
+    val table: FloorTable?,
     val totalAmount: Double,
     val openedAt: String,
     val lines: List<OpenTabLine>,

@@ -17,6 +17,14 @@ data class OrderResponse(
     val stock_restored: Boolean?,
     /** Why it was voided (0022). Null exactly when the order is not voided. */
     val void_reason: String?,
+    /**
+     * The table this tab is running at (0045), label and all.
+     *
+     * Sent nested rather than as a bare id so the till can print "طاولة ٧"
+     * without a second request per tab — on a busy floor that would be a
+     * request per table, every refresh.
+     */
+    val restaurant_tables: OrderTableResponse?,
     val order_items: List<OrderLineResponse>,
 )
 
