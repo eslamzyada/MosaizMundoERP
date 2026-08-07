@@ -52,7 +52,7 @@ async function rate(who: string, body: Record<string, unknown>) {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Rating Org'}, ${`rate-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Rating Org'}, ${`rate-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [managerId, 'rate-mgr', 'branch_manager'],
     [cashierId, 'rate-cash', 'cashier'],
@@ -64,7 +64,7 @@ beforeAll(async () => {
   tokens.cashier = jwt.sign({ sub: cashierId, aud: 'authenticated', role: 'authenticated' }, JWT_SECRET as string, { algorithm: 'HS256', expiresIn: 3600 });
 
   // Another tenant, whose employee must be unrateable from here.
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Rating Org B'}, ${`rate-b-${orgBId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Rating Org B'}, ${`rate-b-${orgBId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${outsiderId}::uuid, ${`rate-out-${outsiderId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${outsiderId}::uuid, 'cashier')`;
 });

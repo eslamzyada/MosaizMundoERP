@@ -29,6 +29,21 @@ expect_reject "direct INSERT into organizations (tenant bootstrap barrier)" \
     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
      INSERT INTO public.organizations (name, slug) VALUES ('Rogue', 'rogue-org');"
 
+# --- Plans (0044). Three ways a tenant could buy itself the whole product for
+# --- the price of the cheapest plan, all of which must be shut.
+
+expect_reject "granting itself a module the plan does not reach (the ceiling)"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     SELECT app.set_module(
+         (SELECT id FROM public.organizations WHERE slug = 'ci-bistro-cairo'),
+         'menu_approval', true);"
+
+expect_reject "writing grandfathered=true, which would open the ceiling for good"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     UPDATE public.organization_modules SET grandfathered = true;"
+
+expect_reject "moving its own plan_tier by direct UPDATE"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     UPDATE public.organizations SET plan_tier = 'enterprise'
+      WHERE slug = 'ci-bistro-cairo';"
+
 expect_reject "provisioning with invalid plan_tier (CHECK constraint must propagate)" \
     "CALL app.provision_new_tenant(
          'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'atomic@ci.test',

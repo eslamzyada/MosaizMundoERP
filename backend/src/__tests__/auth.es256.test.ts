@@ -41,7 +41,7 @@ beforeAll(async () => {
     .toString();
 
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userId}::uuid, ${`es256-${userId}@dev.local`})`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'ES256 Org'}, ${`es256-${userId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'ES256 Org'}, ${`es256-${userId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${userId}::uuid, 'owner')`;
 });
 

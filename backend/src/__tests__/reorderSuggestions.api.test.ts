@@ -81,7 +81,7 @@ async function lot(
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Reorder Org'}, ${`ro-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Reorder Org'}, ${`ro-${orgId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${ownerId}::uuid, ${`ro-owner-${ownerId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${ownerId}::uuid, 'owner')`;
   tokens.owner = jwt.sign(
@@ -130,7 +130,7 @@ beforeAll(async () => {
   // RO On Order: 20 on hand against a threshold of 200 — but 500 is inbound.
   await lot(onOrderId, cheapId, 20, 2.0, 24);
 
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Reorder Org B'}, ${`ro-b-${userBId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Reorder Org B'}, ${`ro-b-${userBId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`ro-b-${userBId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
   tokens.ownerB = jwt.sign(

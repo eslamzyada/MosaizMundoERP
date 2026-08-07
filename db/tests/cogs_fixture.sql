@@ -12,7 +12,10 @@
 \set ON_ERROR_STOP on
 
 INSERT INTO public.organizations (id, name, slug, plan_tier)
-VALUES ('c0570000-0000-4000-8000-000000000000', 'CI COGS Bistro', 'ci-cogs-bistro', 'basic');
+-- Enterprise: this fixture exercises recipes and write-offs, which since
+-- 0044 sit above basic. A cheaper plan here would make every suite that
+-- uses it a test of the plan gate instead of a test of costing.
+VALUES ('c0570000-0000-4000-8000-000000000000', 'CI COGS Bistro', 'ci-cogs-bistro', 'enterprise');
 
 -- A CASHIER, not an owner: checkout is SECURITY INVOKER and in production runs
 -- as this role, so the assertions must too.

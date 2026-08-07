@@ -52,7 +52,7 @@ beforeAll(async () => {
     // A restaurant that runs NOTHING modular — the control for rule 1.
     [bareOrgId, 'Bare Org', `bare-${bareOrgId.slice(0, 8)}`],
   ] as const) {
-    await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${id}::uuid, ${name}, ${slug}, 'basic')`;
+    await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${id}::uuid, ${name}, ${slug}, 'enterprise')`;
   }
 
   for (const [id, prefix, role, org] of [

@@ -310,6 +310,22 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/seating_verification.sql
 
+      # Plans (0044). The app-role half first: the ceiling, and the three
+      # routes by which a tenant must not be able to promote itself.
+      - name: Plan verification — the ceiling, from inside a tenant (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/plan_verification.sql
+
+      # And the operator half. app.change_plan is deliberately not granted to
+      # the app role, so this is the only side it can be exercised from.
+      - name: Plan admin verification — upgrades, downgrades and what survives (as postgres)
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/plan_admin_verification.sql
+
       # Order and line comments (0028). Also the regression guard for the
       # checkout procedure, which 0028 replaces wholesale to add two fields.
       - name: Order comment verification — notes, and attribution still intact (as mosaiz_app_user)

@@ -50,7 +50,7 @@ async function menu(who = 'cashier'): Promise<MenuItem[]> {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Menu Org'}, ${`menu-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Menu Org'}, ${`menu-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [ownerId, 'menu-owner', 'owner'],
     [cashierId, 'menu-cash', 'cashier'],
@@ -91,7 +91,7 @@ beforeAll(async () => {
 
   // Menu Drink deliberately gets no recipe.
 
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Menu Org B'}, ${`menu-b-${userBId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Menu Org B'}, ${`menu-b-${userBId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`menu-b-${userBId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
   tokens.ownerB = jwt.sign(

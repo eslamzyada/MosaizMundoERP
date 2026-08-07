@@ -37,7 +37,7 @@ const iso = (offsetHours: number) =>
   new Date(Date.now() + offsetHours * 3600_000).toISOString();
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Labour Org'}, ${`lab-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Labour Org'}, ${`lab-${orgId.slice(0, 8)}`}, 'enterprise')`;
 
   for (const [id, prefix, role] of [
     [ownerId, 'lab-own', 'owner'],

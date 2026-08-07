@@ -39,7 +39,7 @@ async function createItem(name: string): Promise<string> {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Lifecycle Org'}, ${`lc-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Lifecycle Org'}, ${`lc-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [ownerId, 'lc-owner', 'owner'],
     [cashierId, 'lc-cash', 'cashier'],
@@ -63,7 +63,7 @@ beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.sellable_items (id, organization_id, name, sku, price) VALUES (${dishId}::uuid, ${orgId}::uuid, ${'LC Dish'}, ${'LC-1'}, 40)`;
   await admin.$executeRaw`INSERT INTO public.bill_of_materials (organization_id, sellable_item_id, raw_item_id, quantity_required) VALUES (${orgId}::uuid, ${dishId}::uuid, ${usedId}::uuid, 1)`;
 
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Lifecycle Org B'}, ${`lc-b-${userBId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Lifecycle Org B'}, ${`lc-b-${userBId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`lc-b-${userBId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${itemBId}::uuid, ${orgBId}::uuid, ${'B Ingredient'}, ${'kg'})`;

@@ -52,8 +52,8 @@ async function openTab(body: Record<string, unknown> = {}) {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Tab Org'}, ${`tab-${orgId.slice(0, 8)}`}, 'basic')`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${otherOrgId}::uuid, ${'Other Tab Org'}, ${`tab-${otherOrgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Tab Org'}, ${`tab-${orgId.slice(0, 8)}`}, 'enterprise')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${otherOrgId}::uuid, ${'Other Tab Org'}, ${`tab-${otherOrgId.slice(0, 8)}`}, 'enterprise')`;
 
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${cashierId}::uuid, ${`tab-${cashierId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${cashierId}::uuid, 'cashier')`;

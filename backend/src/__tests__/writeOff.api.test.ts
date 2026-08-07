@@ -51,7 +51,7 @@ async function writeOff(who: string, body: Record<string, unknown>) {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'WriteOff Org'}, ${`wo-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'WriteOff Org'}, ${`wo-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [ownerId, 'wo-owner', 'owner'],
     [cashierId, 'wo-cash', 'cashier'],
@@ -95,7 +95,7 @@ beforeAll(async () => {
   // have drawn down.
   await admin.$executeRaw`INSERT INTO public.inventory_batches (organization_id, raw_item_id, quantity_received, quantity_remaining, cost_at_purchase, expiry_date) VALUES (${orgId}::uuid, ${herbId}::uuid, 5, 5, 4.00, now() + interval '45 days')`;
 
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'WriteOff Org B'}, ${`wo-b-${userBId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'WriteOff Org B'}, ${`wo-b-${userBId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`wo-b-${userBId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${itemBId}::uuid, ${orgBId}::uuid, ${'B Ingredient'}, ${'kg'})`;

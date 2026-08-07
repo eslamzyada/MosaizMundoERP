@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { readModules } from '../lib/modules';
+import { readModules, readPlan } from '../lib/modules';
 import { resolveMembership } from '../middleware/requireRole';
 import { postgresErrorCode } from '../lib/postgresError';
 
@@ -35,6 +35,12 @@ export async function listModules(req: Request, res: Response): Promise<void> {
         depends_on: r.depends_on,
         enforced_in: r.enforced_in,
         enabled: r.enabled,
+        // 0044. The screen has to say WHY something is off, and "not in your
+        // plan" and "your owner switched it off" are different sentences with
+        // different next steps — one of them is a conversation with sales.
+        min_plan: r.min_plan,
+        entitled: r.entitled,
+        grandfathered: r.grandfathered,
       })),
     );
   } catch (err) {
@@ -99,6 +105,23 @@ export async function setModule(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // The ceiling (0044). Like the dependency check above, this exists to say
+    // WHICH plan rather than to enforce — app.set_module refuses on its own.
+    //
+    // Only on the way ON. Switching something off is always allowed, at every
+    // tier: a tenant that has stopped paying for الجرد should still be able to
+    // clear it off their screen.
+    if (enabled && !target.entitled && !target.grandfathered) {
+      res.status(402).json({
+        error: `${target.name_ar} is not included in your plan`,
+        code: 'plan_required',
+        module: target.key,
+        required_plan: target.min_plan,
+        current_plan: await readPlan(req.tx, membership.organization_id),
+      });
+      return;
+    }
+
     await req.tx.$queryRaw`
       SELECT app.set_module(${membership.organization_id}::uuid, ${req.params.key}, ${enabled})`;
 
@@ -106,6 +129,21 @@ export async function setModule(req: Request, res: Response): Promise<void> {
   } catch (err) {
     const code = postgresErrorCode(err);
     const message = err instanceof Error ? err.message : '';
+
+    // 0044's own code, kept as a backstop for the race the pre-check below
+    // cannot close: a downgrade landing between reading the catalogue and
+    // calling the procedure. Asked BEFORE 42501 because they are different
+    // instructions and only one is actionable by the person reading it — a 403
+    // sends an owner to find someone more senior, when the answer is that
+    // nobody in the restaurant can switch this on at this price.
+    if (code === 'MZ402') {
+      res.status(402).json({
+        error: 'Your plan does not include this module',
+        code: 'plan_required',
+        module: req.params.key,
+      });
+      return;
+    }
 
     if (code === '42501') {
       res.status(403).json({

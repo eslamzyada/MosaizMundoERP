@@ -43,7 +43,7 @@ async function assets(who: string, query = 'days=30') {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Assets Org'}, ${`ast-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Assets Org'}, ${`ast-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [ownerId, 'ast-owner', 'owner'],
     [cashierId, 'ast-cash', 'cashier'],

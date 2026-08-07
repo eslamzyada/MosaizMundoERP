@@ -36,7 +36,7 @@ function sign(userId: string): string {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Member Org'}, ${`mem-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Member Org'}, ${`mem-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [ownerId, 'mem-owner', 'owner'],
     [cashierId, 'mem-cashier', 'cashier'],

@@ -72,7 +72,7 @@ async function clearStocktakes(): Promise<void> {
 }
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Stocktake Org'}, ${`st-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Stocktake Org'}, ${`st-${orgId.slice(0, 8)}`}, 'enterprise')`;
   for (const [id, label, role] of [
     [ownerId, 'st-owner', 'owner'],
     [cashierId, 'st-cash', 'cashier'],
@@ -92,7 +92,7 @@ beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.inventory_batches (organization_id, raw_item_id, quantity_received, quantity_remaining, cost_at_purchase, expiry_date) VALUES (${orgId}::uuid, ${riceId}::uuid, 600, 600, 0.40, now() + interval '3 days')`;
   await admin.$executeRaw`INSERT INTO public.inventory_batches (organization_id, raw_item_id, quantity_received, quantity_remaining, cost_at_purchase, expiry_date) VALUES (${orgId}::uuid, ${riceId}::uuid, 400, 400, 0.90, now() + interval '30 days')`;
 
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Stocktake Org B'}, ${`st-b-${userBId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Stocktake Org B'}, ${`st-b-${userBId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`st-b-${userBId.slice(0, 8)}@dev.local`})`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
 });

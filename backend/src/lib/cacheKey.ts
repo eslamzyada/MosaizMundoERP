@@ -17,6 +17,16 @@
  * So the key is built by a function that cannot be called without both, and
  * `cacheKey` returns null rather than a partial key when either is missing.
  * A missing identity means "do not cache", never "cache under a shorter name".
+ *
+ * SINCE 0044 THE KEY ALSO CARRIES THE PLAN, and that one is not about leaking
+ * between tenants — it is about leaking through time. A plan is changed by
+ * app.change_plan, which runs in the DATABASE as an operator; no request comes
+ * through this process, so there is no hook on which to invalidate anything.
+ * A downgraded tenant would keep being served the answers it paid for until
+ * every TTL happened to expire. Folding the plan into the name means the old
+ * entries are not invalidated so much as ABANDONED — nothing goes looking for
+ * them again, which is the only invalidation available when the event that
+ * should trigger it never reaches this process.
  */
 
 /** Bumped by hand to abandon every existing entry after a shape change. */
@@ -25,6 +35,12 @@ export const CACHE_VERSION = 'v1';
 export interface CacheIdentity {
   organizationId: string | null | undefined;
   role: string | null | undefined;
+  /**
+   * Absent is allowed and means `basic` — the same fail-closed floor
+   * app.plan_rank applies. A caller that cannot determine the plan shares a
+   * name with the cheapest tenants, never with the most expensive ones.
+   */
+  plan?: string | null;
 }
 
 /**
@@ -41,14 +57,14 @@ export function cacheKey(
   identity: CacheIdentity,
   variant = '',
 ): string | null {
-  const { organizationId, role } = identity;
+  const { organizationId, role, plan } = identity;
 
   // No identity, no cache. An unauthenticated or org-less request is served
   // from the database every time rather than sharing an entry with somebody.
   if (!organizationId || !role) return null;
   if (!name) return null;
 
-  const parts = ['mm', CACHE_VERSION, name, organizationId, role];
+  const parts = ['mm', CACHE_VERSION, name, organizationId, plan || 'basic', role];
   if (variant) parts.push(variant);
   return parts.join(':');
 }
@@ -62,5 +78,8 @@ export function cacheKey(
  * would leave every waiter reading yesterday's prices.
  */
 export function invalidationPattern(name: string, organizationId: string): string {
+  // Still a prefix match, and the plan sits inside the wildcard — so an
+  // explicit invalidation clears the tenant's entries on EVERY plan they have
+  // been on, not just the current one.
   return `mm:${CACHE_VERSION}:${name}:${organizationId}:*`;
 }

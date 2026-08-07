@@ -11,7 +11,10 @@
 \set ON_ERROR_STOP on
 
 INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES
-    ('f10c0000-0000-4000-8000-000000000000', 'CI Floor Bistro', 'ci-floor-bistro', 'basic');
+    -- Enterprise (0044). This restaurant is the subject of nearly every
+    -- later suite — labour, reservations, online ordering, ratings and the
+    -- menu approval cycle — and all of those sit above basic.
+    ('f10c0000-0000-4000-8000-000000000000', 'CI Floor Bistro', 'ci-floor-bistro', 'enterprise');
 
 INSERT INTO public.users (id, email) VALUES
     ('f10c0001-0000-4000-8000-000000000001', 'floor-waiter@ci.test'),
@@ -47,10 +50,36 @@ INSERT INTO public.organization_memberships (organization_id, user_id, role) VAL
 
 -- The one-approver restaurant.
 INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES
-    ('f10c1000-0000-4000-8000-000000000000', 'CI Solo Bistro', 'ci-solo-bistro', 'basic');
+    ('f10c1000-0000-4000-8000-000000000000', 'CI Solo Bistro', 'ci-solo-bistro', 'enterprise');
 
 INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES
     ('f10c1000-0000-4000-8000-000000000000', 'f10c0006-0000-4000-8000-000000000006', 'owner');
+
+-- ----------------------------------------------------------------------------
+-- A restaurant that is actually ON the cheap plan (0044).
+--
+-- The two above are provisioned at enterprise so the suites that use them test
+-- what they were written to test. That leaves nothing on `basic`, and a
+-- ceiling nobody stands under is not a ceiling anybody has tested — so this is
+-- the tenant plan_verification.sql addresses.
+-- ----------------------------------------------------------------------------
+INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES
+    ('f10c2000-0000-4000-8000-000000000000', 'CI Basic Bistro', 'ci-basic-bistro', 'basic');
+
+INSERT INTO public.users (id, email) VALUES
+    ('f10c0009-0000-4000-8000-000000000009', 'basic-owner@ci.test');
+
+INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES
+    ('f10c2000-0000-4000-8000-000000000000',
+     'f10c0009-0000-4000-8000-000000000009', 'owner');
+
+-- One kept promise, written by hand because this tenant is younger than the
+-- backfill that would otherwise have made it. `exports` is above basic, so
+-- without the flag the gate refuses it — which is what makes it worth having:
+-- it is the row that proves grandfathering is honoured rather than ignored.
+INSERT INTO public.organization_modules
+    (organization_id, module_key, enabled, grandfathered) VALUES
+    ('f10c2000-0000-4000-8000-000000000000', 'exports', true, true);
 
 -- Something on the menu, so "the kitchen can read the menu" is a claim about
 -- visibility rather than about an empty table.

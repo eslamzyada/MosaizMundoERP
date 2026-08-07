@@ -35,14 +35,14 @@ let cashierToken: string;
 
 beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userId}::uuid, ${`inv-${userId}@dev.local`})`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Inv Org A'}, ${`inv-a-${userId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Inv Org A'}, ${`inv-a-${userId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${userId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${rawItemId}::uuid, ${orgId}::uuid, ${'Flour'}, ${'grams'})`;
   await admin.$executeRaw`INSERT INTO public.inventory_deficits (organization_id, raw_item_id, missing_quantity) VALUES (${orgId}::uuid, ${rawItemId}::uuid, 5)`;
 
   // Tenant B + a raw item owned by B.
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`inv-b-${userBId}@dev.local`})`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Inv Org B'}, ${`inv-b-${userBId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Inv Org B'}, ${`inv-b-${userBId.slice(0, 8)}`}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.raw_inventory_items (id, organization_id, name, unit_of_measure) VALUES (${rawItemBId}::uuid, ${orgBId}::uuid, ${'Sugar'}, ${'grams'})`;
 

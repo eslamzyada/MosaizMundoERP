@@ -152,6 +152,14 @@ export interface Me {
    * absent list means "no opinion", which `navFor` reads as everything on.
    */
   modules?: string[];
+  /**
+   * What the restaurant pays for (0044). Distinct from `modules`, which is
+   * what it currently RUNS — the plan is a ceiling on that, not the same fact.
+   *
+   * Optional for the same reason as above: an older API omits it, and a screen
+   * that cannot name the plan should say nothing rather than guess a tier.
+   */
+  plan?: string;
 }
 
 /** GET /api/members — one row of the team roster. */

@@ -48,7 +48,7 @@ beforeAll(async () => {
     [orgId, 'Printer Org'],
     [otherOrgId, 'Other Printer Org'],
   ] as const) {
-    await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${id}::uuid, ${label}, ${`prn-${id.slice(0, 8)}`}, 'basic')`;
+    await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${id}::uuid, ${label}, ${`prn-${id.slice(0, 8)}`}, 'enterprise')`;
   }
 
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${managerId}::uuid, ${`prn-mgr-${managerId.slice(0, 8)}@dev.local`})`;

@@ -50,7 +50,7 @@ const book = async (name: string, hours: number) => {
 };
 
 beforeAll(async () => {
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Seat Org'}, ${`seat-${orgId.slice(0, 8)}`}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Seat Org'}, ${`seat-${orgId.slice(0, 8)}`}, 'enterprise')`;
 
   for (const [id, prefix, role] of [
     [ownerId, 'seat-own', 'owner'],

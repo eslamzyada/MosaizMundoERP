@@ -56,7 +56,7 @@ beforeAll(async () => {
     [orgId, 'Criteria Org'],
     [otherOrgId, 'Other Criteria Org'],
   ] as const) {
-    await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${id}::uuid, ${label}, ${`crit-${id.slice(0, 8)}`}, 'basic')`;
+    await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${id}::uuid, ${label}, ${`crit-${id.slice(0, 8)}`}, 'enterprise')`;
   }
 
   for (const [id, prefix, role] of [

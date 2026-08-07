@@ -37,13 +37,13 @@ let token: string;
 beforeAll(async () => {
   // Seed as superuser (bypasses RLS).
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userId}::uuid, ${`jest-${userId}@dev.local`})`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Jest Org'}, ${slug}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgId}::uuid, ${'Jest Org'}, ${slug}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgId}::uuid, ${userId}::uuid, 'owner')`;
   await admin.$executeRaw`INSERT INTO public.sellable_items (id, organization_id, name, sku, price) VALUES (${itemId}::uuid, ${orgId}::uuid, ${'Jest Burger'}, ${'JEST-1'}, 12.50)`;
 
   // Tenant B: a different owner/org that Tenant A is NOT a member of.
   await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${userBId}::uuid, ${`jest-b-${userBId}@dev.local`})`;
-  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Jest Org B'}, ${slugB}, 'basic')`;
+  await admin.$executeRaw`INSERT INTO public.organizations (id, name, slug, plan_tier) VALUES (${orgBId}::uuid, ${'Jest Org B'}, ${slugB}, 'enterprise')`;
   await admin.$executeRaw`INSERT INTO public.organization_memberships (organization_id, user_id, role) VALUES (${orgBId}::uuid, ${userBId}::uuid, 'owner')`;
 
   token = jwt.sign(
