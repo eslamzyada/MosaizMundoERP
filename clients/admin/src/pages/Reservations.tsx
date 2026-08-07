@@ -50,6 +50,7 @@ export default function Reservations() {
   const [bookings, setBookings] = useState<Reservation[]>([]);
   const [failure, setFailure] = useState<ReturnType<typeof classifyLoadFailure> | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [seating, setSeating] = useState<string | null>(null);
 
   const dayEnd = useMemo(() => new Date(day.getTime() + 24 * HOUR_MS), [day]);
 
@@ -81,6 +82,36 @@ export default function Reservations() {
       await load();
     } catch {
       setProblem('تعذّر تحديث حالة الحجز.');
+    }
+  }
+
+  /**
+   * Seats the party and opens their tab.
+   *
+   * The two 409s mean different things and get different sentences: the table
+   * is occupied (settle the other tab, or move them) versus the booking is not
+   * waiting (somebody already cancelled it). Telling a host "conflict" would
+   * leave them guessing at a moment when a guest is standing in front of them.
+   */
+  async function seatGuests(booking: Reservation) {
+    setProblem(null);
+    setSeating(booking.id);
+    try {
+      await reservationRepository.seat(booking.id);
+      await load();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setProblem(
+          err.response.data?.code === 'table_occupied'
+            ? 'هذه الطاولة عليها حساب مفتوح — أغلقه أو أجلسهم على طاولة أخرى.'
+            : 'هذا الحجز لم يعد في انتظار الإجلاس.',
+        );
+        await load();
+      } else {
+        setProblem('تعذّر إجلاس الضيوف.');
+      }
+    } finally {
+      setSeating(null);
     }
   }
 
@@ -179,13 +210,22 @@ export default function Reservations() {
                     {!settled && (
                       <>
                         {b.status === 'booked' && (
+                          // "Seated" is not a status change any more — it opens
+                          // the tab too, in one call, because that is one act.
+                          // Two steps leave a booking marked seated with no tab
+                          // whenever the connection drops between them.
                           <button
                             type="button"
-                            onClick={() => setStatus(b.id, 'seated')}
-                            className="text-xs text-twilight-600 hover:underline"
+                            onClick={() => seatGuests(b)}
+                            disabled={seating === b.id}
+                            data-testid={`seat-${b.id}`}
+                            className="text-xs font-semibold text-twilight-600 hover:underline disabled:opacity-50"
                           >
-                            جلسوا
+                            {seating === b.id ? 'جارٍ الإجلاس…' : 'أجلسهم وافتح الحساب'}
                           </button>
+                        )}
+                        {b.status === 'seated' && b.seated_order_id && (
+                          <span className="text-xs text-app-ink-muted">حساب مفتوح</span>
                         )}
                         <button
                           type="button"

@@ -8,6 +8,7 @@ import {
   createTable,
   listReservations,
   listTables,
+  seat,
   setStatus,
   updateTable,
 } from '../controllers/reservation.controller';
@@ -36,5 +37,9 @@ router.get('/', listReservations);
 router.get('/availability', availability);
 router.post('/', createReservation);
 router.post('/:id/status', setStatus);
+
+// Sitting the party down (0043). Floor work, like taking the booking was —
+// and it opens a real tab, so the database runs it as whoever pressed it.
+router.post('/:id/seat', seat);
 
 export default router;
