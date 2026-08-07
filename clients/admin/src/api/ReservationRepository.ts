@@ -29,6 +29,12 @@ export interface Reservation {
   ends_at: string;
   status: ReservationStatus;
   note: string | null;
+  /**
+   * The tab this booking became (0043). Null until the party sits down — and
+   * once set, the booking and the order point at each other, which is what
+   * lets a covers report say which bookings turned into money.
+   */
+  seated_order_id: string | null;
 }
 
 export const reservationRepository = {
@@ -75,6 +81,17 @@ export const reservationRepository = {
   }): Promise<Reservation> {
     const { data } = await apiClient.post<Reservation>('/api/reservations', input);
     return data;
+  },
+
+  /**
+   * Sits the party down and opens their tab in ONE call.
+   *
+   * Returns the order id. Calling it twice returns the same one — a double tap
+   * must not cost a guest two bills — so the caller can retry safely.
+   */
+  async seat(id: string): Promise<string> {
+    const { data } = await apiClient.post<{ order_id: string }>(`/api/reservations/${id}/seat`);
+    return data.order_id;
   },
 
   async setStatus(id: string, status: ReservationStatus): Promise<void> {

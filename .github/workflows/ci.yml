@@ -302,6 +302,14 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/wages_verification.sql
 
+      # Seating (0043). Last: it walks the full tab lifecycle — open, add, fire,
+      # settle — so it depends on the menu the suites above have built.
+      - name: Seating verification — one open tab per table (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/seating_verification.sql
+
       # Order and line comments (0028). Also the regression guard for the
       # checkout procedure, which 0028 replaces wholesale to add two fields.
       - name: Order comment verification — notes, and attribution still intact (as mosaiz_app_user)

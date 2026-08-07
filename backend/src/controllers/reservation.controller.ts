@@ -320,3 +320,71 @@ function bookingBody(err: unknown): Record<string, unknown> {
   console.error('[reservations] failed:', err);
   return { error: 'Internal server error' };
 }
+
+/**
+ * POST /api/reservations/:id/seat
+ *
+ * Sits the party down and opens their tab in one call, because it is one act.
+ * Two calls from a phone leave a booking marked seated with no tab every time
+ * the signal drops between them.
+ */
+export async function seat(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+  if (!UUID_RE.test(req.params.id)) {
+    res.status(400).json({ error: 'id must be a uuid' });
+    return;
+  }
+
+  // The till's own idempotency key, if the caller has one. Offline clients
+  // retry, and a retry must land on the same tab rather than a second one.
+  const clientOfflineId = req.body?.client_offline_id ?? null;
+  if (clientOfflineId !== null && !UUID_RE.test(String(clientOfflineId))) {
+    res.status(400).json({ error: 'client_offline_id must be a uuid' });
+    return;
+  }
+
+  try {
+    const [row] = await req.tx.$queryRaw<Array<{ seat_reservation: string }>>`
+      SELECT app.seat_reservation(${req.params.id}::uuid, ${clientOfflineId}::uuid)
+             AS seat_reservation`;
+
+    res.status(200).json({ id: req.params.id, order_id: row.seat_reservation });
+  } catch (err) {
+    const code = postgresErrorCode(err);
+
+    if (code === 'P0002' || code === '02000') {
+      res.status(404).json({ error: 'No such booking' });
+      return;
+    }
+    if (code === '55000') {
+      // Covers two different floor problems, and the message from the database
+      // says which: the table is occupied, or the booking is not waiting.
+      const message = err instanceof Error ? err.message : '';
+      res.status(409).json(
+        message.includes('already has an open tab')
+          ? { error: 'That table already has an open tab', code: 'table_occupied' }
+          : { error: 'That booking is not waiting to be seated', code: 'not_seatable' },
+      );
+      return;
+    }
+    if (code === '0A000') {
+      res.status(409).json({
+        error: 'This restaurant does not run reservations',
+        code: 'module_disabled',
+        module: 'reservations',
+      });
+      return;
+    }
+    if (code === '42501') {
+      res.status(403).json({ error: 'You are not allowed to seat guests' });
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.error('[reservations.seat] failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}

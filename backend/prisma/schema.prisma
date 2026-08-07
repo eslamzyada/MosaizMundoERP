@@ -107,12 +107,15 @@ model orders {
   void_note                     String?
   served_by                     String?                 @db.Uuid
   note                          String?
+  table_id                      String?                 @db.Uuid
   inventory_consumption         inventory_consumption[]
   order_items                   order_items[]
   organizations                 organizations           @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users_orders_served_byTousers users?                  @relation("orders_served_byTousers", fields: [served_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  restaurant_tables             restaurant_tables?      @relation(fields: [table_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "orders_table_same_tenant")
   users                         users?                  @relation(fields: [voided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   public_orders                 public_orders[]
+  reservations                  reservations[]
 
   @@unique([id, organization_id])
   @@unique([organization_id, client_offline_id])
@@ -693,7 +696,9 @@ model reservations {
   created_by        String?           @db.Uuid
   created_at        DateTime          @default(now()) @db.Timestamptz(6)
   updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  seated_order_id   String?           @db.Uuid
   users             users?            @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  orders            orders?           @relation(fields: [seated_order_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "reservations_order_same_tenant")
   organizations     organizations     @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   restaurant_tables restaurant_tables @relation(fields: [table_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "reservations_table_same_tenant")
 
@@ -713,6 +718,7 @@ model restaurant_tables {
   is_active       Boolean        @default(true)
   created_at      DateTime       @default(now()) @db.Timestamptz(6)
   updated_at      DateTime       @default(now()) @db.Timestamptz(6)
+  orders          orders[]
   reservations    reservations[]
   organizations   organizations  @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
