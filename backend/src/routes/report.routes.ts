@@ -8,6 +8,7 @@ import {
   getVoids,
   getWaste,
 } from '../controllers/report.controller';
+import { getServiceReport } from '../controllers/serviceReport.controller';
 import { getTrends } from '../controllers/trends.controller';
 import { getPurchasing } from '../controllers/purchasing.controller';
 import { requireModule } from '../middleware/requireModule';
@@ -50,5 +51,12 @@ router.get('/trends', requireModule('insights'), requireRole(...FINANCE_ROLES), 
 // What was bought, from whom, and what has been paid for but has not arrived.
 // The one side of the business that had no report at all.
 router.get('/purchasing', requireRole(...FINANCE_ROLES), getPurchasing);
+
+// What a service cost and what it earned (0038-0043 finally read).
+//
+// NOT gated by requireModule: the report spans several capabilities and names
+// the ones this tenant does not run as absent rather than refusing wholesale.
+// A restaurant without reservations still wants to know its labour share.
+router.get('/service', requireRole(...FINANCE_ROLES), getServiceReport);
 
 export default router;

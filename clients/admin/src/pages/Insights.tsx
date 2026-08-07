@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ChartCard from '../components/charts/ChartCard';
 import ExportMenu from '../components/ExportMenu';
+import ServiceSummary from '../components/ServiceSummary';
 import LineChart from '../components/charts/LineChart';
 import BarChart from '../components/charts/BarChart';
 import DonutChart from '../components/charts/DonutChart';
@@ -89,6 +90,20 @@ const empty = <T,>(): Slot<T> => ({ data: null, error: null });
 export default function Insights() {
   const navigate = useNavigate();
   const [window, setWindow] = useState<ReportWindow>({ kind: 'rolling', days: 30 });
+
+  // The same period the charts below use, expressed as real dates. The service
+  // report takes from/to rather than a rolling day count, and deriving both
+  // from one piece of state is what stops the summary and the charts drifting
+  // into describing different weeks.
+  const serviceTo = useMemo(() => new Date(), []);
+  const serviceFrom = useMemo(
+    () =>
+      new Date(
+        serviceTo.getTime() -
+          (window.kind === 'rolling' ? window.days : 30) * 24 * 60 * 60 * 1000,
+      ),
+    [serviceTo, window],
+  );
   const [bucket, setBucket] = useState<TrendBucket>('day');
   const [loading, setLoading] = useState(true);
 
@@ -200,6 +215,11 @@ export default function Insights() {
         <p className="py-16 text-center text-sm text-app-ink-muted">جارٍ التحميل…</p>
       ) : (
         <div className="space-y-6">
+          {/* What the service cost and what it earned (0038–0043, read at
+              last). Above the KPI row because the labour share is the number
+              an owner opens this page for; everything below is detail. */}
+          <ServiceSummary from={serviceFrom} to={serviceTo} />
+
           {/* ---- the headline figures -------------------------------------- */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi label="الإيراد" value={summary ? money(summary.revenue) : '—'} unit="ج.م" />

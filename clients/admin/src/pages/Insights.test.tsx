@@ -13,6 +13,9 @@ import { apiClient } from '../api/client';
  * reports are fetched, and a dashboard that blanks entirely because one of them
  * timed out is down more often than the system it is reporting on. There is no
  * way to see that from a screenshot of it working.
+ *
+ * The service summary sits at the TOP, which makes it the one most able to take
+ * the page down with it — so it gets the same treatment as the rest.
  */
 
 interface Stub {
@@ -149,6 +152,18 @@ const EMPLOYEES = {
   ],
 };
 
+const SERVICE = {
+  from: '2026-07-01T00:00:00.000Z',
+  to: '2026-07-03T00:00:00.000Z',
+  revenue: 1500,
+  orders: 12,
+  labour: { minutes: 600, hours: 10, cost: 300, uncosted_entries: 0, share_of_revenue: 20 },
+  // Null means this tenant does not run those, which is the default for a new
+  // one — the page must render without them.
+  covers: null,
+  online: null,
+};
+
 /** Routes each report to its stub, and fails only the ones named. */
 function stubApi({ fail = [] }: Stub = {}) {
   return vi.spyOn(apiClient, 'get').mockImplementation((url: string) => {
@@ -164,6 +179,7 @@ function stubApi({ fail = [] }: Stub = {}) {
       purchasing: PURCHASING,
       'inventory-assets': ASSETS,
       employees: EMPLOYEES,
+      service: SERVICE,
     };
     return Promise.resolve({ data: body[which] ?? {} }) as never;
   });
@@ -218,6 +234,7 @@ describe('the headline figures', () => {
         purchasing: PURCHASING,
         'inventory-assets': ASSETS,
         employees: EMPLOYEES,
+        service: SERVICE,
       };
       return Promise.resolve({ data: body[which] ?? {} }) as never;
     });
@@ -253,6 +270,19 @@ describe('every card fails on its own', () => {
     expect(within(card('رأس المال في المخزون')).getByText('طماطم')).toBeInTheDocument();
   });
 
+  it('draws the whole page when the SERVICE summary dies, though it is first', async () => {
+    // It renders above everything else, so a crash inside it blanks what
+    // follows. It has to fail in its own box like every other card.
+    stubApi({ fail: ['service'] });
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText('تعذّر تحميل ملخّص الخدمة.')).toBeInTheDocument(),
+    );
+    expect(within(card('الإيراد ومجمل الربح')).getByRole('img')).toBeInTheDocument();
+    expect(within(card('رأس المال في المخزون')).getByText('طماطم')).toBeInTheDocument();
+  });
+
   it('says a card is EMPTY differently from saying it failed', async () => {
     // "no waste this week" is good news; "the report did not load" is not.
     // One message for both makes them indistinguishable.
@@ -268,6 +298,7 @@ describe('every card fails on its own', () => {
         purchasing: PURCHASING,
         'inventory-assets': ASSETS,
         employees: EMPLOYEES,
+        service: SERVICE,
       };
       return Promise.resolve({ data: body[which] ?? {} }) as never;
     });
