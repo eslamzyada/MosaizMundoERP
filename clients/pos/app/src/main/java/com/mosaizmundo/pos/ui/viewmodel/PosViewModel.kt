@@ -3,6 +3,7 @@ package com.mosaizmundo.pos.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mosaizmundo.pos.domain.CartItem
+import com.mosaizmundo.pos.domain.FloorTable
 import com.mosaizmundo.pos.domain.OpenTab
 import com.mosaizmundo.pos.domain.PrinterRole
 import com.mosaizmundo.pos.printing.Ticket
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -131,6 +133,24 @@ class PosViewModel(
 
     private val _tabsLoading = MutableStateFlow(false)
     val tabsLoading: StateFlow<Boolean> = _tabsLoading.asStateFlow()
+
+    /**
+     * The floor plan (0045), with the tables that are already running a tab
+     * marked. EMPTY when this restaurant has no floor plan at all, which is a
+     * real answer — a takeaway counter has no tables — and the picker simply
+     * does not appear.
+     *
+     * `busy` is derived here rather than fetched, because "one table, one tab"
+     * is a fact about the OPEN TABS, and both lists are already in hand. A
+     * picker that offered a busy table would only be collecting refusals.
+     */
+    private val _tables = MutableStateFlow<List<FloorTable>>(emptyList())
+
+    val floorTables: StateFlow<List<FloorTable>> =
+        combine(_tables, _tabs) { tables, tabs ->
+            val taken = tabs.mapNotNull { it.table?.id }.toSet()
+            tables.map { it.copy(busy = it.id in taken) }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
      * The last refusal, shown until it is dismissed or another action succeeds.
@@ -257,6 +277,17 @@ class PosViewModel(
         refreshOrders()
     }
 
+    /**
+     * Loads the floor plan. Failure is silent on purpose: the picker is a
+     * convenience, and losing it must never stand between a server and a table
+     * that has already sat down.
+     */
+    fun refreshTables() {
+        viewModelScope.launch {
+            _tables.value = runCatching { repository.tables() }.getOrDefault(emptyList())
+        }
+    }
+
     fun openTabs() {
         _destination.value = PosDestination.TABS
         refreshTabs()
@@ -313,10 +344,10 @@ class PosViewModel(
      * procedure and the API all allowed an empty tab from the start; the till
      * simply never offered one.
      */
-    fun openEmptyTab(note: String) {
+    fun openEmptyTab(note: String, tableId: String? = null) {
         viewModelScope.launch {
             try {
-                repository.openTab(note, emptyList())
+                repository.openTab(note, emptyList(), tableId)
                 _tabMessage.value = null
             } catch (e: Exception) {
                 _tabMessage.value = messageFor(e, "تعذّر فتح الطاولة")

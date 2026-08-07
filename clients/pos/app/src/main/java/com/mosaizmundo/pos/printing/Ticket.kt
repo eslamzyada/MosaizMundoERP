@@ -50,7 +50,19 @@ object Tickets {
     fun kitchen(tab: OpenTab, at: String): Ticket {
         val lines = mutableListOf<TicketLine>()
         lines += TicketLine("طلب جديد", TicketLine.Emphasis.HEADING)
-        lines += TicketLine(tab.note ?: "طاولة بدون وصف", TicketLine.Emphasis.HEADING)
+        // The TABLE heads the ticket since 0045, because that is what a cook
+        // carries the plate to. It used to be the note — free text a server
+        // typed — so a ticket could head "حساسية مكسرات" and leave the kitchen
+        // holding food for nowhere in particular.
+        lines += TicketLine(
+            tab.table?.label ?: tab.note ?: "طاولة بدون وصف",
+            TicketLine.Emphasis.HEADING,
+        )
+        // And the note stays, one line down, as what it is for: how this party
+        // wants its food, which the cook still needs.
+        if (tab.table != null) {
+            tab.note?.let { lines += TicketLine(it, TicketLine.Emphasis.INSTRUCTION) }
+        }
         lines += TicketLine(at)
         lines += TicketLine("")
 
@@ -79,6 +91,7 @@ object Tickets {
     fun receipt(tab: OpenTab, at: String, total: Double): Ticket {
         val lines = mutableListOf<TicketLine>()
         lines += TicketLine("فاتورة", TicketLine.Emphasis.HEADING)
+        tab.table?.let { lines += TicketLine(it.label, TicketLine.Emphasis.HEADING) }
         tab.note?.let { lines += TicketLine(it) }
         lines += TicketLine(at)
         lines += TicketLine("")

@@ -27,6 +27,15 @@ data class OpenOrderPayload(
     val client_offline_id: String,
     val note: String?,
     val items: List<OpenOrderItemPayload>?,
+    /**
+     * Which table this party is sitting at (migration 0045).
+     *
+     * Nullable and staying that way: takeaway has no table, and a restaurant
+     * without the `reservations` module has no floor plan to choose from. When
+     * it IS sent the server refuses a table that is already running a tab —
+     * one table, one tab — and names it in the refusal.
+     */
+    val table_id: String? = null,
 )
 
 data class OpenOrderItemPayload(

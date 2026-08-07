@@ -60,6 +60,14 @@ interface PosApiService {
     @GET("api/pos/orders/open")
     suspend fun getOpenTabs(): List<OrderResponse>
 
+    /**
+     * The floor plan (0039). Answers 409 when the restaurant does not run the
+     * `reservations` module, which is not an error — it means this till has no
+     * tables to offer and a tab is described by its note, as before.
+     */
+    @GET("api/reservations/tables")
+    suspend fun getTables(): List<RestaurantTableResponse>
+
     @POST("api/pos/orders/open")
     suspend fun openTab(@Body payload: OpenOrderPayload): Response<OpenOrderResult>
 

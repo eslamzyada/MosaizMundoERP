@@ -48,7 +48,9 @@ class MockPosRepository : PosRepository {
     private val tabs = mutableListOf(
         OpenTab(
             id = "t-0001",
-            note = "طاولة ٥ — حساسية مكسرات",
+            // The note is now context, not identity — the TABLE identifies it.
+            note = "حساسية مكسرات",
+            table = FloorTable(id = "tbl-1", label = "طاولة ١", area = "الصالة", seats = 4),
             totalAmount = 140.0,
             openedAt = "2026-07-26T18:05:00Z",
             lines = listOf(
@@ -59,7 +61,9 @@ class MockPosRepository : PosRepository {
         ),
         OpenTab(
             id = "t-0002",
+            // Takeaway: no table, and none needed.
             note = "تيك أواي",
+            table = null,
             totalAmount = 65.0,
             openedAt = "2026-07-26T18:20:00Z",
             lines = listOf(OpenTabLine("l-4", "برجر لحم", 1, 65.0, "ويل دن", null)),
@@ -71,11 +75,31 @@ class MockPosRepository : PosRepository {
         return tabs.toList()
     }
 
-    override suspend fun openTab(note: String, items: List<CartItem>): String {
+    private val mockTables = listOf(
+        FloorTable(id = "tbl-1", label = "طاولة ١", area = "الصالة", seats = 4),
+        FloorTable(id = "tbl-2", label = "طاولة ٢", area = "الصالة", seats = 2),
+        FloorTable(id = "tbl-3", label = "طاولة ٣", area = "الشرفة", seats = 6),
+    )
+
+    override suspend fun tables(): List<FloorTable> {
+        delay(100)
+        return mockTables
+    }
+
+    override suspend fun openTab(note: String, items: List<CartItem>, tableId: String?): String {
+        // One table, one tab — the same rule the database enforces, so the demo
+        // build behaves like the real one rather than teaching a habit that
+        // breaks against a server.
+        if (tableId != null && tabs.any { it.table?.id == tableId }) {
+            val label = mockTables.firstOrNull { it.id == tableId }?.label ?: "الطاولة"
+            throw TabRefusedException(409, "طاولة $label عليها حساب مفتوح بالفعل")
+        }
+
         val id = "t-${(tabs.size + 1).toString().padStart(4, '0')}"
         tabs += OpenTab(
             id = id,
             note = note.trim().ifBlank { null },
+            table = tableId?.let { t -> mockTables.firstOrNull { it.id == t } },
             totalAmount = items.sumOf { it.sellableItem.price * it.quantity },
             openedAt = "2026-07-26T18:30:00Z",
             lines = items.map(::mockLine),

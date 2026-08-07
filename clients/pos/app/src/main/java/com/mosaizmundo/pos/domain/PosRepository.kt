@@ -51,7 +51,24 @@ interface PosRepository {
     suspend fun openTabs(): List<OpenTab>
 
     /** Opens a tab. [items] may be empty: a table is seated before it orders. */
-    suspend fun openTab(note: String, items: List<CartItem>): String
+    /**
+     * The floor plan (0039), or EMPTY when this restaurant has none.
+     *
+     * Empty is a legitimate answer, not a failure: a takeaway counter runs no
+     * `reservations` module and has no tables. The picker simply does not
+     * appear, and a tab is described by its note as it always was.
+     */
+    suspend fun tables(): List<FloorTable>
+
+    /**
+     * Opens a tab, optionally AT a table (0045).
+     *
+     * [tableId] is nullable and defaulted so every existing caller — takeaway,
+     * and any till whose restaurant has no floor plan — keeps working. When it
+     * is given, the server refuses a table already running a tab, and the
+     * refusal names it.
+     */
+    suspend fun openTab(note: String, items: List<CartItem>, tableId: String? = null): String
 
     /** Adds a later course. The lines land UNFIRED. */
     suspend fun addTabItems(orderId: String, items: List<CartItem>)

@@ -103,6 +103,9 @@ class HttpPosRepository(
             OpenTab(
                 id = order.id,
                 note = order.note,
+                table = order.restaurant_tables?.let {
+                    FloorTable(id = it.id, label = it.label, area = it.area, seats = null)
+                },
                 totalAmount = order.total_amount,
                 openedAt = order.created_at,
                 lines = order.order_items.map { line ->
@@ -118,7 +121,18 @@ class HttpPosRepository(
             )
         }
 
-    override suspend fun openTab(note: String, items: List<CartItem>): String {
+    override suspend fun tables(): List<FloorTable> =
+        // A restaurant without the reservations module answers 409 here, and
+        // that is not an error worth showing anybody — it means this till has
+        // no tables. Any other failure is treated the same way for the same
+        // reason: the picker is a convenience, and losing it must never stop
+        // somebody opening a tab.
+        runCatching { api.getTables() }
+            .getOrDefault(emptyList())
+            .filter { it.is_active }
+            .map { FloorTable(id = it.id, label = it.label, area = it.area, seats = it.seats) }
+
+    override suspend fun openTab(note: String, items: List<CartItem>, tableId: String?): String {
         val organizationId = sessionManager.getOrganizationId().first() ?: FALLBACK_ORGANIZATION_ID
 
         val response = api.openTab(
@@ -129,6 +143,7 @@ class HttpPosRepository(
                 client_offline_id = UUID.randomUUID().toString(),
                 note = note.trim().ifBlank { null },
                 items = items.map(::toItemPayload).ifEmpty { null },
+                table_id = tableId,
             ),
         )
         val body = response.bodyOrRefusal()

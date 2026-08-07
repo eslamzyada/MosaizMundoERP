@@ -37,6 +37,9 @@ const otherOrgId = randomUUID();
 const cashierId = randomUUID();
 const accountantId = randomUUID();
 const dishId = randomUUID();
+const tableId = randomUUID();
+const otherTableId = randomUUID();
+const foreignTableId = randomUUID();
 const ingredientId = randomUUID();
 let token = '';
 let accountantToken = '';
@@ -76,6 +79,23 @@ beforeAll(async () => {
   await admin.$executeRaw`INSERT INTO public.bill_of_materials (organization_id, sellable_item_id, raw_item_id, quantity_required) VALUES (${orgId}::uuid, ${dishId}::uuid, ${ingredientId}::uuid, 100)`;
   await admin.$executeRaw`INSERT INTO public.inventory_batches (organization_id, raw_item_id, quantity_received, quantity_remaining, cost_at_purchase) VALUES (${orgId}::uuid, ${ingredientId}::uuid, 1000, 1000, 0.10)`;
 
+  // A floor plan (0039), and the module that owns it (0045). Two tables of our
+  // own plus one belonging to the other restaurant — the cross-tenant attempt
+  // has to be made with a REAL id that is simply not ours, or it degenerates
+  // into "a table that does not exist", which any check would refuse.
+  await admin.$executeRaw`
+    INSERT INTO public.organization_modules (organization_id, module_key, enabled)
+    VALUES (${orgId}::uuid, 'reservations', true)`;
+  await admin.$executeRaw`
+    INSERT INTO public.restaurant_tables (id, organization_id, label, seats)
+    VALUES (${tableId}::uuid, ${orgId}::uuid, ${'طاولة ٧'}, 4)`;
+  await admin.$executeRaw`
+    INSERT INTO public.restaurant_tables (id, organization_id, label, seats)
+    VALUES (${otherTableId}::uuid, ${orgId}::uuid, ${'طاولة ٨'}, 2)`;
+  await admin.$executeRaw`
+    INSERT INTO public.restaurant_tables (id, organization_id, label, seats)
+    VALUES (${foreignTableId}::uuid, ${otherOrgId}::uuid, ${'طاولة الجيران'}, 4)`;
+
   // An order in the OTHER organization. Seeded as the superuser because RLS
   // hides it from the cashier entirely — which is the point of the test.
   foreignOrderId = randomUUID();
@@ -91,6 +111,8 @@ afterAll(async () => {
     await admin.$executeRaw`DELETE FROM public.inventory_batches WHERE organization_id = ${org}::uuid`;
     await admin.$executeRaw`DELETE FROM public.raw_inventory_items WHERE organization_id = ${org}::uuid`;
     await admin.$executeRaw`DELETE FROM public.sellable_items WHERE organization_id = ${org}::uuid`;
+    await admin.$executeRaw`DELETE FROM public.restaurant_tables WHERE organization_id = ${org}::uuid`;
+    await admin.$executeRaw`DELETE FROM public.organization_modules WHERE organization_id = ${org}::uuid`;
     await admin.$executeRaw`DELETE FROM public.organization_memberships WHERE organization_id = ${org}::uuid`;
   }
   await admin.$executeRaw`DELETE FROM public.users WHERE id IN (${cashierId}::uuid, ${accountantId}::uuid)`;
@@ -248,5 +270,79 @@ describe('the error contract', () => {
   it('requires authentication', async () => {
     expect((await request(app).get('/api/pos/orders/open')).status).toBe(401);
     expect((await request(app).post('/api/pos/orders/open').send({})).status).toBe(401);
+  });
+});
+
+
+/**
+ * The table a tab is running at (0045).
+ *
+ * 0043 put `table_id` on orders with a composite FK and a one-tab-per-table
+ * index; until now the only thing that ever set it was the admin seating a
+ * booking. A waiter opening a tab wrote the table into `note`, as free text —
+ * so "طاولة ٥" and "T5" were two tables to the database and one to the
+ * restaurant, and nothing stopped two tabs on one table.
+ */
+describe('opening a tab AT a table', () => {
+  it('links the tab to the table', async () => {
+    const res = await openTab({ table_id: tableId });
+    expect(res.status).toBe(200);
+
+    const row = await admin.$queryRaw<Array<{ table_id: string | null }>>`
+      SELECT table_id FROM public.orders WHERE id = ${res.body.order_id}::uuid`;
+    expect(row[0].table_id).toBe(tableId);
+  });
+
+  it('carries the table LABEL on the tab list, not just its id', async () => {
+    // A till showing a uuid is a till nobody can use.
+    const list = await request(app).get('/api/pos/orders/open').set(auth());
+    const tab = list.body.find(
+      (o: { restaurant_tables?: { id: string } }) => o.restaurant_tables?.id === tableId,
+    );
+
+    expect(tab).toBeDefined();
+    expect(tab.restaurant_tables.label).toBe('طاولة ٧');
+  });
+
+  it('refuses a SECOND tab on the same table, and says which table', async () => {
+    const res = await openTab({ table_id: tableId });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('طاولة ٧');
+  });
+
+  it('is still idempotent — a retry gets its own tab back, not a busy table', async () => {
+    // The one that breaks exactly when the wifi is bad, which is when it
+    // matters. Same client_offline_id, twice.
+    const coid = randomUUID();
+    const first = await request(app)
+      .post('/api/pos/orders/open')
+      .set(auth())
+      .send({ organization_id: orgId, client_offline_id: coid, table_id: otherTableId });
+    const again = await request(app)
+      .post('/api/pos/orders/open')
+      .set(auth())
+      .send({ organization_id: orgId, client_offline_id: coid, table_id: otherTableId });
+
+    expect(first.status).toBe(200);
+    expect(again.status).toBe(200);
+    expect(again.body.order_id).toBe(first.body.order_id);
+  });
+
+  it('refuses a table belonging to another restaurant, as a bad request', async () => {
+    // 404 would send the till looking for an order it never mentioned.
+    const res = await openTab({ table_id: foreignTableId });
+
+    expect(res.status).toBe(400);
+    expect(res.status).not.toBe(404);
+  });
+
+  it('still opens a tab with NO table — takeaway exists', async () => {
+    const res = await openTab({ note: 'تيك أواي' });
+
+    expect(res.status).toBe(200);
+    const row = await admin.$queryRaw<Array<{ table_id: string | null }>>`
+      SELECT table_id FROM public.orders WHERE id = ${res.body.order_id}::uuid`;
+    expect(row[0].table_id).toBeNull();
   });
 });
