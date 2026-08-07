@@ -14,6 +14,7 @@ import notificationRoutes from './routes/notification.routes';
 import moduleRoutes from './routes/module.routes';
 import labourRoutes from './routes/labour.routes';
 import reservationRoutes from './routes/reservation.routes';
+import floorRoutes from './routes/floor.routes';
 import publicRoutes from './routes/public.routes';
 import publicOrderRoutes from './routes/publicOrder.routes';
 import reportRoutes from './routes/report.routes';
@@ -158,9 +159,14 @@ app.use('/api/modules', moduleRoutes);
 // switched off — it is a new capability, not one anybody was already using.
 app.use('/api/labour', labourRoutes);
 
-// Tables and bookings (0039). The first time this system has had a table at
-// all — the floor screen shows open tabs, not tables.
+// Tables and bookings (0039).
 app.use('/api/reservations', reservationRoutes);
+
+// The room (0045): every table with its running tab and its next booking, plus
+// the tabs sitting at no table at all. One request, joined in the database —
+// three lists fetched at three instants would show a table free because its
+// tab arrived a moment later.
+app.use('/api/floor', floorRoutes);
 
 // The staff side of the shopfront (0040).
 app.use('/api/public-orders', publicOrderRoutes);
