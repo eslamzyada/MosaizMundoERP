@@ -44,6 +44,13 @@ expect_reject "moving its own plan_tier by direct UPDATE"     "SET app.current_u
      UPDATE public.organizations SET plan_tier = 'enterprise'
       WHERE slug = 'ci-bistro-cairo';"
 
+# --- Organization settings (0048). Until then ANY member could rename or
+# --- DELETE their own restaurant, cascading away every record in it.
+
+expect_reject "deleting the restaurant, and everything in it"     "SET app.current_user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+     DELETE FROM public.organizations WHERE slug = 'ci-bistro-cairo';"
+
+
 expect_reject "provisioning with invalid plan_tier (CHECK constraint must propagate)" \
     "CALL app.provision_new_tenant(
          'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'atomic@ci.test',
