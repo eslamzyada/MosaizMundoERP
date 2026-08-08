@@ -15,6 +15,7 @@ import moduleRoutes from './routes/module.routes';
 import labourRoutes from './routes/labour.routes';
 import reservationRoutes from './routes/reservation.routes';
 import floorRoutes from './routes/floor.routes';
+import tillRoutes from './routes/till.routes';
 import publicRoutes from './routes/public.routes';
 import publicOrderRoutes from './routes/publicOrder.routes';
 import reportRoutes from './routes/report.routes';
@@ -167,6 +168,9 @@ app.use('/api/reservations', reservationRoutes);
 // three lists fetched at three instants would show a table free because its
 // tab arrived a moment later.
 app.use('/api/floor', floorRoutes);
+
+// The drawer (0047): open it, close it, and find out whether it balances.
+app.use('/api/till', tillRoutes);
 
 // The staff side of the shopfront (0040).
 app.use('/api/public-orders', publicOrderRoutes);

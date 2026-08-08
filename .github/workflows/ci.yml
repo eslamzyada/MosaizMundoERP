@@ -325,6 +325,13 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/payment_verification.sql
 
+      # 0047. The number a restaurant produces about itself every night.
+      - name: Till session verification — does the drawer balance (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/till_session_verification.sql
+
       # Plans (0044). The app-role half first: the ceiling, and the three
       # routes by which a tenant must not be able to promote itself.
       - name: Plan verification — the ceiling, from inside a tenant (as mosaiz_app_user)
