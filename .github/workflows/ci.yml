@@ -317,6 +317,14 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/open_tab_table_verification.sql
 
+      # 0046. Forty-five migrations recorded what was sold and nothing about
+      # the money that came back.
+      - name: Payment verification — the tender, and what unspecified means (as mosaiz_app_user)
+        env:
+          PGUSER: mosaiz_app_user
+          PGPASSWORD: ci_app_password
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/payment_verification.sql
+
       # Plans (0044). The app-role half first: the ceiling, and the three
       # routes by which a tenant must not be able to promote itself.
       - name: Plan verification — the ceiling, from inside a tenant (as mosaiz_app_user)

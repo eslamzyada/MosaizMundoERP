@@ -346,3 +346,107 @@ describe('opening a tab AT a table', () => {
     expect(row[0].table_id).toBeNull();
   });
 });
+
+/**
+ * How the bill was paid (0046).
+ *
+ * One sentence carries the whole feature: UNSPECIFIED IS NOT CASH. Every sale
+ * settled before this shipped, and every sale from a till that has not been
+ * updated, has no tender against it — and a cash-up computed against invented
+ * cash sales is worse than none, because somebody acts on it by accusing a
+ * cashier of being short.
+ */
+describe('taking the payment', () => {
+  async function aTabWorth(qty: number) {
+    const opened = await openTab();
+    await request(app)
+      .post(`/api/pos/orders/${opened.body.order_id}/items`)
+      .set(auth())
+      .send({ items: [{ sellable_item_id: dishId, quantity: qty }] });
+    await request(app).post(`/api/pos/orders/${opened.body.order_id}/fire`).set(auth());
+
+    const row = await admin.$queryRaw<Array<{ total_amount: string }>>`
+      SELECT total_amount FROM public.orders WHERE id = ${opened.body.order_id}::uuid`;
+    return { id: opened.body.order_id as string, total: Number(row[0].total_amount) };
+  }
+
+  const paymentsFor = async (orderId: string) =>
+    admin.$queryRaw<Array<{ method: string; amount: string }>>`
+      SELECT method, amount FROM public.order_payments WHERE order_id = ${orderId}::uuid`;
+
+  it('records the tender the till names', async () => {
+    const tab = await aTabWorth(1);
+
+    const res = await request(app)
+      .post(`/api/pos/orders/${tab.id}/settle`)
+      .set(auth())
+      .send({ payments: [{ method: 'card', amount: tab.total }] });
+
+    expect(res.status).toBe(200);
+    const paid = await paymentsFor(tab.id);
+    expect(paid).toHaveLength(1);
+    expect(paid[0].method).toBe('card');
+  });
+
+  it('settles with NO tender, and records nothing rather than cash', async () => {
+    // An older till, or one whose payment screen was skipped. It must keep
+    // working, and it must not have a method guessed for it.
+    const tab = await aTabWorth(1);
+
+    const res = await request(app)
+      .post(`/api/pos/orders/${tab.id}/settle`)
+      .set(auth())
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(await paymentsFor(tab.id)).toHaveLength(0);
+  });
+
+  it('splits a bill across two tenders', async () => {
+    const tab = await aTabWorth(2);
+    const half = Math.round((tab.total / 2) * 100) / 100;
+
+    const res = await request(app)
+      .post(`/api/pos/orders/${tab.id}/settle`)
+      .set(auth())
+      .send({
+        payments: [
+          { method: 'cash', amount: half },
+          { method: 'card', amount: Math.round((tab.total - half) * 100) / 100 },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(await paymentsFor(tab.id)).toHaveLength(2);
+  });
+
+  it('refuses a tender that does not add up, and leaves the tab OPEN', async () => {
+    // The refusal is half the assertion. A settle that completed the order and
+    // then failed to record the money would lose it with nothing looking wrong.
+    const tab = await aTabWorth(1);
+
+    const res = await request(app)
+      .post(`/api/pos/orders/${tab.id}/settle`)
+      .set(auth())
+      .send({ payments: [{ method: 'cash', amount: tab.total - 1 }] });
+
+    expect(res.status).toBe(400);
+
+    const row = await admin.$queryRaw<Array<{ status: string }>>`
+      SELECT status FROM public.orders WHERE id = ${tab.id}::uuid`;
+    expect(row[0].status).toBe('open');
+    expect(await paymentsFor(tab.id)).toHaveLength(0);
+  });
+
+  it('refuses a method nobody recognises', async () => {
+    const tab = await aTabWorth(1);
+
+    const res = await request(app)
+      .post(`/api/pos/orders/${tab.id}/settle`)
+      .set(auth())
+      .send({ payments: [{ method: 'crypto', amount: tab.total }] });
+
+    expect(res.status).toBe(400);
+    expect(res.status).not.toBe(500);
+  });
+});

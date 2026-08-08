@@ -2,6 +2,7 @@ package com.mosaizmundo.pos.ui.viewmodel
 
 import com.mosaizmundo.pos.domain.CartItem
 import com.mosaizmundo.pos.domain.FloorTable
+import com.mosaizmundo.pos.domain.Tender
 import com.mosaizmundo.pos.domain.ConfiguredPrinter
 import com.mosaizmundo.pos.domain.OpenTab
 import com.mosaizmundo.pos.domain.OrderState
@@ -74,7 +75,7 @@ class MenuStateTest {
         override suspend fun addTabItems(orderId: String, items: List<CartItem>) = Unit
         override suspend fun removeTabLine(lineId: String) = Unit
         override suspend fun fireTab(orderId: String): Int = 0
-        override suspend fun settleTab(orderId: String): Double = 0.0
+        override suspend fun settleTab(orderId: String, tenders: List<Tender>): Double = 0.0
         override suspend fun printers(): List<ConfiguredPrinter> = emptyList()
         override fun failedOrderCount(): Flow<Int> = flowOf(0)
     }

@@ -80,7 +80,15 @@ interface PosRepository {
     suspend fun fireTab(orderId: String): Int
 
     /** Takes the money; returns the settled total. Refused while anything is unfired. */
-    suspend fun settleTab(orderId: String): Double
+    /**
+     * Closes a bill and records how it was paid (0046).
+     *
+     * [tenders] defaults to EMPTY, so every existing caller keeps working and
+     * records an unspecified sale — never a guessed one. When it is not empty
+     * the amounts must add up to the bill, and the server refuses the whole
+     * settle if they do not, leaving the tab open for somebody to fix.
+     */
+    suspend fun settleTab(orderId: String, tenders: List<Tender> = emptyList()): Double
 
     /** The printers configured for this organization (0031). */
     suspend fun printers(): List<ConfiguredPrinter>

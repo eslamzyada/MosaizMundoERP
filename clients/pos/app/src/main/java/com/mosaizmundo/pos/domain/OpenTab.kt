@@ -70,3 +70,32 @@ data class OpenTabLine(
     val isFired: Boolean get() = firedAt != null
     val lineTotal: Double get() = unitPrice * quantity
 }
+
+/**
+ * How a bill was paid (migration 0046).
+ *
+ * A fixed vocabulary, matching the database's CHECK exactly. A till that could
+ * invent a method would write rows the server refuses, and the refusal would
+ * land in front of a customer holding a card.
+ *
+ * There is deliberately no `UNSPECIFIED` member. Not naming a method is the
+ * ABSENCE of a value, not a value — modelling it as one is the first step
+ * towards it being counted as a kind of payment, which is the exact thing 0046
+ * exists to prevent.
+ */
+enum class PaymentMethod(val wire: String, val label: String) {
+    CASH("cash", "نقدًا"),
+    CARD("card", "بطاقة"),
+    TRANSFER("transfer", "تحويل"),
+    VOUCHER("voucher", "قسيمة"),
+    OTHER("other", "أخرى"),
+}
+
+/**
+ * One tender: a method and what it covers.
+ *
+ * A LIST of these settles a bill, because splitting one is ordinary. The till
+ * proposes the amounts and the server verifies they add up — so a till cannot
+ * discount by understating a tender, it can only be refused.
+ */
+data class Tender(val method: PaymentMethod, val amount: Double)

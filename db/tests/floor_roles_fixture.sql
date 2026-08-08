@@ -135,6 +135,21 @@ VALUES ('0d0e4000-000f-400f-800f-00000000000f',
         'زبون المنشأة الأخرى', '01099999999', 99.00)
 ON CONFLICT DO NOTHING;
 
+-- A completed ORDER belonging to the other restaurant (0046), with a literal
+-- id, so the payment suite can attempt to write money against a bill that
+-- really exists and really is not ours.
+--
+-- Without a real row the attempt degenerates into "an order that does not
+-- exist", which every implementation refuses — including one with no tenant
+-- check at all. That is how the cross-tenant assertion passed while the check
+-- it existed for was missing.
+INSERT INTO public.orders
+    (id, organization_id, client_offline_id, status, total_amount)
+VALUES ('0d0e0000-000f-400f-800f-00000000000f',
+        'f10c1000-0000-4000-8000-000000000000',
+        'c11e0000-000f-400f-800f-00000000000f', 'completed', 50.00)
+ON CONFLICT DO NOTHING;
+
 -- A table belonging to the OTHER restaurant (0039), with a literal id.
 --
 -- Seeded here as postgres for the same reason as the foreign menu change
@@ -170,6 +185,10 @@ BEGIN
     IF NOT EXISTS (SELECT FROM public.public_orders
                     WHERE id = '0d0e4000-000f-400f-800f-00000000000f') THEN
         missing := missing || 'foreign public order'; END IF;
+
+    IF NOT EXISTS (SELECT FROM public.orders
+                    WHERE id = '0d0e0000-000f-400f-800f-00000000000f') THEN
+        missing := missing || 'foreign order'; END IF;
     IF NOT EXISTS (SELECT FROM public.organization_memberships
                     WHERE user_id = 'f10c0002-0000-4000-8000-000000000002' AND role = 'kitchen') THEN
         missing := missing || 'kitchen membership'; END IF;
