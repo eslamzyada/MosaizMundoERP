@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.mosaizmundo.pos.domain.FloorTable
 import com.mosaizmundo.pos.domain.OpenTab
 import com.mosaizmundo.pos.domain.OpenTabLine
+import com.mosaizmundo.pos.domain.PaymentMethod
 import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 import java.util.Locale
 
@@ -75,6 +76,8 @@ fun TabsScreen(
     val message by viewModel.tabMessage.collectAsState()
     val printWarning by viewModel.printWarning.collectAsState()
     val floorTables by viewModel.floorTables.collectAsState()
+    /** The tab whose payment is being asked about. */
+    var settling by remember { mutableStateOf<OpenTab?>(null) }
     var newTableOpen by remember { mutableStateOf(false) }
 
     // The floor plan is fetched when the screen opens rather than held in the
@@ -188,11 +191,22 @@ fun TabsScreen(
                         onAddItems = { viewModel.addToTab(tab.id) },
                         onRemoveLine = viewModel::removeTabLine,
                         onFire = { viewModel.fireTab(tab.id) },
-                        onSettle = { viewModel.settleTab(tab.id) },
+                        onSettle = { settling = tab },
                     )
                 }
             }
         }
+    }
+
+    settling?.let { tab ->
+        HowWasItPaidDialog(
+            tab = tab,
+            onDismiss = { settling = null },
+            onPaid = { method ->
+                viewModel.settleTab(tab.id, method)
+                settling = null
+            },
+        )
     }
 
     if (newTableOpen) {
@@ -478,3 +492,46 @@ private fun TabLineRow(line: OpenTabLine, onRemove: () -> Unit) {
 }
 
 private fun format(value: Double): String = String.format(Locale.US, "%.2f", value)
+
+/**
+ * How was it paid?
+ *
+ * Asked at the till, once, because this is the only moment anybody knows the
+ * answer. A minute later the card machine has moved on and the cash is in the
+ * drawer with everything else.
+ *
+ * "دون تحديد" is offered and is deliberately NOT the prominent choice. A till
+ * must never stand between a queue and a closed bill, so the escape exists —
+ * but a night of unspecified sales reconciles against nothing, and the button
+ * that produces one should not be the easiest to press.
+ */
+@Composable
+private fun HowWasItPaidDialog(
+    tab: OpenTab,
+    onDismiss: () -> Unit,
+    onPaid: (PaymentMethod?) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("كيف تم الدفع؟") },
+        text = {
+            Column {
+                Text(
+                    text = "الحساب: %.2f ج.م".format(tab.totalAmount),
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(12.dp))
+                for (method in PaymentMethod.entries) {
+                    TextButton(
+                        onClick = { onPaid(method) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(method.label) }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onPaid(null) }) { Text("دون تحديد") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } },
+    )
+}

@@ -64,6 +64,31 @@ data class FireResult(
     val fired: Int,
 )
 
+/**
+ * One tender against a bill (migration 0046).
+ *
+ * [amount] is what this line CONTRIBUTES to the bill, not what was handed
+ * over. Cash given for a smaller bill produces change, and the change never
+ * entered the business.
+ */
+data class PaymentPayload(
+    val method: String,
+    val amount: Double,
+    val note: String? = null,
+)
+
+/**
+ * POST /api/pos/orders/{id}/settle.
+ *
+ * [payments] is nullable and stays that way. Sending nothing settles the bill
+ * as UNSPECIFIED — which is honest — where sending a guessed 'cash' would make
+ * the nightly cash-up a fiction. When it IS sent, the amounts must add up to
+ * the bill or the server refuses and the tab stays open.
+ */
+data class SettlePayload(
+    val payments: List<PaymentPayload>?,
+)
+
 data class SettleResult(
     val total_amount: Double?,
 )

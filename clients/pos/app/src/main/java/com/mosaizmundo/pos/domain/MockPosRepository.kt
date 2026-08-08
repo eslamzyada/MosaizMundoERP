@@ -140,7 +140,10 @@ class MockPosRepository : PosRepository {
         return fired
     }
 
-    override suspend fun settleTab(orderId: String): Double {
+    /** What the mock has recorded, so a test can read the tender back. */
+    val recorded = mutableMapOf<String, List<Tender>>()
+
+    override suspend fun settleTab(orderId: String, tenders: List<Tender>): Double {
         val tab = tabs.first { it.id == orderId }
         if (tab.hasUnfired) {
             throw TabRefusedException(
@@ -148,6 +151,18 @@ class MockPosRepository : PosRepository {
                 "${tab.unfiredCount} صنف لم يُرسل للمطبخ؛ أرسله أو احذفه قبل التحصيل",
             )
         }
+
+        // The same sum rule the server enforces, so the demo build cannot
+        // teach a habit that breaks against a real one.
+        if (tenders.isNotEmpty()) {
+            val paid = Math.round(tenders.sumOf { it.amount } * 100) / 100.0
+            val bill = Math.round(tab.totalAmount * 100) / 100.0
+            if (paid != bill) {
+                throw TabRefusedException(400, "المبلغ المحصّل $paid لا يساوي الحساب $bill")
+            }
+        }
+
+        recorded[orderId] = tenders
         tabs.removeAll { it.id == orderId }
         return tab.totalAmount
     }

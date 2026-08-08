@@ -194,11 +194,35 @@ export async function getServiceReport(req: Request, res: Response): Promise<voi
       };
     }
 
+    // ---- How the money came in (0046). ------------------------------------
+    //
+    // `unspecified` is a first-class row here, not a rounding error. Every sale
+    // settled before 0046, and every sale from a till that has not been
+    // updated, has no tender recorded — and folding those into cash would make
+    // the nightly cash-up a fiction somebody acts on.
+    const mixRows = await req.tx.$queryRaw<Array<{ method: string; amount: string }>>`
+      SELECT p.method, SUM(p.amount)::text AS amount
+        FROM public.order_payments p
+        JOIN public.orders o ON o.id = p.order_id
+       WHERE o.created_at >= ${range.from}
+         AND o.created_at < ${range.to}
+         AND o.status <> 'voided'
+       GROUP BY p.method`;
+
+    const attributed = mixRows.reduce((sum, r) => sum + Number(r.amount), 0);
+    const payment_mix = {
+      ...Object.fromEntries(mixRows.map((r) => [r.method, Number(r.amount)])),
+      // What the restaurant took and cannot account for by method. Derived
+      // rather than counted, so it can never quietly disagree with revenue.
+      unspecified: Math.round((revenue - attributed) * 100) / 100,
+    };
+
     res.status(200).json({
       from: range.from.toISOString(),
       to: range.to.toISOString(),
       revenue,
       orders: Number(takings.orders),
+      payment_mix,
       // Null means "this restaurant does not run that", NOT "none happened".
       labour,
       covers,

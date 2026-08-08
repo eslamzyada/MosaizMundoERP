@@ -12,6 +12,8 @@ import com.mosaizmundo.pos.api.AddItemsPayload
 import com.mosaizmundo.pos.api.CheckoutItemPayload
 import com.mosaizmundo.pos.api.CheckoutPayload
 import com.mosaizmundo.pos.api.OpenOrderItemPayload
+import com.mosaizmundo.pos.api.SettlePayload
+import com.mosaizmundo.pos.api.PaymentPayload
 import com.mosaizmundo.pos.api.OpenOrderPayload
 import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.api.PosApiService
@@ -164,8 +166,18 @@ class HttpPosRepository(
     override suspend fun fireTab(orderId: String): Int =
         api.fireTab(orderId).bodyOrRefusal()?.fired ?: 0
 
-    override suspend fun settleTab(orderId: String): Double =
-        api.settleTab(orderId).bodyOrRefusal()?.total_amount ?: 0.0
+    override suspend fun settleTab(orderId: String, tenders: List<Tender>): Double =
+        api.settleTab(
+            orderId,
+            // Empty means unspecified, and must reach the server as an absent
+            // field rather than as an empty array — the two are the same to
+            // app.record_payments, but only one of them says what it means.
+            SettlePayload(
+                payments = tenders
+                    .takeIf { it.isNotEmpty() }
+                    ?.map { PaymentPayload(method = it.method.wire, amount = it.amount) },
+            ),
+        ).bodyOrRefusal()?.total_amount ?: 0.0
 
     override suspend fun printers(): List<ConfiguredPrinter> =
         api.getPrinters()

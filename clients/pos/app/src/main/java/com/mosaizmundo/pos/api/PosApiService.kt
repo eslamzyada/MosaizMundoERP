@@ -93,7 +93,10 @@ interface PosApiService {
 
     /** Takes the money. Only now does the tab become revenue. */
     @POST("api/pos/orders/{id}/settle")
-    suspend fun settleTab(@Path("id") orderId: String): Response<SettleResult>
+    suspend fun settleTab(
+        @Path("id") orderId: String,
+        @Body payload: SettlePayload,
+    ): Response<SettleResult>
 
     /**
      * Where tickets print (0031). Read by every member — a till that cannot

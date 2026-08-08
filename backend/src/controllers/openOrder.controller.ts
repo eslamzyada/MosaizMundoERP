@@ -298,6 +298,12 @@ export async function fireOrder(req: Request, res: Response): Promise<void> {
  * Refused (409) while anything is unfired: those items were never cooked, so
  * settling would either charge for food that does not exist or silently drop it
  * from the bill, and only the person at the till knows which was meant.
+ *
+ * The body may carry `payments: [{ method, amount, note? }]` (0046). It is
+ * OPTIONAL and stays optional — an older till keeps settling without it, and
+ * the sale is then recorded as UNSPECIFIED rather than guessed at as cash.
+ * When it is given the amounts must add up to the bill, and a tender that does
+ * not is a 400 that leaves the tab open.
  */
 export async function settleOrder(req: Request, res: Response): Promise<void> {
   if (!requireTx(req, res)) return;
@@ -305,9 +311,19 @@ export async function settleOrder(req: Request, res: Response): Promise<void> {
   const id = req.params.id;
   if (!requireUuid(id, res, 'order id')) return;
 
+  // Passed through as JSON rather than parsed here. The rules — the vocabulary
+  // of methods, the amounts adding up, one payment per bill — live in
+  // app.record_payments, where both the tab and the counter sale reach them.
+  // A second copy up here could only ever disagree with the first.
+  const body = (req.body ?? {}) as { payments?: unknown };
+  const payments =
+    Array.isArray(body.payments) && body.payments.length > 0
+      ? JSON.stringify(body.payments)
+      : null;
+
   try {
     const rows = await req.tx!.$queryRaw<{ total: Prisma.Decimal }[]>`
-      SELECT app.settle_order(${id}::uuid) AS total`;
+      SELECT app.settle_order(${id}::uuid, ${payments}::jsonb) AS total`;
     res.status(200).json({ status: 'ok', total_amount: rows[0]?.total ?? null });
   } catch (err) {
     respondToDbError(err, res, 'pos.settleOrder');

@@ -2,31 +2,33 @@ package com.mosaizmundo.pos.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mosaizmundo.pos.api.MANAGER_ROLES
 import com.mosaizmundo.pos.domain.CartItem
 import com.mosaizmundo.pos.domain.FloorTable
 import com.mosaizmundo.pos.domain.OpenTab
+import com.mosaizmundo.pos.domain.OrderState
+import com.mosaizmundo.pos.domain.PaymentMethod
+import com.mosaizmundo.pos.domain.PosOrder
+import com.mosaizmundo.pos.domain.PosRepository
 import com.mosaizmundo.pos.domain.PrinterRole
+import com.mosaizmundo.pos.domain.SellableItem
+import com.mosaizmundo.pos.domain.TabRefusedException
+import com.mosaizmundo.pos.domain.Tender
+import com.mosaizmundo.pos.domain.VoidReason
 import com.mosaizmundo.pos.printing.Ticket
 import com.mosaizmundo.pos.printing.TicketPrinter
 import com.mosaizmundo.pos.printing.Tickets
-import com.mosaizmundo.pos.domain.TabRefusedException
-import com.mosaizmundo.pos.domain.OrderState
-import com.mosaizmundo.pos.domain.PosRepository
-import com.mosaizmundo.pos.domain.SellableItem
-import com.mosaizmundo.pos.api.MANAGER_ROLES
-import com.mosaizmundo.pos.domain.PosOrder
-import com.mosaizmundo.pos.domain.VoidReason
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
-import java.io.IOException
 
 /** The screen currently shown in the authenticated POS flow. */
 enum class PosDestination { MENU, CART, CHECKOUT, ORDERS, TABS }
@@ -471,14 +473,29 @@ class PosViewModel(
     private fun timestamp(): String =
         java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
 
-    /** Takes the money. Only now does the tab count as revenue. */
-    fun settleTab(tabId: String) {
+    /**
+     * Takes the money. Only now does the tab count as revenue.
+     *
+     * [method] is nullable, and null means the sale is recorded as UNSPECIFIED
+     * rather than guessed at (0046). That path exists because a till must
+     * never stand between a queue and a closed bill — but it is not the
+     * default the screen offers, because a night of unspecified sales
+     * reconciles against nothing.
+     */
+    fun settleTab(tabId: String, method: PaymentMethod? = null) {
         // Snapshotted for the same reason as firing: a settled tab leaves the
         // open list, so there would be nothing left to build a bill from.
         val snapshot = _tabs.value.firstOrNull { it.id == tabId }
         viewModelScope.launch {
             val total = try {
-                repository.settleTab(tabId)
+                repository.settleTab(
+                    tabId,
+                    // The amount comes from the tab the server itself sent, so
+                    // the sum it checks against is the sum it gave us.
+                    method?.let { m ->
+                        snapshot?.let { listOf(Tender(m, it.totalAmount)) }.orEmpty()
+                    }.orEmpty(),
+                )
             } catch (e: Exception) {
                 _tabMessage.value = messageFor(e, "تعذّر التحصيل")
                 refreshTabs()

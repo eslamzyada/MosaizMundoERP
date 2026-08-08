@@ -37,6 +37,8 @@ const managerId = randomUUID();
 const workerId = randomUUID();
 // Someone who got a raise, to prove last month's report does not get one too.
 const raisedId = randomUUID();
+const paidOrderId = randomUUID();
+const voidedOrderId = randomUUID();
 const bareOwnerId = randomUUID();
 
 let ownerToken = '';
@@ -87,10 +89,12 @@ beforeAll(async () => {
       VALUES (${bareOrgId}::uuid, ${key}, false)`;
   }
 
-  // A night's takings.
+  // A night's takings: 1000, across two sales. Split so the payment mix has
+  // something to divide WITHOUT moving the revenue — every figure below is
+  // stated against 1000 and should stay that way.
   await admin.$executeRaw`
     INSERT INTO public.orders (organization_id, client_offline_id, status, total_amount)
-    VALUES (${orgId}::uuid, ${randomUUID()}::uuid, 'completed', 1000.00)`;
+    VALUES (${orgId}::uuid, ${randomUUID()}::uuid, 'completed', 600.00)`;
 
   // Ten hours worked, at 30 an hour — 300, which is 30% of the takings.
   await admin.$executeRaw`
@@ -99,6 +103,28 @@ beforeAll(async () => {
   await admin.$executeRaw`
     INSERT INTO public.time_entries (organization_id, user_id, started_at, ended_at)
     VALUES (${orgId}::uuid, ${workerId}::uuid, now() - interval '11 hours', now() - interval '1 hour')`;
+
+  // 400 of it paid by card. The other 600 was never described — which is what
+  // EVERY sale looked like before 0046, and what every un-updated till still
+  // produces. That unattributed remainder is the point of the mix.
+  await admin.$executeRaw`
+    INSERT INTO public.orders (id, organization_id, client_offline_id, status, total_amount)
+    VALUES (${paidOrderId}::uuid, ${orgId}::uuid, ${randomUUID()}::uuid, 'completed', 400.00)`;
+  await admin.$executeRaw`
+    INSERT INTO public.order_payments (organization_id, order_id, method, amount)
+    VALUES (${orgId}::uuid, ${paidOrderId}::uuid, 'card', 400.00)`;
+
+  // A sale that was rung up, paid for, and then VOIDED. The revenue figure
+  // already excludes it; the mix has to exclude it too, or the two disagree
+  // by exactly this amount and a manager comparing them trusts neither.
+  await admin.$executeRaw`
+    INSERT INTO public.orders
+        (id, organization_id, client_offline_id, status, total_amount, void_reason)
+    VALUES (${voidedOrderId}::uuid, ${orgId}::uuid, ${randomUUID()}::uuid,
+            'voided', 250.00, 'test_order')`;
+  await admin.$executeRaw`
+    INSERT INTO public.order_payments (organization_id, order_id, method, amount)
+    VALUES (${orgId}::uuid, ${voidedOrderId}::uuid, 'cash', 250.00)`;
 
   // A day the restaurant did not open, but someone still worked it — a deep
   // clean, four hours, at a rate that WAS in force (the wage starts 30 days
@@ -139,6 +165,7 @@ afterAll(async () => {
     // Orders BEFORE tables: 0043 gave orders a table_id, so a table that has
     // held a tab is pinned until the tab is gone. Deleting in the old order
     // fails with a foreign key violation that says nothing about seating.
+    await admin.$executeRaw`DELETE FROM public.order_payments WHERE organization_id = ${id}::uuid`;
     await admin.$executeRaw`DELETE FROM public.order_items WHERE organization_id = ${id}::uuid`;
     await admin.$executeRaw`DELETE FROM public.orders WHERE organization_id = ${id}::uuid`;
     await admin.$executeRaw`DELETE FROM public.restaurant_tables WHERE organization_id = ${id}::uuid`;
@@ -354,5 +381,51 @@ describe('who may read it', () => {
       .get(`/api/reports/service?from=${new Date().toISOString()}&to=${new Date(Date.now() - 86400_000).toISOString()}`)
       .set(as(ownerToken));
     expect(res.status).toBe(400);
+  });
+});
+
+/**
+ * How the money came in (0046).
+ *
+ * `unspecified` is a row here, not a rounding error. Every sale settled before
+ * 0046 and every sale from an un-updated till has no tender against it — and
+ * folding those into cash would make the nightly cash-up a fiction that
+ * somebody acts on, by accusing a cashier of being short.
+ */
+describe('the payment mix', () => {
+  it('reports what was actually tendered, by method', async () => {
+    const res = await request(app).get(`/api/reports/service?${window}`).set(as(ownerToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.payment_mix.card).toBe(400);
+  });
+
+  it('reports the rest as UNSPECIFIED, never as cash', async () => {
+    // The 600 sale carries no tender at all.
+    const res = await request(app).get(`/api/reports/service?${window}`).set(as(ownerToken));
+
+    expect(res.body.payment_mix.unspecified).toBe(600);
+    expect(res.body.payment_mix.cash).toBeUndefined();
+  });
+
+  it('leaves a VOIDED sale out, exactly as revenue does', async () => {
+    // 250 was taken in cash and then voided. If the mix kept it, cash would
+    // read 250 against revenue that never included it.
+    const res = await request(app).get(`/api/reports/service?${window}`).set(as(ownerToken));
+
+    expect(res.body.payment_mix.cash).toBeUndefined();
+    expect(res.body.revenue).toBe(1000);
+  });
+
+  it('accounts for every pound of revenue, and no more', async () => {
+    // The mix must reconcile against the headline, or a manager comparing the
+    // two finds a gap with no name and stops trusting both.
+    const res = await request(app).get(`/api/reports/service?${window}`).set(as(ownerToken));
+
+    const summed = Object.values(res.body.payment_mix as Record<string, number>).reduce(
+      (a, b) => a + b,
+      0,
+    );
+    expect(summed).toBeCloseTo(res.body.revenue, 2);
   });
 });
