@@ -2,6 +2,8 @@ package com.mosaizmundo.pos.ui.viewmodel
 
 import com.mosaizmundo.pos.domain.CartItem
 import com.mosaizmundo.pos.domain.FloorTable
+import com.mosaizmundo.pos.domain.TillSession
+import com.mosaizmundo.pos.domain.TillCount
 import com.mosaizmundo.pos.domain.Tender
 import com.mosaizmundo.pos.domain.ConfiguredPrinter
 import com.mosaizmundo.pos.domain.OpenTab
@@ -66,6 +68,13 @@ class MenuStateTest {
 
         override suspend fun openTabs(): List<OpenTab> = emptyList()
         override suspend fun tables(): List<FloorTable> = emptyList()
+
+        override suspend fun till(): TillSession? = null
+
+        override suspend fun openTill(openingFloat: Double): TillSession? = null
+
+        override suspend fun closeTill(countedCash: Double): TillCount =
+            TillCount(countedCash = 0.0, expectedCash = 0.0, variance = 0.0)
 
         override suspend fun openTab(note: String, items: List<CartItem>, tableId: String?): String {
             openedNote = note

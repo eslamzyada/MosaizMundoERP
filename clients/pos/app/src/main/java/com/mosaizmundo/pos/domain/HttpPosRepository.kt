@@ -14,6 +14,8 @@ import com.mosaizmundo.pos.api.CheckoutPayload
 import com.mosaizmundo.pos.api.OpenOrderItemPayload
 import com.mosaizmundo.pos.api.SettlePayload
 import com.mosaizmundo.pos.api.PaymentPayload
+import com.mosaizmundo.pos.api.OpenTillPayload
+import com.mosaizmundo.pos.api.CloseTillPayload
 import com.mosaizmundo.pos.api.OpenOrderPayload
 import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.api.PosApiService
@@ -133,6 +135,35 @@ class HttpPosRepository(
             .getOrDefault(emptyList())
             .filter { it.is_active }
             .map { FloorTable(id = it.id, label = it.label, area = it.area, seats = it.seats) }
+
+    override suspend fun till(): TillSession? =
+        api.getTill().session?.let {
+            TillSession(
+                id = it.id,
+                openedAt = it.opened_at,
+                openingFloat = it.opening_float,
+                cashTaken = it.cash_taken,
+                otherTaken = it.other_taken,
+                expectedSoFar = it.expected_so_far,
+            )
+        }
+
+    override suspend fun openTill(openingFloat: Double): TillSession? {
+        api.openTill(OpenTillPayload(opening_float = openingFloat)).bodyOrRefusal()
+        // Read back rather than assumed: the drawer the screen shows should be
+        // the one the server has, including the moment somebody else opened it.
+        return till()
+    }
+
+    override suspend fun closeTill(countedCash: Double): TillCount {
+        val r = api.closeTill(CloseTillPayload(counted_cash = countedCash)).bodyOrRefusal()
+            ?: throw TabRefusedException(500, "تعذّر إغلاق الدرج")
+        return TillCount(
+            countedCash = r.counted_cash,
+            expectedCash = r.expected_cash,
+            variance = r.variance,
+        )
+    }
 
     override suspend fun openTab(note: String, items: List<CartItem>, tableId: String?): String {
         val organizationId = sessionManager.getOrganizationId().first() ?: FALLBACK_ORGANIZATION_ID

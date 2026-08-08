@@ -60,6 +60,21 @@ interface PosRepository {
      */
     suspend fun tables(): List<FloorTable>
 
+    /** The open drawer, or NULL when none is. Null is an answer, not a failure. */
+    suspend fun till(): TillSession?
+
+    /** Opens the drawer with what is already in it. Refused (409) if one is open. */
+    suspend fun openTill(openingFloat: Double): TillSession?
+
+    /**
+     * Counts it and closes it.
+     *
+     * [countedCash] is required by every layer down to the procedure. There is
+     * deliberately no "close without counting" — it would report a variance of
+     * zero every night and make the whole feature decorative.
+     */
+    suspend fun closeTill(countedCash: Double): TillCount
+
     /**
      * Opens a tab, optionally AT a table (0045).
      *

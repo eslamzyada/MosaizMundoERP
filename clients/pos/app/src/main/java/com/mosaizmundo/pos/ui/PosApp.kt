@@ -9,6 +9,7 @@ import com.mosaizmundo.pos.ui.screens.CheckoutScreen
 import com.mosaizmundo.pos.ui.screens.MenuScreen
 import com.mosaizmundo.pos.ui.screens.OrdersScreen
 import com.mosaizmundo.pos.ui.screens.TabsScreen
+import com.mosaizmundo.pos.ui.screens.TillScreen
 import com.mosaizmundo.pos.ui.viewmodel.PosDestination
 import com.mosaizmundo.pos.ui.viewmodel.PosViewModel
 
@@ -40,6 +41,7 @@ fun PosApp(viewModel: PosViewModel, onSignOut: () -> Unit) {
                 onProceed = viewModel::openCart,
                 onOpenOrders = viewModel::openOrders,
                 onOpenTabs = viewModel::openTabs,
+                onOpenTill = viewModel::openTillScreen,
                 onSignOut = onSignOut,
             )
         }
@@ -47,6 +49,11 @@ fun PosApp(viewModel: PosViewModel, onSignOut: () -> Unit) {
         PosDestination.TABS -> {
             BackHandler { viewModel.backToMenu() }
             TabsScreen(viewModel = viewModel, onBack = viewModel::backToMenu)
+        }
+
+        PosDestination.TILL -> {
+            BackHandler { viewModel.backToMenu() }
+            TillScreen(viewModel = viewModel, onBack = viewModel::backToMenu)
         }
 
         PosDestination.ORDERS -> {

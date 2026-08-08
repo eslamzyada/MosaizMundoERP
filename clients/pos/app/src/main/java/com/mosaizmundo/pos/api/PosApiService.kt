@@ -68,6 +68,16 @@ interface PosApiService {
     @GET("api/reservations/tables")
     suspend fun getTables(): List<RestaurantTableResponse>
 
+    // The drawer (0047).
+    @GET("api/till")
+    suspend fun getTill(): TillResponse
+
+    @POST("api/till/open")
+    suspend fun openTill(@Body payload: OpenTillPayload): Response<Unit>
+
+    @POST("api/till/close")
+    suspend fun closeTill(@Body payload: CloseTillPayload): Response<CloseTillResult>
+
     @POST("api/pos/orders/open")
     suspend fun openTab(@Body payload: OpenOrderPayload): Response<OpenOrderResult>
 
