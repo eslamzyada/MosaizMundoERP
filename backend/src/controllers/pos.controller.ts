@@ -288,7 +288,30 @@ export async function getMenu(req: Request, res: Response): Promise<void> {
     // COUNT/FLOOR are cast to int: res.json cannot serialize a BigInt, and a
     // fractional portion is not a thing a cashier can sell.
     const ctx = await contextFor(req);
-    const items = await cached('pos-menu', ctx, '', 60, async () =>
+
+    // The menu is cached; `portions_available` inside it is NOT allowed to go
+    // stale, and those two facts fight.
+    //
+    // Availability is derived from stock, and stock moves on every sale, void,
+    // write-off, stocktake and delivery — five paths today and a sixth
+    // whenever somebody adds one. Sprinkling invalidate() across all of them
+    // is the version that silently rots the first time one is missed, and a
+    // menu confidently offering three portions of a dish that sold out a
+    // minute ago is exactly the "gap that reads as a number" this codebase
+    // keeps refusing.
+    //
+    // So the stock itself is part of the cache NAME. When anything moves, the
+    // stamp changes, the key changes, and the old entry is abandoned rather
+    // than hunted down — the same trick the plan in cacheKey uses, for the
+    // same reason: the event that should invalidate it cannot be relied on to
+    // reach this code.
+    //
+    // The cost is one indexed max() against the cost of the aggregation below.
+    const [stamp] = await req.tx.$queryRaw<Array<{ v: string }>>`
+      SELECT COALESCE(MAX(b.updated_at), 'epoch')::text || ':' || count(*)::text AS v
+        FROM public.inventory_batches b`;
+
+    const items = await cached('pos-menu', ctx, `s=${stamp?.v ?? 'none'}`, 60, async () =>
       req.tx!.$queryRaw`
       WITH stock AS (
           SELECT b.raw_item_id,
