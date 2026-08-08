@@ -1,48 +1,89 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import LoadError from '../components/LoadError';
-import Badge from '../components/ui/Badge';
 import { classifyLoadFailure } from '../lib/loadFailure';
 import type { LoadFailure } from '../lib/loadFailure';
-import { HttpOrderRepository } from '../api/HttpOrderRepository';
-import { orderStatusMeta } from '../lib/orderStatus';
-import type { Order } from '../types';
+import { floorRepository } from '../api/FloorRepository';
+import type { Floor as FloorData, FloorTab, FloorTable } from '../api/FloorRepository';
 
 /**
- * The waiter's screen: which tables are open, and how long they have been.
+ * الصالة — the room, and what needs somebody in it.
  *
- * One question, answered on arrival. The back office has thirteen destinations
- * and twelve of them are somebody else's job; this is the one a waiter actually
- * opens, so it is where they land.
+ * This used to be a list of open ORDERS, each named by whatever a server had
+ * typed into its note. That answers "what is running" and nothing else, and
+ * almost everything a manager walks in wanting to know is NOT in such a list:
  *
- * OPEN TABS FIRST, and sorted by AGE rather than by time opened. The useful
- * question on a floor is never "what happened most recently" — it is "what has
- * been waiting longest", because that is the table about to complain.
+ *   a table sitting twenty minutes having ordered nothing has no items, so it
+ *   never appeared at all — and it is the most urgent thing in the building;
+ *   a FREE table is not an order, and how much of the room is empty is half of
+ *   running a floor;
+ *   a booking due in forty minutes on a table still eating is the only thing
+ *   here that is about to become a problem rather than already being one.
+ *
+ * So the page is now the room. Sorted by what is WRONG rather than by time,
+ * because a floor screen is read in three seconds while walking past it.
  */
 
-const repository = new HttpOrderRepository();
+/** Minutes past which an empty tab stops being "just sat down". */
+const IGNORED_MINUTES = 15;
+/** A booking this close to a table still eating needs somebody now. */
+const IMMINENT_MINUTES = 60;
 
-/** How long a tab has been open, in words rather than a timestamp. */
-function waiting(iso: string): { label: string; minutes: number } {
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (minutes < 1) return { label: 'الآن', minutes };
-  if (minutes < 60) return { label: `منذ ${minutes} دقيقة`, minutes };
-  const hours = Math.floor(minutes / 60);
-  return { label: `منذ ${hours} ساعة`, minutes };
+type Trouble = { label: string; tone: 'urgent' | 'warn' } | null;
+
+/**
+ * What is wrong with this table, in the order a person would care.
+ *
+ * Nothing-ordered outranks nothing-fired: a party with no order has not been
+ * spoken to, while a party with unfired lines has at least been served by
+ * somebody who has not pressed send.
+ */
+function troubleWith(table: FloorTable): Trouble {
+  const tab = table.tab;
+  if (!tab) return null;
+
+  if (tab.item_count === 0 && tab.minutes_open >= IGNORED_MINUTES) {
+    return { label: `جالسون منذ ${tab.minutes_open} دقيقة بلا طلب`, tone: 'urgent' };
+  }
+  if (tab.unfired_count > 0) {
+    return { label: `${tab.unfired_count} صنف لم يُرسل للمطبخ`, tone: 'warn' };
+  }
+  if (table.next_reservation && table.next_reservation.minutes_until <= IMMINENT_MINUTES) {
+    return {
+      label: `حجز بعد ${Math.max(0, table.next_reservation.minutes_until)} دقيقة`,
+      tone: 'warn',
+    };
+  }
+  return null;
 }
 
+/** Sorted by urgency, then by how long they have been sitting. */
+function ranked(tables: FloorTable[]): FloorTable[] {
+  const weight = (t: FloorTable) => {
+    const trouble = troubleWith(t);
+    if (trouble?.tone === 'urgent') return 0;
+    if (trouble?.tone === 'warn') return 1;
+    if (t.tab) return 2;
+    return 3; // free tables last: they are the only rows nobody must act on
+  };
+  return [...tables].sort(
+    (a, b) => weight(a) - weight(b) || (b.tab?.minutes_open ?? 0) - (a.tab?.minutes_open ?? 0),
+  );
+}
+
+const money = (n: number) =>
+  n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export default function Floor() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [floor, setFloor] = useState<FloorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<LoadFailure | null>(null);
 
   const load = useCallback(() => {
-    setLoading(true);
     setError(null);
-    repository
-      .getOrders()
+    floorRepository
+      .get()
       .then((data) => {
-        setOrders(data);
+        setFloor(data);
         setLoading(false);
       })
       .catch((e) => {
@@ -68,99 +109,193 @@ export default function Floor() {
     };
   }, [load]);
 
-  const open = orders
-    .filter((o) => o.status === 'open')
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  if (error) {
+    return (
+      <div className="p-8">
+        <LoadError failure={error} onRetry={load} />
+      </div>
+    );
+  }
 
-  const recent = orders
-    .filter((o) => o.status !== 'open')
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 6);
+  if (loading || !floor) {
+    return <p className="p-8 text-sm text-app-ink-muted">جارٍ التحميل…</p>;
+  }
+
+  const { tables, unseated_tabs: unseated, summary } = floor;
 
   return (
-    <div className="p-8">
+    <div className="p-8" data-testid="floor-page">
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-app-ink">الصالة</h1>
         <p className="mt-1 text-sm text-app-ink-muted">
-          الطاولات المفتوحة، الأقدم أولًا — لأن أطولها انتظارًا هي التي تحتاجك الآن.
+          ما يحتاجك الآن أولًا — الطاولات المتأخرة، ثم ما لم يُرسل، ثم البقية.
         </p>
       </header>
 
-      {error ? (
-        <LoadError failure={error} onRetry={load} />
-      ) : loading ? (
-        <p className="text-sm text-app-ink-muted">جارٍ التحميل…</p>
+      {/* The counts. Absent — not zero — when there is no floor plan at all. */}
+      {tables !== null && (
+        <section className="mb-6 grid gap-3 sm:grid-cols-3" data-testid="floor-summary">
+          <Count label="مشغولة" value={summary.occupied ?? 0} testId="count-occupied" />
+          <Count label="فارغة" value={summary.free ?? 0} testId="count-free" />
+          <Count
+            label="حجز قادم على طاولة مشغولة"
+            value={summary.double_booked_soon ?? 0}
+            testId="count-double"
+            accent={(summary.double_booked_soon ?? 0) > 0}
+          />
+        </section>
+      )}
+
+      {tables === null ? (
+        /* No floor plan, which is a fact about the restaurant rather than an
+           empty room. Saying "0 tables" here would be false. */
+        <p
+          data-testid="no-floor-plan"
+          className="mb-6 rounded-xl border border-dashed border-app-border p-6 text-center text-sm text-app-ink-muted"
+        >
+          هذا المطعم لا يعمل بنظام الطاولات. الحسابات المفتوحة معروضة بالأسفل.
+        </p>
+      ) : tables.length === 0 ? (
+        <p className="mb-6 rounded-xl border border-dashed border-app-border p-6 text-center text-sm text-app-ink-muted">
+          لا توجد طاولات بعد — تُضاف من شاشة الحجوزات.
+        </p>
       ) : (
-        <>
-          <section className="mb-8">
-            <h2 className="mb-3 text-sm font-bold text-app-ink">
-              مفتوحة الآن{' '}
-              <span className="font-numerals text-app-ink-muted">({open.length})</span>
-            </h2>
+        <ul className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {ranked(tables).map((table) => (
+            <TableCard key={table.id} table={table} />
+          ))}
+        </ul>
+      )}
 
-            {open.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-app-border p-8 text-center text-sm text-app-ink-muted">
-                لا توجد طاولات مفتوحة. تُفتح الطاولات من نقطة البيع.
-              </p>
-            ) : (
-              <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {open.map((order) => {
-                  const age = waiting(order.created_at);
-                  const items = order.order_items.reduce((sum, it) => sum + it.quantity, 0);
-                  return (
-                    <li
-                      key={order.id}
-                      data-testid={`open-tab-${order.id}`}
-                      className="rounded-xl border border-app-border bg-app-surface p-4 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-app-ink">
-                            {order.note ?? `#${order.id.slice(0, 8)}`}
-                          </p>
-                          <p className="mt-0.5 text-xs text-app-ink-muted">{age.label}</p>
-                        </div>
-                        {/* Twenty minutes is when a table starts noticing. */}
-                        {age.minutes >= 20 && <Badge variant="warning">انتظار طويل</Badge>}
-                      </div>
-
-                      <p className="mt-3 text-sm text-app-ink-muted">
-                        <span className="font-numerals font-semibold text-app-ink">{items}</span>{' '}
-                        صنف
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
-          <section>
-            <h2 className="mb-3 text-sm font-bold text-app-ink">آخر ما أُغلق</h2>
-            {recent.length === 0 ? (
-              <p className="text-sm text-app-ink-muted">لا شيء بعد.</p>
-            ) : (
-              <ul className="divide-y divide-app-border overflow-hidden rounded-xl border border-app-border bg-app-surface">
-                {recent.map((order) => {
-                  const meta = orderStatusMeta(order.status);
-                  return (
-                    <li key={order.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                      <span className="truncate text-sm text-app-ink">
-                        {order.note ?? `#${order.id.slice(0, 8)}`}
-                      </span>
-                      <Badge variant={meta.variant}>{meta.label}</Badge>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-
-            <p className="mt-4 text-xs text-app-ink-muted">
-              التفاصيل الكاملة في <Link to="/orders" className="font-semibold text-twilight-700 underline dark:text-twilight-300">الطلبات</Link>.
-            </p>
-          </section>
-        </>
+      {unseated.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-sm font-bold text-app-ink">
+            حسابات بلا طاولة{' '}
+            <span className="font-numerals text-app-ink-muted">({unseated.length})</span>
+          </h2>
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {unseated.map((tab) => (
+              <li
+                key={tab.id}
+                data-testid={`unseated-${tab.id}`}
+                className="rounded-xl border border-app-border bg-app-surface p-4 shadow-sm"
+              >
+                <p className="truncate font-semibold text-app-ink">
+                  {tab.note ?? 'حساب بلا وصف'}
+                </p>
+                <TabFacts tab={tab} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
+  );
+}
+
+function Count({
+  label,
+  value,
+  testId,
+  accent,
+}: {
+  label: string;
+  value: number;
+  testId: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-app-border bg-app-surface px-4 py-3" data-testid={testId}>
+      <p className="text-xs text-app-ink-muted">{label}</p>
+      <p
+        className={[
+          'font-numerals mt-0.5 text-2xl font-bold',
+          accent ? 'text-sunset-600' : 'text-app-ink',
+        ].join(' ')}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function TableCard({ table }: { table: FloorTable }) {
+  const trouble = troubleWith(table);
+  const free = table.tab === null;
+
+  return (
+    <li
+      data-testid={`table-${table.id}`}
+      className={[
+        'rounded-xl border bg-app-surface p-4 shadow-sm',
+        trouble?.tone === 'urgent' ? 'border-sunset-400' : 'border-app-border',
+        // A free table is deliberately quieter: it is the one row on this
+        // screen nobody has to do anything about.
+        free ? 'opacity-70' : '',
+      ].join(' ')}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-app-ink">{table.label}</p>
+          {table.area && <p className="text-xs text-app-ink-muted">{table.area}</p>}
+        </div>
+        <span
+          data-testid={`state-${table.id}`}
+          className={[
+            'flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+            free ? 'bg-app-bg text-app-ink-muted' : 'bg-twilight-50 text-twilight-700',
+          ].join(' ')}
+        >
+          {free ? 'فارغة' : 'مشغولة'}
+        </span>
+      </div>
+
+      {trouble && (
+        <p
+          data-testid={`trouble-${table.id}`}
+          className={[
+            'mt-2 rounded-lg px-2 py-1 text-xs font-medium',
+            trouble.tone === 'urgent'
+              ? 'bg-sunset-50 text-sunset-700'
+              : 'bg-app-bg text-app-ink-muted',
+          ].join(' ')}
+        >
+          {trouble.label}
+        </p>
+      )}
+
+      {table.tab ? (
+        <TabFacts tab={table.tab} />
+      ) : (
+        table.next_reservation && (
+          <p className="mt-2 text-xs text-app-ink-muted">
+            محجوزة لـ{table.next_reservation.guest_name} بعد{' '}
+            <span className="font-numerals">
+              {Math.max(0, table.next_reservation.minutes_until)}
+            </span>{' '}
+            دقيقة
+          </p>
+        )
+      )}
+    </li>
+  );
+}
+
+function TabFacts({ tab }: { tab: FloorTab }) {
+  return (
+    <dl className="mt-3 flex items-end justify-between gap-3 text-xs text-app-ink-muted">
+      <div>
+        <dt className="sr-only">مدة الجلوس</dt>
+        <dd className="font-numerals">{tab.minutes_open} دقيقة</dd>
+        <dt className="sr-only">الأصناف</dt>
+        <dd className="font-numerals">{tab.item_count} صنف</dd>
+      </div>
+      <div className="text-left">
+        <dt className="sr-only">الحساب</dt>
+        <dd className="font-numerals text-base font-bold text-app-ink">
+          {money(tab.total_amount)}
+        </dd>
+      </div>
+    </dl>
   );
 }
