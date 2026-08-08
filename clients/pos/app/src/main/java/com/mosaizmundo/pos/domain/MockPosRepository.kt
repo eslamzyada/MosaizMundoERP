@@ -81,6 +81,45 @@ class MockPosRepository : PosRepository {
         FloorTable(id = "tbl-3", label = "طاولة ٣", area = "الشرفة", seats = 6),
     )
 
+    /**
+     * The mock drawer, enforcing the same rules the server does — one open at
+     * a time, and only cash counts. A mock that were more permissive would
+     * teach a habit that breaks in service.
+     */
+    private var session: TillSession? = null
+    private var takenCash = 0.0
+    private var takenOther = 0.0
+
+    override suspend fun till(): TillSession? = session
+
+    override suspend fun openTill(openingFloat: Double): TillSession? {
+        if (session != null) {
+            throw TabRefusedException(409, "الدرج مفتوح بالفعل؛ أغلقه قبل فتح غيره")
+        }
+        takenCash = 0.0
+        takenOther = 0.0
+        session = TillSession(
+            id = "till-${System.currentTimeMillis()}",
+            openedAt = "2026-07-26T09:00:00Z",
+            openingFloat = openingFloat,
+            cashTaken = 0.0,
+            otherTaken = 0.0,
+            expectedSoFar = openingFloat,
+        )
+        return session
+    }
+
+    override suspend fun closeTill(countedCash: Double): TillCount {
+        val open = session ?: throw TabRefusedException(409, "الدرج غير مفتوح")
+        val expected = Math.round((open.openingFloat + takenCash) * 100) / 100.0
+        session = null
+        return TillCount(
+            countedCash = countedCash,
+            expectedCash = expected,
+            variance = Math.round((countedCash - expected) * 100) / 100.0,
+        )
+    }
+
     override suspend fun tables(): List<FloorTable> {
         delay(100)
         return mockTables
@@ -163,6 +202,18 @@ class MockPosRepository : PosRepository {
         }
 
         recorded[orderId] = tenders
+        // Only CASH reaches the drawer. Card is real money that is not in the
+        // room, and counting it here would invent a shortfall its exact size.
+        for (t in tenders) {
+            if (t.method == PaymentMethod.CASH) takenCash += t.amount else takenOther += t.amount
+        }
+        session = session?.let {
+            it.copy(
+                cashTaken = takenCash,
+                otherTaken = takenOther,
+                expectedSoFar = Math.round((it.openingFloat + takenCash) * 100) / 100.0,
+            )
+        }
         tabs.removeAll { it.id == orderId }
         return tab.totalAmount
     }

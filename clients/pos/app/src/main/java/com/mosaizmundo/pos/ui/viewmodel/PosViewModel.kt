@@ -3,6 +3,8 @@ package com.mosaizmundo.pos.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mosaizmundo.pos.api.MANAGER_ROLES
+import com.mosaizmundo.pos.domain.TillSession
+import com.mosaizmundo.pos.domain.TillCount
 import com.mosaizmundo.pos.domain.CartItem
 import com.mosaizmundo.pos.domain.FloorTable
 import com.mosaizmundo.pos.domain.OpenTab
@@ -31,7 +33,7 @@ import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 /** The screen currently shown in the authenticated POS flow. */
-enum class PosDestination { MENU, CART, CHECKOUT, ORDERS, TABS }
+enum class PosDestination { MENU, CART, CHECKOUT, ORDERS, TABS, TILL }
 
 /**
  * Why the menu is not on screen.
@@ -146,6 +148,69 @@ class PosViewModel(
      * is a fact about the OPEN TABS, and both lists are already in hand. A
      * picker that offered a busy table would only be collecting refusals.
      */
+    // --- The drawer (0047) ---------------------------------------------------
+
+    private val _till = MutableStateFlow<TillSession?>(null)
+    val till: StateFlow<TillSession?> = _till.asStateFlow()
+
+    /**
+     * The result of the count just done, kept after the drawer closes.
+     *
+     * A variance that appeared in a toast and vanished would be the one number
+     * on this device somebody actually needs to write down or argue about.
+     */
+    private val _lastCount = MutableStateFlow<TillCount?>(null)
+    val lastCount: StateFlow<TillCount?> = _lastCount.asStateFlow()
+
+    private val _tillMessage = MutableStateFlow<String?>(null)
+    val tillMessage: StateFlow<String?> = _tillMessage.asStateFlow()
+
+    fun openTillScreen() {
+        _destination.value = PosDestination.TILL
+        refreshTill()
+    }
+
+    fun refreshTill() {
+        viewModelScope.launch {
+            try {
+                _till.value = repository.till()
+                _tillMessage.value = null
+            } catch (e: Exception) {
+                // The drawer's state is not guessable. Showing "closed" because
+                // the request failed would invite somebody to open a second one.
+                _tillMessage.value = messageFor(e, "تعذّر قراءة حالة الدرج")
+            }
+        }
+    }
+
+    fun openTill(openingFloat: Double) {
+        viewModelScope.launch {
+            try {
+                _till.value = repository.openTill(openingFloat)
+                _lastCount.value = null
+                _tillMessage.value = null
+            } catch (e: Exception) {
+                _tillMessage.value = messageFor(e, "تعذّر فتح الدرج")
+                // Re-read: "already open" means somebody else opened it, and
+                // the screen should show that rather than an empty drawer.
+                refreshTill()
+            }
+        }
+    }
+
+    fun closeTill(countedCash: Double) {
+        viewModelScope.launch {
+            try {
+                _lastCount.value = repository.closeTill(countedCash)
+                _till.value = null
+                _tillMessage.value = null
+            } catch (e: Exception) {
+                _tillMessage.value = messageFor(e, "تعذّر إغلاق الدرج")
+                refreshTill()
+            }
+        }
+    }
+
     private val _tables = MutableStateFlow<List<FloorTable>>(emptyList())
 
     val floorTables: StateFlow<List<FloorTable>> =

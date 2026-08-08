@@ -40,6 +40,7 @@ fun MenuScreen(
     onProceed: () -> Unit,
     onOpenOrders: () -> Unit,
     onOpenTabs: () -> Unit,
+    onOpenTill: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val menu by viewModel.menuState.collectAsState()
@@ -62,6 +63,7 @@ fun MenuScreen(
                 onItemClick = viewModel::addToCart,
                 onOpenOrders = onOpenOrders,
                 onOpenTabs = onOpenTabs,
+                onOpenTill = onOpenTill,
                 onRetry = viewModel::loadMenu,
                 onSignOut = onSignOut,
                 modifier = Modifier.weight(0.65f).fillMaxHeight(),
@@ -99,6 +101,7 @@ private fun MenuGrid(
     onItemClick: (SellableItem) -> Unit,
     onOpenOrders: () -> Unit,
     onOpenTabs: () -> Unit,
+    onOpenTill: () -> Unit,
     onRetry: () -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
@@ -118,6 +121,7 @@ private fun MenuGrid(
             // Corrections happen at the till now, not on a manager's laptop.
             TextButton(onClick = onOpenOrders) { Text("الطلبات الأخيرة") }
             TextButton(onClick = onOpenTabs) { Text("الطاولات المفتوحة") }
+            TextButton(onClick = onOpenTill) { Text("الدرج") }
             // A shift ends, and a terminal changes hands. There was no way to
             // sign out at all before this, so an expired session left the app
             // holding a dead token with no escape but clearing its data.
