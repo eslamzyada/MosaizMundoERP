@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ChartCard from '../components/charts/ChartCard';
 import ExportMenu from '../components/ExportMenu';
 import ServiceSummary from '../components/ServiceSummary';
+import CashUpHistory from '../components/CashUpHistory';
 import LineChart from '../components/charts/LineChart';
 import BarChart from '../components/charts/BarChart';
 import DonutChart from '../components/charts/DonutChart';
@@ -219,6 +220,10 @@ export default function Insights() {
               last). Above the KPI row because the labour share is the number
               an owner opens this page for; everything below is detail. */}
           <ServiceSummary from={serviceFrom} to={serviceTo} />
+          {/* Under the service summary, not beside it: a cash-up is read
+              after the night, and reading it needs the takings above for
+              context. */}
+          <CashUpHistory from={serviceFrom} to={serviceTo} />
 
           {/* ---- the headline figures -------------------------------------- */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
