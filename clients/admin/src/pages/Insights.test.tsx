@@ -164,9 +164,20 @@ const SERVICE = {
   online: null,
 };
 
+const TILL = {
+  from: '2026-07-01T00:00:00.000Z',
+  to: '2026-07-03T00:00:00.000Z',
+  sessions: [],
+  people: [],
+  summary: { closed: 0, balanced: 0, out: 0, net: 0, total_short: 0 },
+};
+
 /** Routes each report to its stub, and fails only the ones named. */
 function stubApi({ fail = [] }: Stub = {}) {
   return vi.spyOn(apiClient, 'get').mockImplementation((url: string) => {
+    if (url.startsWith('/api/till/sessions')) {
+      return Promise.resolve({ data: TILL }) as never;
+    }
     const which = url.replace('/api/reports/', '');
     if (fail.includes(which)) {
       return Promise.reject(
@@ -224,7 +235,10 @@ describe('the headline figures', () => {
   it('colours a LOSS differently from a small profit', async () => {
     // A minus sign in a column of numbers is easy to read straight past.
     vi.spyOn(apiClient, 'get').mockImplementation((url: string) => {
-      const which = url.replace('/api/reports/', '');
+      if (url.startsWith('/api/till/sessions')) {
+      return Promise.resolve({ data: TILL }) as never;
+    }
+    const which = url.replace('/api/reports/', '');
       const body: Record<string, unknown> = {
         // Same fixtures as everywhere else, with the one figure changed. A
         // hand-trimmed stub here would be testing a response shape the API
@@ -292,7 +306,10 @@ describe('every card fails on its own', () => {
           data: { ...WASTE, by_reason: [], by_item: [] },
         }) as never;
       }
-      const which = url.replace('/api/reports/', '');
+      if (url.startsWith('/api/till/sessions')) {
+      return Promise.resolve({ data: TILL }) as never;
+    }
+    const which = url.replace('/api/reports/', '');
       const body: Record<string, unknown> = {
         trends: TRENDS,
         purchasing: PURCHASING,

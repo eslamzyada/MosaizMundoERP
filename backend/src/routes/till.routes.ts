@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { closeTill, getTill, openTill } from '../controllers/till.controller';
+import { listTillSessions } from '../controllers/tillHistory.controller';
+import { FINANCE_ROLES, requireRole } from '../middleware/requireRole';
 
 /**
  * The drawer (0047).
@@ -19,6 +21,22 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/', getTill);
+
+/**
+ * The history, and it IS role-gated where the three above are not.
+ *
+ * Working the till is a cashier's job, so opening and closing it needs no gate
+ * beyond the sales role the procedures already ask for. Reading back who was
+ * short and how often is a different act: it names people next to money that
+ * went missing. That belongs to whoever already sees the money — the same
+ * FINANCE_ROLES that guard the reports.
+ *
+ * A cashier reading their OWN history would be reasonable and is deliberately
+ * not built here rather than approximated: filtering this response by the
+ * caller would leave the per-person section a table of one row, which is a
+ * different screen and should be designed as one.
+ */
+router.get('/sessions', requireRole(...FINANCE_ROLES), listTillSessions);
 router.post('/open', openTill);
 router.post('/close', closeTill);
 
