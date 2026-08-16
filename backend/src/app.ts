@@ -1,3 +1,4 @@
+import { prisma } from './prisma';
 import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -66,6 +67,43 @@ app.use(
   }),
 );
 
+// LIVENESS — no auth, no database. "This process is running." An orchestrator
+// uses it to decide whether to RESTART, so it must not fail for anything a
+// restart cannot fix: a database outage would otherwise take every instance
+// into a restart loop while the database was the thing that needed attention.
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', service: 'mosaiz-mundo-api' });
+});
+
+// READINESS — the different question: "can this instance serve a request?"
+// A load balancer uses it to decide whether to SEND TRAFFIC. It touches the
+// database, because an instance that cannot reach Postgres can serve nothing,
+// and until now nothing distinguished that from healthy.
+app.get('/ready', async (_req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ready', database: 'reachable' });
+  } catch {
+    // 503, not 500: this instance is not ready, which is a temporary state a
+    // load balancer should route around rather than an error to report.
+    res.status(503).json({ status: 'not_ready', database: 'unreachable' });
+  }
+});
+
+// ...and both are mounted ABOVE the rate limiter ON PURPOSE.
+//
+// A throttled probe is a self-inflicted outage. Behind the limiter, a flood of
+// user traffic — or, more likely, TRUST_PROXY left unset so that EVERY request
+// shares one per-IP bucket — starts answering 429 to the load balancer too. It
+// marks the instance unhealthy, takes it out of rotation, and does the same to
+// the next one. A traffic spike becomes a fleet-wide outage, caused entirely by
+// the defence against it.
+//
+// They stay below helmet and cors, which cost nothing and which the hardening
+// tests assert on /health. What /ready adds beyond that is one `SELECT 1` —
+// cheaper than the TLS handshake in front of it, and bounded by the pool
+// timeout. An unlimited probe is the smaller risk by a wide margin.
+
 // Rate limit (F-06): a generous per-IP backstop against request floods, not a
 // tight throttle on normal use. Skipped under test so the suite is deterministic.
 app.use(
@@ -114,11 +152,6 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   const originalJson = res.json.bind(res);
   res.json = ((body: unknown) => originalJson(convertDecimals(body))) as typeof res.json;
   next();
-});
-
-// Liveness check — no auth, no database.
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', service: 'mosaiz-mundo-api' });
 });
 
 // (Removed the /test-auth debug endpoint — analysis F-08. The authenticated

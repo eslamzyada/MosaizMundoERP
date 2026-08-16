@@ -201,6 +201,43 @@ banner) is the manual check the CI compile can't cover.
 - `RATE_LIMIT_MAX` — tune to expected traffic (default 600/min per IP).
 - `TRUST_PROXY=1` — only if behind a reverse proxy/load balancer.
 
+Most of that list is now **checked, not remembered**. The API inspects its
+configuration once at boot (`backend/src/config.ts`) and, with
+`NODE_ENV=production`, refuses to start — exit **78**, `EX_CONFIG` — when
+`DATABASE_URL` is missing, unparseable, or connects as a **superuser** (which
+would bypass RLS and disable every tenant boundary); when neither JWT key is
+set; or when `CORS_ORIGINS` is unset. It warns, without stopping, about a
+missing `TRUST_PROXY` or `REDIS_URL`, and about `SUPABASE_SERVICE_ROLE_KEY`
+being present at all.
+
+The line is drawn on purpose: **refuse** what cannot serve traffic, **warn**
+about what merely looks wrong. A deploy that fails is rolled back and reported;
+a deploy that starts and answers 500 on every request is an outage somebody has
+to diagnose, and until this existed `/health` reported `ok` throughout.
+
+**Probes — and they are NOT interchangeable:**
+
+| | question | a bad answer means | touches the DB |
+|---|---|---|---|
+| `GET /health` | is the process up? | **restart it** | no |
+| `GET /ready` | can it serve a request? | **stop routing to it** | yes |
+
+Point the orchestrator's *liveness* probe at `/health` and its *load-balancer*
+health check at `/ready`. Wiring liveness to `/ready` turns a database outage
+into a restart loop across every instance, over something no restart can fix.
+`/ready` answers **503**, not 500, when Postgres is unreachable.
+
+**Container:** `backend/Dockerfile` — multi-stage, runs as the unprivileged
+`node` user, ships no devDependencies, and carries a `HEALTHCHECK` on `/ready`.
+`.dockerignore` keeps `.env` out of the image; a naive `COPY . .` would
+otherwise bake the production database password into a published layer. CI
+builds the image on every PR and asserts that an unconfigured container exits
+78 rather than starting.
+
+```bash
+docker build -t mosaiz-api backend/
+```
+
 **Platform:**
 - TLS termination in front of the API (the app assumes HTTPS).
 - Automated Postgres backups + a tested restore.

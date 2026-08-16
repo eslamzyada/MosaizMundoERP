@@ -489,6 +489,37 @@ jobs:
       - name: Build (prisma generate + tsc)
         run: npm run build
 
+      # A Dockerfile nobody builds is a Dockerfile that has already broken. The
+      # same argument this repo made for the backend suite: if it is not
+      # checked here, it is checked by whoever next tries to deploy.
+      #
+      # Build only, no push. This proves the multi-stage build still compiles,
+      # that --omit=dev leaves the runtime able to start, and that the Prisma
+      # client copied out of the build stage is where the runtime expects it.
+      - name: Container image builds
+        run: docker build -t mosaiz-api:ci .
+
+      # ...and that it actually starts and refuses a bad configuration. `docker
+      # build` proves the image assembles, not that the thing inside it runs —
+      # an image whose CMD dies immediately still builds perfectly.
+      #
+      # No database here: this asserts the BOOT GATE, which must exit 78 and
+      # name what is missing rather than start and answer 500 on every request.
+      - name: Container refuses to start unconfigured
+        run: |
+          set +e
+          output=$(docker run --rm -e NODE_ENV=production mosaiz-api:ci 2>&1)
+          code=$?
+          set -e
+          echo "$output"
+          if [ "$code" -ne 78 ]; then
+            echo "::error::expected exit 78 (EX_CONFIG) from an unconfigured container, got $code"
+            exit 1
+          fi
+          echo "$output" | grep -q "DATABASE_URL" || {
+            echo "::error::the refusal did not name DATABASE_URL"; exit 1; }
+          echo "Refused to start, exit 78, naming what was missing."
+
   backend-tests:
     # Runs the API gateway's Jest suite against a real, freshly migrated
     # database. Until this job existed, "Backend Build" only compiled and
