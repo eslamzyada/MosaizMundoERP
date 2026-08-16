@@ -45,11 +45,22 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-# --omit=dev leaves out typescript, jest, ts-node and supertest. `npm ci` runs
-# no postinstall for prisma here, which is why the generated client is copied
-# from the build stage below rather than regenerated.
-RUN npm ci --omit=dev --fetch-retries=5 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000 \
-    && npm cache clean --force
+# --omit=dev leaves out typescript, jest, ts-node and supertest.
+#
+# --ignore-scripts is the load-bearing flag, and it was found the hard way: the
+# @prisma/engines postinstall downloads ~100 MB of query-engine binaries from
+# binaries.prisma.sh, and the COPY lines below then overwrite that directory
+# with the client generated in the build stage. So it was downloading a large
+# file in order to throw it away — pure cost, plus a SECOND network dependency
+# that fails independently of the registry. It is what broke this build:
+#
+#     npm error command sh -c node scripts/postinstall.js
+#     npm error Error: aborted   at TLSSocket.socketCloseListener
+#
+# Safe because prisma is the only production dependency with an install script,
+# and the generated client (engine binary included) arrives by COPY.
+RUN npm ci --omit=dev --ignore-scripts --fetch-retries=5 --fetch-retry-maxtimeout=120000 \
+    --fetch-timeout=600000 && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
