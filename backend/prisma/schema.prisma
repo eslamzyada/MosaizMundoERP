@@ -87,6 +87,7 @@ model order_items {
   sellable_items   sellable_items @relation(fields: [sellable_item_id, organization_id], references: [id, organization_id], onDelete: NoAction, onUpdate: NoAction, map: "order_items_sellable_item_fkey")
 
   @@index([order_id])
+  @@index([organization_id, order_id, quantity, unit_price, cost_at_sale], map: "order_items_org_order_idx")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -335,6 +336,7 @@ model inventory_consumption {
 
   @@index([batch_id], map: "inventory_consumption_batch_idx")
   @@index([order_id], map: "inventory_consumption_order_idx")
+  @@index([organization_id, order_id, raw_item_id, quantity, unit_cost], map: "inventory_consumption_org_order_idx")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
