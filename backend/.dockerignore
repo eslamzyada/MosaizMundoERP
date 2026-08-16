@@ -1,0 +1,28 @@
+# Keep the build context small, and keep secrets out of the image.
+#
+# .env is the important line here: it is gitignored, so it exists ONLY on a
+# developer's machine — exactly the kind of file a naive `COPY . .` bakes into
+# a published layer along with the database password.
+.env
+.env.*
+!.env.example
+
+node_modules
+dist
+coverage
+
+.git
+.gitignore
+*.log
+npm-debug.log*
+
+# Tests and their fixtures are not part of the runtime image. The build stage
+# copies src/ wholesale, so the compiled __tests__ would otherwise ship too —
+# harmless, but it is dead weight carrying a superuser connection string in its
+# expectations.
+src/**/__tests__
+**/*.test.ts
+
+Dockerfile
+.dockerignore
+README.md

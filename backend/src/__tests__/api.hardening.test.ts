@@ -40,3 +40,56 @@ describe('API hardening', () => {
     expect(res.status).toBe(404);
   });
 });
+
+/**
+ * Liveness and readiness are DIFFERENT QUESTIONS, and the difference decides
+ * what an orchestrator does about a bad answer.
+ *
+ *   /health  — "is this process running?"    → a bad answer means RESTART
+ *   /ready   — "can it serve a request?"     → a bad answer means STOP ROUTING
+ *
+ * Conflating them is how a database outage becomes a restart loop across every
+ * instance, over something no restart can fix. So /health must NOT touch the
+ * database, and /ready must.
+ *
+ * Verified out-of-process as well, against an instance pointed at a dead
+ * database: /health answered 200 while /ready answered 503.
+ */
+describe('liveness and readiness', () => {
+  test('/ready reports the database it just reached', async () => {
+    const res = await request(app).get('/ready');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'ready', database: 'reachable' });
+  });
+
+  test('/health answers without any database access at all', async () => {
+    // The point of liveness. Asserted by making every query fail: if /health
+    // touched the database this would throw, and the restart loop described
+    // above is exactly what would follow in production.
+    const spy = jest
+      .spyOn(prisma, '$queryRaw')
+      .mockRejectedValue(new Error('database is down'));
+    try {
+      const res = await request(app).get('/health');
+      expect(res.status).toBe(200);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test('/ready answers 503 — not 500 — when the database is unreachable', async () => {
+    // 503 is the honest code: this instance is temporarily unable to serve, a
+    // state a load balancer routes around rather than an error to report.
+    const spy = jest
+      .spyOn(prisma, '$queryRaw')
+      .mockRejectedValue(new Error('database is down'));
+    try {
+      const res = await request(app).get('/ready');
+      expect(res.status).toBe(503);
+      expect(res.body).toEqual({ status: 'not_ready', database: 'unreachable' });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
