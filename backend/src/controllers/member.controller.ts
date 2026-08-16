@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { SAFETY_CAP } from '../lib/pagination';
@@ -59,8 +60,10 @@ function sendProcedureError(res: Response, err: unknown, context: string): void 
     res.status(400).json({ error: 'That role is not valid' });
     return;
   }
-  // eslint-disable-next-line no-console
-  console.error(`[${context}] failed:`, err);
+  logger.error(`${context} failed`, err, {
+    request_id: res.req?.requestId,
+    user_id: res.req?.userId,
+  });
   res.status(500).json({ error: 'Internal server error' });
 }
 
@@ -107,8 +110,10 @@ export async function listMembers(req: Request, res: Response): Promise<void> {
       })),
     );
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[members.list] failed:', err);
+    logger.error('members.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -129,8 +134,10 @@ export async function listInvitations(req: Request, res: Response): Promise<void
     });
     res.status(200).json(invitations);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[members.invitations] failed:', err);
+    logger.error('members.invitations failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

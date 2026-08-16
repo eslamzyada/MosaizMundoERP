@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { DateRangeError, parseDateRange } from '../lib/dateRange';
 
@@ -213,8 +214,10 @@ export async function getTrends(req: Request, res: Response): Promise<void> {
       points,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reports.trends] failed:', err);
+    logger.error('reports.trends failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

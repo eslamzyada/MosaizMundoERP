@@ -4,6 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { convertDecimals } from './lib/json';
+import { logger } from './lib/logger';
+import { requestContext } from './middleware/requestLog';
 import posRoutes from './routes/pos.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import recipeRoutes from './routes/recipe.routes';
@@ -59,6 +61,10 @@ const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+// Before everything else, so that every line any of it writes — including a
+// CORS rejection or a rate-limit refusal — can be tied back to one request.
+app.use(requestContext);
+
 app.use(
   cors({
     origin(origin, cb) {
@@ -254,9 +260,40 @@ app.use('/api/exports', exportRoutes);
 // JWT middleware — Supabase calls these, not a logged-in user.
 app.use('/api/webhooks', webhookRoutes);
 
-// Centralized error handler.
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  // eslint-disable-next-line no-console
-  console.error(err);
-  res.status(500).json({ error: 'Internal server error' });
-});
+/**
+ * Centralized error handler.
+ *
+ * It used to be `console.error(err)` and a generic 500 — a stack trace with no
+ * path, no user and nothing connecting it to the person who hit it. A cashier
+ * reporting "it failed around 8:40" could not be matched to a line, and there
+ * was no way to tell whether their failure was even in the file.
+ *
+ * Now the line carries the request context, and the RESPONSE carries the same
+ * id. That is the part that changes a support conversation: the person who saw
+ * the error can read the reference off their screen, and it leads to exactly
+ * one line in the log.
+ *
+ * The message itself stays generic on purpose — an internal error can quote a
+ * constraint name, a column, or part of a query, and none of that belongs in a
+ * response to a till.
+ */
+export function errorHandler(
+  err: Error,
+  req: Request,
+  res: Response,
+  _next: NextFunction,
+): void {
+  logger.error('unhandled error', err, {
+    request_id: req.requestId,
+    method: req.method,
+    path: req.requestPath,
+    user_id: req.userId,
+  });
+
+  res.status(500).json({
+    error: 'Internal server error',
+    request_id: req.requestId,
+  });
+}
+
+app.use(errorHandler);

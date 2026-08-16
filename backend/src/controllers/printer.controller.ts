@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 
@@ -83,8 +84,10 @@ function respond(err: unknown, res: Response, context: string): void {
     return;
   }
 
-  // eslint-disable-next-line no-console
-  console.error(`[${context}] failed:`, err);
+  logger.error(`${context} failed`, err, {
+    request_id: res.req?.requestId,
+    user_id: res.req?.userId,
+  });
   res.status(500).json({ error: 'Internal server error' });
 }
 

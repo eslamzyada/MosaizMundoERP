@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { resolveMembership } from '../middleware/requireRole';
 import { postgresErrorCode } from '../lib/postgresError';
@@ -46,8 +47,10 @@ export async function listShifts(req: Request, res: Response): Promise<void> {
     });
     res.status(200).json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[labour.shifts] failed:', err);
+    logger.error('labour.shifts failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -114,8 +117,10 @@ export async function createShift(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.error('[labour.createShift] failed:', err);
+    logger.error('labour.createShift failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -145,8 +150,10 @@ export async function deleteShift(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'Only a manager may write the rota' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[labour.deleteShift] failed:', err);
+    logger.error('labour.deleteShift failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -167,8 +174,10 @@ export async function currentEntry(req: Request, res: Response): Promise<void> {
     });
     res.status(200).json({ clocked_in: !!open, since: open?.started_at ?? null, id: open?.id ?? null });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[labour.currentEntry] failed:', err);
+    logger.error('labour.currentEntry failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -190,7 +199,7 @@ export async function clockIn(req: Request, res: Response): Promise<void> {
       SELECT app.clock_in(${shiftId}::uuid) AS clock_in`;
     res.status(201).json({ id: row.clock_in });
   } catch (err) {
-    res.status(mapClockError(err)).json(clockBody(err, 'clocking in'));
+    res.status(mapClockError(err)).json(clockBody(err, 'clocking in', req));
   }
 }
 
@@ -206,7 +215,7 @@ export async function clockOut(req: Request, res: Response): Promise<void> {
       SELECT app.clock_out() AS clock_out`;
     res.status(200).json({ minutes: Number(row.clock_out) });
   } catch (err) {
-    res.status(mapClockError(err)).json(clockBody(err, 'clocking out'));
+    res.status(mapClockError(err)).json(clockBody(err, 'clocking out', req));
   }
 }
 
@@ -224,7 +233,9 @@ function mapClockError(err: unknown): number {
   return 500;
 }
 
-function clockBody(err: unknown, action: string): Record<string, unknown> {
+// Takes `req` only so the unmapped-error branch below can be correlated. An
+// error line with no request id is one a support conversation cannot find.
+function clockBody(err: unknown, action: string, req: Request): Record<string, unknown> {
   const code = postgresErrorCode(err);
   if (code === '0A000') {
     return {
@@ -240,8 +251,10 @@ function clockBody(err: unknown, action: string): Record<string, unknown> {
   if (code === '42501') {
     return { error: `You are not allowed to do that (${action})` };
   }
-  // eslint-disable-next-line no-console
-  console.error(`[labour.${action}] failed:`, err);
+  logger.error(`labour.${action} failed`, err, {
+    request_id: req.requestId,
+    user_id: req.userId,
+  });
   return { error: 'Internal server error' };
 }
 
@@ -332,8 +345,10 @@ export async function hours(req: Request, res: Response): Promise<void> {
       uncosted_entries: byEmployee.reduce((sum, r) => sum + r.uncosted_entries, 0),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[labour.hours] failed:', err);
+    logger.error('labour.hours failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -388,8 +403,10 @@ export async function amendEntry(req: Request, res: Response): Promise<void> {
       });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[labour.amendEntry] failed:', err);
+    logger.error('labour.amendEntry failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -421,8 +438,10 @@ export async function listWages(req: Request, res: Response): Promise<void> {
     });
     res.status(200).json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[labour.listWages] failed:', err);
+    logger.error('labour.listWages failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -502,8 +521,10 @@ export async function setWage(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.error('[labour.setWage] failed:', err);
+    logger.error('labour.setWage failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

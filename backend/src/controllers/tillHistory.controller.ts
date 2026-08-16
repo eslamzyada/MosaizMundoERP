@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { resolveMembership } from '../middleware/requireRole';
 
@@ -179,8 +180,10 @@ export async function listTillSessions(req: Request, res: Response): Promise<voi
       },
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[till.sessions] failed:', err);
+    logger.error('till.sessions failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

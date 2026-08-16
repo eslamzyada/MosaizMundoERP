@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { NextFunction, Request, Response } from 'express';
 
 /**
@@ -78,8 +79,10 @@ export function requireRole(...allowedRoles: string[]) {
 
       next();
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[requireRole] failed:', err);
+      logger.error('requireRole failed', err, {
+        request_id: req.requestId,
+        user_id: req.userId,
+      });
       res.status(500).json({ error: 'Internal server error' });
     }
   };

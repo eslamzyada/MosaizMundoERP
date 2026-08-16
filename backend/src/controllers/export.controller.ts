@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { EXPORTS, EXPORT_NAMES } from '../lib/reportExports';
 import { ReportFailed, runReport } from '../lib/runReport';
@@ -102,8 +103,10 @@ export async function exportReport(req: Request, res: Response): Promise<void> {
       res.status(err.status).json({ error: err.message });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[exports] failed:', err);
+    logger.error('exports failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

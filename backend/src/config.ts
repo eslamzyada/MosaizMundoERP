@@ -68,7 +68,8 @@ export const KNOWN_VARIABLES: Record<string, string> = {
   TRUST_PROXY: 'Number of proxies in front of this process. Off by default.',
   REDIS_URL: 'Optional cache. Absent means every read goes to Postgres.',
   PORT: 'Listening port. Defaults to 3000.',
-  NODE_ENV: 'production enables the stricter checks below.',
+  NODE_ENV: 'production enables the stricter checks below, and JSON log output.',
+  LOG_LEVEL: 'debug | info | warn | error. Defaults to info.',
 };
 
 /** Reads and checks the environment. Pure — it never exits or logs. */
@@ -153,6 +154,15 @@ export function inspectConfig(env: NodeJS.ProcessEnv = process.env): ConfigRepor
     if (raw !== undefined && raw !== '' && !Number.isFinite(Number(raw))) {
       fatal.push({ variable: numeric, message: `is not a number: ${raw}` });
     }
+  }
+
+  if (env.LOG_LEVEL && !['debug', 'info', 'warn', 'error'].includes(env.LOG_LEVEL)) {
+    // Not fatal: an unrecognised level falls back to info, so the process still
+    // logs. Silence would be the dangerous outcome, and this cannot cause it.
+    warnings.push({
+      variable: 'LOG_LEVEL',
+      message: `is not a known level (${env.LOG_LEVEL}); falling back to info.`,
+    });
   }
 
   const unknown = Object.keys(env).filter(

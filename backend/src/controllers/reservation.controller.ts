@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { resolveMembership } from '../middleware/requireRole';
 import { postgresErrorCode } from '../lib/postgresError';
@@ -43,8 +44,10 @@ export async function listTables(req: Request, res: Response): Promise<void> {
     });
     res.status(200).json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reservations.listTables] failed:', err);
+    logger.error('reservations.listTables failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -92,8 +95,10 @@ export async function createTable(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'Only a manager may change the floor plan' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[reservations.createTable] failed:', err);
+    logger.error('reservations.createTable failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -139,8 +144,10 @@ export async function updateTable(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'Only a manager may change the floor plan' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[reservations.updateTable] failed:', err);
+    logger.error('reservations.updateTable failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -164,8 +171,10 @@ export async function listReservations(req: Request, res: Response): Promise<voi
     });
     res.status(200).json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reservations.list] failed:', err);
+    logger.error('reservations.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -194,8 +203,10 @@ export async function availability(req: Request, res: Response): Promise<void> {
       SELECT app.table_is_free(${tableId}::uuid, ${startsAt}::timestamptz, ${endsAt}::timestamptz) AS free`;
     res.status(200).json({ free: row.free });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reservations.availability] failed:', err);
+    logger.error('reservations.availability failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -250,7 +261,7 @@ export async function createReservation(req: Request, res: Response): Promise<vo
     });
     res.status(201).json(booking);
   } catch (err) {
-    res.status(mapBookingError(err)).json(bookingBody(err));
+    res.status(mapBookingError(err)).json(bookingBody(err, req));
   }
 }
 
@@ -286,7 +297,7 @@ export async function setStatus(req: Request, res: Response): Promise<void> {
     }
     res.status(200).json({ id: req.params.id, status });
   } catch (err) {
-    res.status(mapBookingError(err)).json(bookingBody(err));
+    res.status(mapBookingError(err)).json(bookingBody(err, req));
   }
 }
 
@@ -299,7 +310,9 @@ function mapBookingError(err: unknown): number {
   return 500;
 }
 
-function bookingBody(err: unknown): Record<string, unknown> {
+// Takes `req` only so the unmapped-error branch below can be correlated. An
+// error line with no request id is one a support conversation cannot find.
+function bookingBody(err: unknown, req: Request): Record<string, unknown> {
   const code = postgresErrorCode(err);
   if (code === '23P01') {
     return {
@@ -316,8 +329,10 @@ function bookingBody(err: unknown): Record<string, unknown> {
   if (code === '42501') {
     return { error: 'You are not allowed to take bookings' };
   }
-  // eslint-disable-next-line no-console
-  console.error('[reservations] failed:', err);
+  logger.error('reservations failed', err, {
+    request_id: req.requestId,
+    user_id: req.userId,
+  });
   return { error: 'Internal server error' };
 }
 
@@ -383,8 +398,10 @@ export async function seat(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.error('[reservations.seat] failed:', err);
+    logger.error('reservations.seat failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

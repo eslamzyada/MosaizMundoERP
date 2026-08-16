@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { SAFETY_CAP } from '../lib/pagination';
@@ -75,8 +76,10 @@ export async function listItems(req: Request, res: Response): Promise<void> {
 
     res.status(200).json(costed);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[catalog.list] failed:', err);
+    logger.error('catalog.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

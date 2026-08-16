@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { parsePage, SAFETY_CAP } from '../lib/pagination';
@@ -152,8 +153,10 @@ export async function createPurchaseOrder(req: Request, res: Response): Promise<
       res.status(403).json({ error: 'Your role is not permitted to raise purchase orders' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[purchaseOrders.create] failed:', err);
+    logger.error('purchaseOrders.create failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -260,8 +263,10 @@ export async function getReorderSuggestions(req: Request, res: Response): Promis
     `;
     res.status(200).json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[purchaseOrders.suggestions] failed:', err);
+    logger.error('purchaseOrders.suggestions failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -312,8 +317,10 @@ export async function listPurchaseOrders(req: Request, res: Response): Promise<v
     `;
     res.status(200).json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[purchaseOrders.list] failed:', err);
+    logger.error('purchaseOrders.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -365,8 +372,10 @@ export async function getPurchaseOrder(req: Request, res: Response): Promise<voi
 
     res.status(200).json({ ...order, lines });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[purchaseOrders.get] failed:', err);
+    logger.error('purchaseOrders.get failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -445,8 +454,10 @@ async function transition(
       res.status(403).json({ error: 'Your role is not permitted to manage purchase orders' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[purchaseOrders.transition] failed:', err);
+    logger.error('purchaseOrders.transition failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -560,8 +571,10 @@ export async function receivePurchaseOrder(req: Request, res: Response): Promise
       res.status(403).json({ error: 'Your role is not permitted to receive deliveries' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[purchaseOrders.receive] failed:', err);
+    logger.error('purchaseOrders.receive failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

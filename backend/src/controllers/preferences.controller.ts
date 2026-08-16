@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import {
@@ -75,8 +76,10 @@ export async function getPreferences(req: Request, res: Response): Promise<void>
       updated_at: row?.updated_at ?? null,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[preferences.get] failed:', err);
+    logger.error('preferences.get failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -147,8 +150,10 @@ export async function updatePreferences(req: Request, res: Response): Promise<vo
       res.status(400).json({ error: 'The preferences were rejected by the database' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[preferences.update] failed:', err);
+    logger.error('preferences.update failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -174,8 +179,10 @@ export async function getBranding(req: Request, res: Response): Promise<void> {
       updated_at: row?.updated_at ?? null,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[branding.get] failed:', err);
+    logger.error('branding.get failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -238,8 +245,10 @@ export async function updateBranding(req: Request, res: Response): Promise<void>
       res.status(400).json({ error: 'The branding was rejected by the database' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[branding.update] failed:', err);
+    logger.error('branding.update failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -300,8 +309,10 @@ export async function uploadBrandingLogo(req: Request, res: Response): Promise<v
       res.status(403).json({ error: 'Changing the branding is limited to managers' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[branding.uploadLogo] failed:', err);
+    logger.error('branding.uploadLogo failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

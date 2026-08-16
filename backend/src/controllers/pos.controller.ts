@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { cached, contextFor } from '../lib/cache';
 import { Prisma } from '@prisma/client';
@@ -76,8 +77,10 @@ export async function processCheckout(req: Request, res: Response): Promise<void
       .status(200)
       .json({ status: 'ok', message: 'Checkout processed', order_id: order?.id ?? null });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[pos.checkout] failed:', err);
+    logger.error('pos.checkout failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
 
     const pgCode = postgresErrorCode(err);
     if (pgCode) {
@@ -211,8 +214,10 @@ export async function voidOrder(req: Request, res: Response): Promise<void> {
       });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[pos.voidOrder] failed:', err);
+    logger.error('pos.voidOrder failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -249,8 +254,10 @@ export async function getOrders(req: Request, res: Response): Promise<void> {
     });
     res.status(200).json(orders);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[pos.orders] failed:', err);
+    logger.error('pos.orders failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -349,8 +356,10 @@ export async function getMenu(req: Request, res: Response): Promise<void> {
     `);
     res.status(200).json(items);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[pos.menu] failed:', err);
+    logger.error('pos.menu failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

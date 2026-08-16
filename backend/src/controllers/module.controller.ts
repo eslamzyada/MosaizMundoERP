@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { readModules, readPlan } from '../lib/modules';
 import { resolveMembership } from '../middleware/requireRole';
@@ -44,8 +45,10 @@ export async function listModules(req: Request, res: Response): Promise<void> {
       })),
     );
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[modules.list] failed:', err);
+    logger.error('modules.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -166,8 +169,10 @@ export async function setModule(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.error('[modules.set] failed:', err);
+    logger.error('modules.set failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

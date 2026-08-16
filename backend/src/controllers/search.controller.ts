@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import {
   MIN_SEARCH_LENGTH,
@@ -228,8 +229,10 @@ export async function globalSearch(req: Request, res: Response): Promise<void> {
       })),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[search] failed:', err);
+    logger.error('search failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

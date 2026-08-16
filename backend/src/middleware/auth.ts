@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { NextFunction, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import jwt from 'jsonwebtoken';
@@ -53,18 +54,25 @@ export async function authMiddleware(
   const publicKey = process.env.SUPABASE_JWT_PUBLIC_KEY?.replace(/\\n/g, '\n');
   if (!secret && !publicKey) {
     // Fail closed on misconfiguration — never fall through to an open state.
-    // eslint-disable-next-line no-console
-    console.error(
-      'Neither SUPABASE_JWT_PUBLIC_KEY nor SUPABASE_JWT_SECRET is set; refusing to authenticate',
-    );
+    // Since the boot gate (config.ts) this should be unreachable in a
+    // deployed process — it refuses to start without a key. Kept because
+    // "unreachable" is a claim about today's startup path, not a guarantee.
+    logger.error('refusing to authenticate: no JWT key configured', undefined, {
+      request_id: req.requestId,
+      path: req.requestPath,
+    });
     res.status(500).json({ error: 'Authentication is not configured' });
     return;
   }
 
   const authHeader = req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // eslint-disable-next-line no-console
-    console.warn('[auth] rejected: no Authorization: Bearer header on', req.method, req.path);
+    logger.warn('auth rejected: no bearer header', {
+      request_id: req.requestId,
+      method: req.method,
+      path: req.requestPath,
+      ip: req.ip,
+    });
     res
       .status(401)
       .json({ error: 'Missing or malformed Authorization: Bearer <token> header' });
@@ -90,8 +98,14 @@ export async function authMiddleware(
     } else if (declaredAlg === 'HS256' && secret) {
       decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
     } else {
-      // eslint-disable-next-line no-console
-      console.warn(`[auth] rejected: unsupported/unconfigured token alg "${declaredAlg}"`);
+      logger.warn('auth rejected: unsupported or unconfigured token algorithm', {
+        request_id: req.requestId,
+        path: req.requestPath,
+        // The algorithm the token DECLARED. Logged because a sudden run of
+        // these is what a key rotation looks like from the server side.
+        declared_alg: declaredAlg,
+        ip: req.ip,
+      });
       res.status(401).json({ error: 'Invalid or expired token' });
       return;
     }
@@ -105,11 +119,15 @@ export async function authMiddleware(
     // Covers expired tokens, bad signatures, wrong algorithm, malformed JWTs.
     // Log the verifier's exact reason (never the token) — this is the line to
     // watch when a client mysteriously 401s.
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[auth] JWT verification failed (alg=${declaredAlg}):`,
-      err instanceof Error ? err.message : err,
-    );
+    logger.warn('auth rejected: JWT verification failed', {
+      request_id: req.requestId,
+      path: req.requestPath,
+      declared_alg: declaredAlg,
+      // The reason only — never the token. "jwt expired" and "invalid
+      // signature" mean very different things to whoever is on call.
+      reason: err instanceof Error ? err.message : String(err),
+      ip: req.ip,
+    });
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }

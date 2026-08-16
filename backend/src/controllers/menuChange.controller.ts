@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { contextFor, invalidate } from '../lib/cache';
@@ -88,8 +89,10 @@ export async function listChanges(req: Request, res: Response): Promise<void> {
       })),
     );
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[menuChange.list] failed:', err);
+    logger.error('menuChange.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -191,8 +194,10 @@ export async function proposeChange(req: Request, res: Response): Promise<void> 
       res.status(400).json({ error: 'The proposed change was rejected by the database' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[menuChange.propose] failed:', err);
+    logger.error('menuChange.propose failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -257,8 +262,10 @@ export async function decideChange(req: Request, res: Response): Promise<void> {
       res.status(409).json({ error: 'This request has already been decided' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[menuChange.decide] failed:', err);
+    logger.error('menuChange.decide failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -296,8 +303,10 @@ export async function withdrawChange(req: Request, res: Response): Promise<void>
       res.status(403).json({ error: 'Only the person who proposed a change may withdraw it' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[menuChange.withdraw] failed:', err);
+    logger.error('menuChange.withdraw failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

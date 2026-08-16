@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { resolveMembership } from '../middleware/requireRole';
 import { postgresErrorCode } from '../lib/postgresError';
@@ -52,8 +53,10 @@ export async function listQueue(req: Request, res: Response): Promise<void> {
       })),
     );
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[publicOrders.list] failed:', err);
+    logger.error('publicOrders.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -101,8 +104,10 @@ export async function accept(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.error('[publicOrders.accept] failed:', err);
+    logger.error('publicOrders.accept failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -141,8 +146,10 @@ export async function reject(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'You are not allowed to decide orders' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[publicOrders.reject] failed:', err);
+    logger.error('publicOrders.reject failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -157,8 +164,10 @@ export async function getStorefront(req: Request, res: Response): Promise<void> 
     const row = await req.tx.storefronts.findFirst();
     res.status(200).json(row ?? null);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[publicOrders.storefront] failed:', err);
+    logger.error('publicOrders.storefront failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -238,8 +247,10 @@ export async function saveStorefront(req: Request, res: Response): Promise<void>
       res.status(403).json({ error: 'Only a manager may change the shopfront' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[publicOrders.saveStorefront] failed:', err);
+    logger.error('publicOrders.saveStorefront failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

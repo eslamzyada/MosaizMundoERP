@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 
@@ -66,8 +67,10 @@ function respondToDbError(err: unknown, res: Response, context: string): boolean
       res.status(400).json({ error: messageFor55000(err), code });
       return true;
     default:
-      // eslint-disable-next-line no-console
-      console.error(`[${context}] failed:`, err);
+      logger.error(`${context} failed`, err, {
+        request_id: res.req?.requestId,
+        user_id: res.req?.userId,
+      });
       res.status(500).json({ error: 'Internal server error' });
       return true;
   }
@@ -179,8 +182,10 @@ export async function listOpenOrders(req: Request, res: Response): Promise<void>
     });
     res.status(200).json(orders);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[pos.listOpenOrders] failed:', err);
+    logger.error('pos.listOpenOrders failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

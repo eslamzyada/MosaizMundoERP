@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { DateRangeError, parseDateRange } from '../lib/dateRange';
 
@@ -251,8 +252,10 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
       }),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reports.profitability] failed:', err);
+    logger.error('reports.profitability failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -407,8 +410,10 @@ export async function getVoids(req: Request, res: Response): Promise<void> {
       })),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reports.voids] failed:', err);
+    logger.error('reports.voids failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -595,8 +600,10 @@ export async function getWaste(req: Request, res: Response): Promise<void> {
       })),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reports.waste] failed:', err);
+    logger.error('reports.waste failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -786,8 +793,10 @@ export async function getInventoryAssets(req: Request, res: Response): Promise<v
       by_item: items,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reports.inventoryAssets] failed:', err);
+    logger.error('reports.inventoryAssets failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -977,8 +986,10 @@ export async function getEmployeePerformance(req: Request, res: Response): Promi
       employees,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reports.employees] failed:', err);
+    logger.error('reports.employees failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
