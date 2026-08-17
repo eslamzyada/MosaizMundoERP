@@ -16,3 +16,34 @@ The inventory engine is an accounting-grade ledger.
 *   **Tracking:** Track via `inventory_batches` (understanding `cost_at_purchase` and `expiry_date`), not static item counts. Deduct the oldest stock first.
 *   **Deficit Accumulation:** If a sellable item is checked out but the system shows zero raw material stock, safely log a deficit. Do NOT crash the checkout process or block the cashier.
 *   **Stocktaking:** Use exclusive advisory locks during stocktake postings to prevent "lost update" anomalies between live sales and manual reconciliations.
+
+## 4. Draining the queue: what happens to a sale the server refuses
+
+A queued order is money a customer has already paid. `SyncOrdersWorker` gives
+each one of three fates, decided by `syncOutcomeFor()` in
+`clients/pos/.../workers/SyncOutcome.kt` — a pure function over the status, kept
+out of the worker so it can be tested without a WorkManager harness.
+
+| outcome | what happens | when |
+|---|---|---|
+| `DELIVERED` | row deleted; the queue stays bounded (F-09) | 2xx, including the idempotent re-delivery of an order whose first response was lost |
+| `REJECTED` | row marked `FAILED` — kept, and surfaced to the cashier (F-03) | the server will never accept it: bad payload, deleted item, role changed while offline |
+| `RETRY` | left `PENDING`; WorkManager brings it back | anything else |
+
+*   **The axis is "never" versus "not now", NOT 4xx versus 5xx.** `FAILED` is
+    not a holding state: it leaves the `PENDING` set, so the app never delivers
+    that sale again. Two ordinary "not now" answers are 4xx and must not land
+    there:
+    *   **401** — `SessionAuthenticator` refreshes on a 401, but when the
+        *refresh* token has expired too the 401 reaches the worker. A till that
+        has been offline is exactly a till whose session has been sitting
+        unused, so this pairing is ordinary. Signing back in must release the
+        sale, not find it already parked.
+    *   **429** — this worker delivers a burst, a whole evening's queue at once.
+        The API rate-limits per IP, and behind a proxy with `TRUST_PROXY` unset
+        every tenant shares one bucket. "Slow down" must not mean "discard".
+*   **Agent Instruction:** an unrecognised status must resolve to `RETRY`.
+    Retrying a sale that can never be delivered costs one request; parking one
+    that could have been costs the sale. Do not widen the rule to retry all of
+    4xx either — a permanent refusal that never stops retrying is a sale hidden
+    forever in a queue nobody is told to look at.

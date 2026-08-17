@@ -37,23 +37,22 @@ class SyncOrdersWorker(
                 continue
             }
 
-            when {
-                response.isSuccessful -> {
-                    // Submitted (the idempotent backend also returns 2xx on a
-                    // re-delivered order). Done: remove it so the queue stays
-                    // bounded (F-09).
-                    dao.deleteOrder(order.clientOfflineId)
-                }
-                response.code() in 400..499 -> {
-                    // Permanently rejected (bad payload, a role changed while
-                    // offline, a deleted item). Do NOT discard the sale — mark it
-                    // FAILED so it stops retrying yet stays visible (F-03).
-                    dao.markOrderFailed(order.clientOfflineId)
-                }
-                else -> {
-                    // 5xx: transient server error, retry later.
-                    retryNeeded = true
-                }
+            // The decision lives in SyncOutcome.kt, as a pure function over the
+            // status, so it can be exercised without a WorkManager harness. It
+            // used to be `in 400..499 -> markOrderFailed`, which parked a real
+            // sale forever on an expired session or a rate limit.
+            when (syncOutcomeFor(response.code())) {
+                // Submitted, or already known to the server (the backend is
+                // idempotent per client_offline_id). Remove it so the queue
+                // stays bounded (F-09).
+                SyncOutcome.DELIVERED -> dao.deleteOrder(order.clientOfflineId)
+
+                // The server will never accept it. Do NOT discard the sale —
+                // mark it FAILED so it stops retrying yet stays visible (F-03).
+                SyncOutcome.REJECTED -> dao.markOrderFailed(order.clientOfflineId)
+
+                // Not now. Leave it PENDING and come back.
+                SyncOutcome.RETRY -> retryNeeded = true
             }
         }
 
