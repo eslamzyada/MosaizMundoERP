@@ -253,6 +253,12 @@ jobs:
           PGPASSWORD: ci_app_password
         run: psql -v ON_ERROR_STOP=1 -f db/tests/notification_verification.sql
 
+      # The link constraint (0051). Runs as postgres, because this is a CHECK
+      # and not an RLS question: it must hold for every writer, which is the
+      # reason the rule moved here from the admin app.
+      - name: Internal-link verification — a notification cannot carry somebody off-site
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/internal_link_verification.sql
+
       # Per-tenant modules (0037). Last, because it switches capabilities off
       # and on for the floor fixture's organization — every suite that depends
       # on those capabilities has already run.
