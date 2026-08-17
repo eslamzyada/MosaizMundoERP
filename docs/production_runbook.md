@@ -238,9 +238,49 @@ builds the image on every PR and asserts that an unconfigured container exits
 docker build -t mosaiz-api backend/
 ```
 
+**Logs.** The API writes **JSON Lines to stdout** — one object per line, which
+is what an aggregator already reads and what a container already collects. In
+development (`NODE_ENV` not `production`) the same fields print as a readable
+line instead. `LOG_LEVEL` is `debug | info | warn | error`, default `info`; an
+unrecognised value falls back to `info` and is warned about at boot.
+
+Every request carries a **correlation id**:
+
+- taken from `x-request-id` if the proxy set one (so a trace spans both hops),
+  otherwise generated;
+- returned in the `x-request-id` **response header**;
+- included in the **body of a 500**, as `request_id`.
+
+That last one is the operational point. A cashier can read the reference off
+the screen, and it leads to exactly one line. Ask for it before asking anything
+else.
+
+    {"time":"2026-08-16T20:41:07.881Z","level":"error","message":"unhandled error",
+     "request_id":"6b1f…","method":"POST","path":"/api/pos/checkout","user_id":"…",
+     "error_name":"PrismaClientKnownRequestError","error_code":"P2002","error_stack":"…"}
+
+Worth alerting on:
+
+| line | means |
+|---|---|
+| `message="unhandled error"` | a 500 reached a user. Any of these is a bug. |
+| `message="auth rejected: JWT verification failed"` | a run of these is what a key rotation looks like from the server side. Check `reason` — `jwt expired` and `invalid signature` are very different problems. |
+| `message="request"` with `status>=500` | as above, counted rather than read. |
+| `message="request"` with a large `duration_ms` | one slow endpoint, before anyone reports it. |
+
+**Never in the log, by construction** (`src/lib/logger.ts` logs only named
+fields — an allowlist, so a new header cannot start being logged by accident):
+headers of any kind including `Authorization` and `Cookie`, request or response
+bodies, and query strings. Client addresses are recorded only for requests that
+FAILED, and for auth rejections.
+
+The `/health` and `/ready` probes are deliberately **not** logged: an
+orchestrator hits them every few seconds and they would be almost the whole
+file. They still get a correlation id.
+
 **Platform:**
 - TLS termination in front of the API (the app assumes HTTPS).
 - Automated Postgres backups + a tested restore.
-- Log aggregation + alerting (watch for `[auth] JWT verification failed` and 5xx spikes).
+- Log aggregation + alerting — see **Logs** below for what to alert on.
 - A load test of the authenticated path — the one-transaction-per-request model is
   connection-bound; size the pool and the DB `max_connections` against real concurrency.

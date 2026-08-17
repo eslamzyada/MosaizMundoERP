@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { NextFunction, Request, Response } from 'express';
 import { createHash, createHmac, timingSafeEqual } from 'crypto';
 
@@ -72,8 +73,9 @@ export function webhookAuth(req: Request, res: Response, next: NextFunction): vo
   const secret = process.env.SUPABASE_WEBHOOK_SECRET;
   if (!secret) {
     // Fail closed on misconfiguration.
-    // eslint-disable-next-line no-console
-    console.error('SUPABASE_WEBHOOK_SECRET is not set; refusing webhook');
+    logger.error('webhook refused: SUPABASE_WEBHOOK_SECRET is not set', undefined, {
+      request_id: req.requestId,
+    });
     res.status(500).json({ error: 'Webhook verification is not configured' });
     return;
   }

@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 
@@ -124,8 +125,10 @@ export async function deleteRawItem(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.error('[inventory.deleteRawItem] failed:', err);
+    logger.error('inventory.deleteRawItem failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -191,8 +194,10 @@ export async function correctBatchCost(req: Request, res: Response): Promise<voi
       res.status(400).json({ error: 'That cost was rejected by the database' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[inventory.correctBatchCost] failed:', err);
+    logger.error('inventory.correctBatchCost failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -239,8 +244,10 @@ export async function listItemBatches(req: Request, res: Response): Promise<void
     `;
     res.status(200).json(batches);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[inventory.listItemBatches] failed:', err);
+    logger.error('inventory.listItemBatches failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

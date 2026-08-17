@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { parsePage, SAFETY_CAP } from '../lib/pagination';
@@ -145,8 +146,10 @@ export async function createWriteOff(req: Request, res: Response): Promise<void>
       });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[inventory.createWriteOff] failed:', err);
+    logger.error('inventory.createWriteOff failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -176,8 +179,10 @@ export async function listWriteOffs(req: Request, res: Response): Promise<void> 
     });
     res.status(200).json(writeOffs);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[inventory.listWriteOffs] failed:', err);
+    logger.error('inventory.listWriteOffs failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -242,8 +247,10 @@ export async function getExpiringStock(req: Request, res: Response): Promise<voi
     `;
     res.status(200).json({ days, lots });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[inventory.getExpiringStock] failed:', err);
+    logger.error('inventory.getExpiringStock failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

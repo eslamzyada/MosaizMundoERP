@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { resolveMembership } from '../middleware/requireRole';
 import { postgresErrorCode } from '../lib/postgresError';
@@ -79,8 +80,10 @@ export async function getTill(req: Request, res: Response): Promise<void> {
       },
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[till.get] failed:', err);
+    logger.error('till.get failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -109,8 +112,10 @@ function respond(err: unknown, res: Response, where: string): void {
     return;
   }
 
-  // eslint-disable-next-line no-console
-  console.error(`[${where}] failed:`, err);
+  logger.error(`${where} failed`, err, {
+    request_id: res.req?.requestId,
+    user_id: res.req?.userId,
+  });
   res.status(500).json({ error: 'Internal server error' });
 }
 

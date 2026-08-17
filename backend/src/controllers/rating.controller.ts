@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 
@@ -158,8 +159,10 @@ export async function upsertRating(req: Request, res: Response): Promise<void> {
       res.status(400).json({ error: 'That rating was rejected by the database' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[ratings.upsert] failed:', err);
+    logger.error('ratings.upsert failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -239,8 +242,10 @@ export async function listRatings(req: Request, res: Response): Promise<void> {
       ratings,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[ratings.list] failed:', err);
+    logger.error('ratings.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

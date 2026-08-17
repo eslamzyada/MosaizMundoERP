@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Router, type Request, type Response } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -80,8 +81,10 @@ router.get('/:slug/menu', readLimit, async (req: Request, res: Response) => {
       items: rows.map((r) => ({ id: r.item_id, name: r.name, price: Number(r.price) })),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[public.menu] failed:', err);
+    logger.error('public.menu failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -159,8 +162,10 @@ router.post('/:slug/orders', writeLimit, async (req: Request, res: Response) => 
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.error('[public.order] failed:', err);
+    logger.error('public.order failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -189,8 +194,10 @@ router.get('/track/:token', readLimit, async (req: Request, res: Response) => {
       placed_at: rows[0].placed_at,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[public.track] failed:', err);
+    logger.error('public.track failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

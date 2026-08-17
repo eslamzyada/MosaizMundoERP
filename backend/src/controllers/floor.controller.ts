@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { enabledModules } from '../lib/modules';
 import { resolveMembership } from '../middleware/requireRole';
@@ -167,8 +168,10 @@ export async function getFloor(req: Request, res: Response): Promise<void> {
       summary,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[floor] failed:', err);
+    logger.error('floor failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

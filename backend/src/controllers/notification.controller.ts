@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 
 /**
@@ -60,8 +61,10 @@ export async function listNotifications(req: Request, res: Response): Promise<vo
       })),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[notifications.list] failed:', err);
+    logger.error('notifications.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -97,8 +100,10 @@ export async function markRead(req: Request, res: Response): Promise<void> {
     }
     res.status(200).json({ id: req.params.id, read: true });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[notifications.markRead] failed:', err);
+    logger.error('notifications.markRead failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -117,8 +122,10 @@ export async function markAllRead(req: Request, res: Response): Promise<void> {
     });
     res.status(200).json({ read: result.count });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[notifications.markAllRead] failed:', err);
+    logger.error('notifications.markAllRead failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

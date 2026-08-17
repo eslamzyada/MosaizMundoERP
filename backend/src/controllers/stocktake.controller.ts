@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { parsePage, SAFETY_CAP } from '../lib/pagination';
@@ -114,8 +115,10 @@ export async function createStocktake(req: Request, res: Response): Promise<void
       res.status(403).json({ error: 'Your role is not permitted to run a stocktake' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[stocktake.create] failed:', err);
+    logger.error('stocktake.create failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -151,8 +154,10 @@ export async function listStocktakes(req: Request, res: Response): Promise<void>
     `;
     res.status(200).json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[stocktake.list] failed:', err);
+    logger.error('stocktake.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -203,8 +208,10 @@ export async function getStocktake(req: Request, res: Response): Promise<void> {
 
     res.status(200).json({ ...stocktake, items });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[stocktake.get] failed:', err);
+    logger.error('stocktake.get failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -290,8 +297,10 @@ export async function updateStocktakeCounts(req: Request, res: Response): Promis
       res.status(403).json({ error: 'Your role is not permitted to run a stocktake' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[stocktake.updateCounts] failed:', err);
+    logger.error('stocktake.updateCounts failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -338,8 +347,10 @@ export async function cancelStocktake(req: Request, res: Response): Promise<void
       res.status(403).json({ error: 'Your role is not permitted to run a stocktake' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[stocktake.cancel] failed:', err);
+    logger.error('stocktake.cancel failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

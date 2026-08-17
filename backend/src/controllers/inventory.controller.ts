@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { parsePage, SAFETY_CAP } from '../lib/pagination';
@@ -54,8 +55,10 @@ export async function getDeficits(req: Request, res: Response): Promise<void> {
     });
     res.status(200).json(deficits);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[inventory.deficits] failed:', err);
+    logger.error('inventory.deficits failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -79,8 +82,10 @@ export async function getRawItems(req: Request, res: Response): Promise<void> {
     });
     res.status(200).json(items);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[inventory.items] failed:', err);
+    logger.error('inventory.items failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -136,8 +141,10 @@ export async function getStock(req: Request, res: Response): Promise<void> {
     `;
     res.status(200).json(stock);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[inventory.stock] failed:', err);
+    logger.error('inventory.stock failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -280,13 +287,17 @@ export async function receiveStock(req: Request, res: Response): Promise<void> {
       return;
     }
     if (pgCode) {
-      // eslint-disable-next-line no-console
-      console.error('[inventory.receive] failed:', err);
+      logger.error('inventory.receive failed', err, {
+        request_id: req.requestId,
+        user_id: req.userId,
+      });
       res.status(400).json({ error: 'Could not receive stock', code: pgCode });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[inventory.receive] failed:', err);
+    logger.error('inventory.receive failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -315,8 +326,10 @@ export async function postStocktake(req: Request, res: Response): Promise<void> 
     await req.tx.$executeRaw`CALL app.post_stocktake(${id}::uuid)`;
     res.status(200).json({ status: 'ok', stocktake_id: id, message: 'Stocktake posted' });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[inventory.postStocktake] failed:', err);
+    logger.error('inventory.postStocktake failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     // Not-found, not-draft, and RLS rejections all surface as database errors —
     // they are caller errors, so map them to 400.
     const pgCode = postgresErrorCode(err);
@@ -393,8 +406,10 @@ export async function createRawItem(req: Request, res: Response): Promise<void> 
       res.status(403).json({ error: 'Your role is not permitted to manage ingredients' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[inventory.createRawItem] failed:', err);
+    logger.error('inventory.createRawItem failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -486,8 +501,10 @@ export async function updateRawItem(req: Request, res: Response): Promise<void> 
       res.status(403).json({ error: 'Your role is not permitted to manage ingredients' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[inventory.updateRawItem] failed:', err);
+    logger.error('inventory.updateRawItem failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

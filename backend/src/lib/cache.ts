@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import Redis from 'ioredis';
 import { Request } from 'express';
 import { cacheKey, invalidationPattern } from './cacheKey';
@@ -53,8 +54,7 @@ function connect(): Redis | null {
     client.on('error', () => {
       if (!warned) {
         warned = true;
-        // eslint-disable-next-line no-console
-        console.warn('[cache] Redis unreachable — serving everything from the database');
+        logger.warn('cache: Redis unreachable, serving everything from the database');
       }
     });
   } catch {

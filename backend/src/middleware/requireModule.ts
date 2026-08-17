@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { NextFunction, Request, Response } from 'express';
 import { enabledModules } from '../lib/modules';
 import { resolveMembership } from './requireRole';
@@ -50,8 +51,10 @@ export function requireModule(moduleKey: string) {
 
       next();
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[requireModule] failed:', err);
+      logger.error('requireModule failed', err, {
+        request_id: req.requestId,
+        user_id: req.userId,
+      });
       res.status(500).json({ error: 'Internal server error' });
     }
   };

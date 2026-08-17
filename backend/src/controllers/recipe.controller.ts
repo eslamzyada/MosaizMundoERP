@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { SAFETY_CAP } from '../lib/pagination';
@@ -106,8 +107,10 @@ export async function getRecipes(req: Request, res: Response): Promise<void> {
 
     res.status(200).json(costed);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[recipes.get] failed:', err);
+    logger.error('recipes.get failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -179,8 +182,10 @@ export async function addRecipeLine(req: Request, res: Response): Promise<void> 
       res.status(403).json({ error: 'Your role is not permitted to edit recipes' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[recipes.addLine] failed:', err);
+    logger.error('recipes.addLine failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -232,8 +237,10 @@ export async function updateRecipeLine(req: Request, res: Response): Promise<voi
       res.status(403).json({ error: 'Your role is not permitted to edit recipes' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[recipes.updateLine] failed:', err);
+    logger.error('recipes.updateLine failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -277,8 +284,10 @@ export async function deleteRecipeLine(req: Request, res: Response): Promise<voi
       res.status(403).json({ error: 'Your role is not permitted to edit recipes' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[recipes.deleteLine] failed:', err);
+    logger.error('recipes.deleteLine failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

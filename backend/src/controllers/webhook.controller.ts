@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -73,8 +74,10 @@ export async function handleSupabaseUserSignup(req: Request, res: Response): Pro
     await prisma.$executeRaw`CALL app.provision_new_tenant(${id}::uuid, ${email}, ${orgName}, ${orgSlug}, ${planTier})`;
     res.status(200).json({ status: 'ok', message: 'Tenant provisioned', user_id: id });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[webhook.signup] provisioning failed:', err);
+    logger.error('webhook.signup provisioning failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
 
     // A unique violation means this identity was already provisioned (Supabase
     // retried the delivery). That is success from the webhook's perspective —

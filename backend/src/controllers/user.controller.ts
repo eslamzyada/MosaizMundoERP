@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { enabledModules, readPlan } from '../lib/modules';
 
@@ -55,8 +56,10 @@ export async function getMe(req: Request, res: Response): Promise<void> {
       plan,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[me] failed:', err);
+    logger.error('me failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

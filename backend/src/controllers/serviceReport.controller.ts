@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { enabledModules } from '../lib/modules';
 import { resolveMembership } from '../middleware/requireRole';
@@ -229,8 +230,10 @@ export async function getServiceReport(req: Request, res: Response): Promise<voi
       online,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[reports.service] failed:', err);
+    logger.error('reports.service failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

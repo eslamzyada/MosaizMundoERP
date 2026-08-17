@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { currentMonth, monthStart } from './rating.controller';
@@ -116,8 +117,10 @@ export async function listCriteria(req: Request, res: Response): Promise<void> {
       })),
     );
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[ratingCriteria.list] failed:', err);
+    logger.error('ratingCriteria.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -195,8 +198,10 @@ export async function createCriterion(req: Request, res: Response): Promise<void
       res.status(403).json({ error: 'Changing the criteria is limited to managers' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[ratingCriteria.create] failed:', err);
+    logger.error('ratingCriteria.create failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -307,8 +312,10 @@ export async function updateCriterion(req: Request, res: Response): Promise<void
       res.status(403).json({ error: 'Changing the criteria is limited to managers' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[ratingCriteria.update] failed:', err);
+    logger.error('ratingCriteria.update failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -352,8 +359,10 @@ export async function deleteCriterion(req: Request, res: Response): Promise<void
       res.status(403).json({ error: 'Changing the criteria is limited to managers' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[ratingCriteria.delete] failed:', err);
+    logger.error('ratingCriteria.delete failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -455,8 +464,10 @@ export async function listCriterionScores(req: Request, res: Response): Promise<
       })),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[ratingCriteria.listScores] failed:', err);
+    logger.error('ratingCriteria.listScores failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -551,8 +562,10 @@ export async function upsertCriterionScore(req: Request, res: Response): Promise
       res.status(400).json({ error: 'The score was rejected by the database' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[ratingCriteria.upsertScore] failed:', err);
+    logger.error('ratingCriteria.upsertScore failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

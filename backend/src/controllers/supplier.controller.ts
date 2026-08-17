@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { SAFETY_CAP } from '../lib/pagination';
@@ -59,8 +60,10 @@ export async function listSuppliers(req: Request, res: Response): Promise<void> 
     });
     res.status(200).json(suppliers);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[suppliers.list] failed:', err);
+    logger.error('suppliers.list failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -112,8 +115,10 @@ export async function createSupplier(req: Request, res: Response): Promise<void>
       res.status(403).json({ error: 'Your role is not permitted to manage suppliers' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[suppliers.create] failed:', err);
+    logger.error('suppliers.create failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -185,8 +190,10 @@ export async function updateSupplier(req: Request, res: Response): Promise<void>
       res.status(403).json({ error: 'Your role is not permitted to manage suppliers' });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[suppliers.update] failed:', err);
+    logger.error('suppliers.update failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -249,8 +256,10 @@ export async function getPriceHistory(req: Request, res: Response): Promise<void
     `;
     res.status(200).json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[suppliers.priceHistory] failed:', err);
+    logger.error('suppliers.priceHistory failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
