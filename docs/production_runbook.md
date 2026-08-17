@@ -299,6 +299,25 @@ The `/health` and `/ready` probes are deliberately **not** logged: an
 orchestrator hits them every few seconds and they would be almost the whole
 file. They still get a correlation id.
 
+**Dependency advisories.** CI runs `scripts/audit-gate.mjs`, which fails the
+build on a **high or critical** advisory in a **shipping** dependency that
+nobody has reviewed. Moderates, and the entire dev toolchain, are printed and do
+not block — a bundler advisory published this morning must not stand between a
+restaurant and a fix to its till, and a gate that cries wolf acquires an
+`|| true`.
+
+Anything left in place is written down in `security/accepted-advisories.json`
+with the reasoning for why it cannot be reached. To triage a new one:
+
+```bash
+node scripts/audit-gate.mjs backend clients/admin
+```
+
+Fix it if a non-major fix exists. If not, decide whether it is reachable from
+THIS application — not whether it sounds serious — and record that decision
+with its reasoning. An entry with a vague reason is worse than a red build,
+because it reads as though somebody checked.
+
 **Platform:**
 - TLS termination in front of the API (the app assumes HTTPS).
 - Automated Postgres backups + a tested restore.

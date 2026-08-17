@@ -1,0 +1,38 @@
+{
+  "$comment": [
+    "Advisories in SHIPPING dependencies that have been looked at and left in place.",
+    "",
+    "An entry here is a claim that the advisory cannot be reached from this",
+    "application, with the reasoning that supports it. It is not a way to silence",
+    "the gate — an entry with a vague reason is worse than a red build, because it",
+    "reads as though somebody checked.",
+    "",
+    "scripts/audit-gate.mjs fails on any high or critical advisory in a shipping",
+    "dependency that is NOT listed here. Moderate advisories and dev-only ones are",
+    "reported and do not block; see the header of that file for why.",
+    "",
+    "review_by is a prompt, not a deadline: passing it prints a warning rather than",
+    "failing a build, because a build that breaks on a date breaks at the worst",
+    "moment for a reason unrelated to the change being made."
+  ],
+  "accepted": [
+    {
+      "project": "backend",
+      "package": "exceljs",
+      "severity": "moderate",
+      "advisory": "uuid: missing buffer bounds check in v3/v5/v6 when buf is provided",
+      "reason": "Not reachable. The vulnerable path needs a caller-supplied `buf` argument to uuid v3/v5/v6; exceljs calls v4 with no buffer. The only fix npm offers is a DOWNGRADE to exceljs@3.4.0, which would lose the XLSX export this system's reports depend on, to close a path that is not executed.",
+      "reviewed": "2026-08-17",
+      "review_by": "2027-02-01"
+    },
+    {
+      "project": "clients/admin",
+      "package": "react-router",
+      "severity": "moderate",
+      "advisory": "Open redirect via backslash in <Link>/useNavigate (CVE-2025-68470 bypass); arbitrary constructor injection via deserializeErrors() during SSR hydration",
+      "reason": "Closed at the application boundary, and half of it does not apply. The SSR half needs server-side rendering; the admin is a Vite SPA and hydrates nothing. The open redirect needs a user-controlled navigate() target: both non-literal targets now pass through lib/safeInternalPath.ts, which refuses `//host`, `/\\host` and the whitespace/control-character forms a browser repairs — see its tests. The library fix is react-router 7.18.0, a major migration from the 6.x line this app is written against; 6.30.4 is the last 6.x and is vulnerable.",
+      "reviewed": "2026-08-17",
+      "review_by": "2027-02-01"
+    }
+  ]
+}

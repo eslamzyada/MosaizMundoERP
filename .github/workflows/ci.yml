@@ -489,6 +489,22 @@ jobs:
       - name: Build (prisma generate + tsc)
         run: npm run build
 
+      # A supply-chain gate that somebody will actually trust.
+      #
+      # Plain `npm audit` exits non-zero on anything, so it exits non-zero
+      # always, so it acquires an `|| true` and stops meaning anything. This
+      # asks the narrower question: has a HIGH or CRITICAL advisory appeared in
+      # a dependency that SHIPS, which nobody has looked at yet?
+      #
+      # Everything else — moderates, and the whole dev toolchain, which does not
+      # ship — is printed and does not fail. Blocking a till fix on a bundler
+      # advisory published this morning is how a check gets switched off.
+      #
+      # Runs from the repo root because it reads one shared review file.
+      - name: Shipping dependencies have no unreviewed advisories
+        working-directory: .
+        run: node scripts/audit-gate.mjs backend clients/admin
+
       # A Dockerfile nobody builds is a Dockerfile that has already broken. The
       # same argument this repo made for the backend suite: if it is not
       # checked here, it is checked by whoever next tries to deploy.
