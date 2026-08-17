@@ -30,6 +30,23 @@ describe('API hardening', () => {
     expect(denied.headers['access-control-allow-origin']).toBeUndefined();
   });
 
+  test('the correlation id is READABLE by the admin app, not just present', async () => {
+    /**
+     * Setting the header is necessary and not sufficient. A browser only lets
+     * script read a handful of safelisted response headers; anything else is
+     * invisible cross-origin unless the server names it in
+     * Access-Control-Expose-Headers. Without that, the id is on the wire and
+     * visible in devtools while being `undefined` to the code meant to show it
+     * — a failure with no symptom at all.
+     */
+    const res = await request(app).get('/health').set('Origin', 'http://localhost:5173');
+
+    expect(res.headers['x-request-id']).toBeDefined();
+    expect(String(res.headers['access-control-expose-headers']).toLowerCase()).toContain(
+      'x-request-id',
+    );
+  });
+
   test('a request with no Origin (POS / curl / webhook) is not blocked (F-07)', async () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);

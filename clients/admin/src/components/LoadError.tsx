@@ -41,6 +41,28 @@ export default function LoadError({
           إعادة المحاولة
         </button>
       )}
+
+      {/*
+        The reference, and only where it is worth anything.
+
+        Shown for a server fault, because "(500)" identifies nothing — every
+        500 in the system says 500 — while this string leads to the one line in
+        the log that is theirs. Withheld for an expired session or a permission
+        the account does not have: those are not faults, the reader already
+        knows what to do, and an id would suggest there is something to report.
+
+        `select-all` so a tap or click takes the whole thing. Somebody is going
+        to retype this into a WhatsApp message, and a half-copied id is worse
+        than none.
+      */}
+      {failure.reference && (failure.kind === 'server' || failure.kind === 'unknown') && (
+        <p className="mt-3 text-xs text-amber-800">
+          رقم المرجع:{' '}
+          <code dir="ltr" className="select-all rounded bg-amber-100 px-1.5 py-0.5 font-mono">
+            {failure.reference}
+          </code>
+        </p>
+      )}
     </div>
   );
 }

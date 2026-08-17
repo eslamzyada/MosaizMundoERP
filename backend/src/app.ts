@@ -70,6 +70,20 @@ app.use(
     origin(origin, cb) {
       cb(null, !origin || allowedOrigins.includes(origin));
     },
+    /**
+     * Without this line the admin app cannot read the correlation id AT ALL.
+     *
+     * A browser only lets script see a handful of safelisted response headers;
+     * everything else is invisible cross-origin unless the server names it
+     * here. `res.setHeader('x-request-id', …)` in requestLog.ts is therefore
+     * necessary and not sufficient — the header is on the wire, visible in
+     * devtools, and `undefined` to the code that wants to show it to somebody.
+     *
+     * That failure is silent, which is the reason for the comment: the app
+     * would simply render an error with no reference and nobody would know a
+     * header had been dropped.
+     */
+    exposedHeaders: ['x-request-id'],
   }),
 );
 

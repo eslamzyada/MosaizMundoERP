@@ -37,6 +37,46 @@ export interface LoadFailure {
   canRetry: boolean;
   /** The HTTP status when there was one, for a bug report. */
   status?: number;
+  /**
+   * The server's correlation id for the request that failed.
+   *
+   * "حدث خطأ في الخادم (500)" identifies nothing — every 500 in the system
+   * says 500. This is the one string that leads to the exact line in the log,
+   * so it is worth putting in front of the person who is about to describe
+   * the problem to somebody else.
+   *
+   * Read from the `x-request-id` RESPONSE HEADER rather than the body,
+   * because the header is on every response the API sends, while only the
+   * centralized handler puts `request_id` in the body — the many 500s that
+   * controllers answer themselves have the header and nothing else.
+   *
+   * Absent when the request never reached the server at all.
+   */
+  reference?: string;
+}
+
+/**
+ * Pulls the correlation id off a failed response.
+ *
+ * Header first, body as a fallback. Note that the header is only readable
+ * because the API names it in Access-Control-Expose-Headers — a browser hides
+ * every non-safelisted response header from script, so without that this is
+ * always undefined and the failure is completely silent.
+ */
+function referenceFrom(response: {
+  headers?: unknown;
+  data?: unknown;
+}): string | undefined {
+  const headers = response.headers as Record<string, unknown> | undefined;
+  const fromHeader = headers?.['x-request-id'];
+  if (typeof fromHeader === 'string' && fromHeader.length > 0) return fromHeader;
+
+  const body = response.data as { request_id?: unknown } | undefined;
+  if (typeof body?.request_id === 'string' && body.request_id.length > 0) {
+    return body.request_id;
+  }
+
+  return undefined;
 }
 
 /**
@@ -61,6 +101,7 @@ export function classifyLoadFailure(error: unknown): LoadFailure {
     }
 
     const status = error.response.status;
+    const reference = referenceFrom(error.response);
 
     if (status === 401) {
       return {
@@ -68,6 +109,7 @@ export function classifyLoadFailure(error: unknown): LoadFailure {
         message: 'انتهت صلاحية الجلسة. سجّل الدخول مرة أخرى للمتابعة.',
         canRetry: false,
         status,
+        reference,
       };
     }
 
@@ -77,6 +119,7 @@ export function classifyLoadFailure(error: unknown): LoadFailure {
         message: 'هذا القسم ليس ضمن صلاحيات حسابك.',
         canRetry: false,
         status,
+        reference,
       };
     }
 
@@ -86,6 +129,7 @@ export function classifyLoadFailure(error: unknown): LoadFailure {
         message: `حدث خطأ في الخادم (${status}). حاول مرة أخرى بعد قليل.`,
         canRetry: true,
         status,
+        reference,
       };
     }
 
@@ -94,6 +138,7 @@ export function classifyLoadFailure(error: unknown): LoadFailure {
       message: `تعذّر تحميل البيانات (${status}).`,
       canRetry: true,
       status,
+      reference,
     };
   }
 

@@ -251,9 +251,30 @@ Every request carries a **correlation id**:
 - returned in the `x-request-id` **response header**;
 - included in the **body of a 500**, as `request_id`.
 
-That last one is the operational point. A cashier can read the reference off
-the screen, and it leads to exactly one line. Ask for it before asking anything
-else.
+That last one is the operational point, and **both clients now show it**. The
+admin app prints it under a failed page load, and the till prints it under a
+failed menu load — as `رقم المرجع`, left-to-right so it can be read back
+correctly out of Arabic text, and selectable so it can be copied rather than
+retyped.
+
+**Ask for `رقم المرجع` before asking anything else.** It leads to exactly one
+line:
+
+```
+grep '"request_id":"<the id they read you>"'
+```
+
+It is shown only for a **server fault** or an unclassified failure. An expired
+session and a role the account does not have are not bugs — the reader already
+knows what to do, and an id there would imply somebody is going to investigate.
+
+One thing that is easy to get wrong when adding a new browser client: the
+header is only readable because the API names it in
+`Access-Control-Expose-Headers` (`exposedHeaders` in `app.ts`). A browser hides
+every non-safelisted response header from script, so without that line the id
+is on the wire, visible in devtools, and `undefined` to the code meant to
+display it — a failure with no symptom at all. Native clients (the POS) are not
+subject to this.
 
     {"time":"2026-08-16T20:41:07.881Z","level":"error","message":"unhandled error",
      "request_id":"6b1f…","method":"POST","path":"/api/pos/checkout","user_id":"…",

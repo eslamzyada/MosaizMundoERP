@@ -93,6 +93,20 @@ class MenuStateTest {
         Response.error<Unit>(code, "".toResponseBody("application/json".toMediaType())),
     )
 
+    /** The same, carrying the correlation id the API puts on every response. */
+    private fun httpWithReference(code: Int, requestId: String) = HttpException(
+        Response.error<Unit>(
+            "".toResponseBody("application/json".toMediaType()),
+            okhttp3.Response.Builder()
+                .code(code)
+                .message("")
+                .protocol(okhttp3.Protocol.HTTP_1_1)
+                .header("x-request-id", requestId)
+                .request(okhttp3.Request.Builder().url("http://localhost/api/pos/menu").build())
+                .build(),
+        ),
+    )
+
     private fun viewModel(repository: PosRepository) = PosViewModel(repository)
 
     @Test
@@ -209,5 +223,67 @@ class MenuStateTest {
 
         assertEquals("", repository.openedNote)
         assertEquals(emptyList<CartItem>(), repository.openedItems)
+    }
+
+    /**
+     * The reference.
+     *
+     * The API gives every request a correlation id and returns it on every
+     * response. Shown on the till, it turns "it broke around 8:40" into one
+     * line in the log. The judgement being asserted is WHEN it appears: a
+     * server fault, yes; an expired session or a missing role, no — those are
+     * not bugs, and an id would imply there is something to report.
+     */
+    @Test
+    fun `a server error carries the correlation id`() {
+        val state = viewModel(
+            FakeRepository { throw httpWithReference(500, "6b1f2c7e-0d3a-4a71-9f52-0f3f5b6a1c22") },
+        ).menuState.value
+
+        assertTrue(state is MenuState.Failed)
+        assertEquals("6b1f2c7e-0d3a-4a71-9f52-0f3f5b6a1c22", (state as MenuState.Failed).reference)
+    }
+
+    @Test
+    fun `an expired session carries NO reference`() {
+        // Not a fault. Offering an id invites somebody to report a working
+        // system, and the cashier already knows to sign in again.
+        val state = viewModel(
+            FakeRepository { throw httpWithReference(401, "should-not-be-shown") },
+        ).menuState.value
+
+        assertTrue(state is MenuState.Failed)
+        assertEquals(null, (state as MenuState.Failed).reference)
+    }
+
+    @Test
+    fun `a forbidden role carries NO reference either`() {
+        val state = viewModel(
+            FakeRepository { throw httpWithReference(403, "should-not-be-shown") },
+        ).menuState.value
+
+        assertEquals(null, (state as MenuState.Failed).reference)
+    }
+
+    @Test
+    fun `an unreachable server has no reference, because nothing answered`() {
+        // Claiming one would send somebody looking for a line that was never
+        // written: the request never reached the server.
+        val state = viewModel(FakeRepository { throw IOException("no route") }).menuState.value
+        assertEquals(null, (state as MenuState.Failed).reference)
+    }
+
+    @Test
+    fun `a server error without the header still reports the failure`() {
+        // An older API, or a proxy that stripped it. The message must still be
+        // shown and retry still offered — the reference is an extra, not a
+        // precondition.
+        val state = viewModel(FakeRepository { throw http(500) }).menuState.value
+
+        assertTrue(state is MenuState.Failed)
+        state as MenuState.Failed
+        assertEquals(null, state.reference)
+        assertTrue(state.canRetry)
+        assertTrue(state.message.contains("500"))
     }
 }
