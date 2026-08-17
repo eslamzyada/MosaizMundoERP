@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { notificationRepository, type Notification } from '../api/NotificationRepository';
+import { safeInternalPath } from '../lib/safeInternalPath';
 
 /**
  * The bell (0036).
@@ -128,9 +129,14 @@ export default function NotificationBell() {
     // Second gate on the same rule the CHECK constraint enforces in the
     // database: a notification navigates INSIDE the admin or not at all. A
     // link is a place somebody clicks without reading it.
-    if (item.link && item.link.startsWith('/') && !item.link.startsWith('//')) {
-      navigate(item.link);
-    }
+    //
+    // This used to test startsWith('/') && !startsWith('//'), which is the
+    // right instinct and misses `/\evil.com` — the exact bypass the react-router
+    // advisory is about, and a form the database CHECK (link LIKE '/%') also
+    // accepts. safeInternalPath knows about that one and about the whitespace
+    // and control characters a browser strips before resolving a URL.
+    const target = safeInternalPath(item.link);
+    if (target) navigate(target);
   }
 
   async function markAll() {

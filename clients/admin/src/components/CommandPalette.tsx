@@ -5,6 +5,7 @@ import { hitPath, kindLabel, matchDestinations } from '../lib/searchTargets';
 import type { SearchHit } from '../lib/searchTargets';
 import { useSession } from '../session/SessionProvider';
 import { classifyLoadFailure } from '../lib/loadFailure';
+import { safeInternalPath } from '../lib/safeInternalPath';
 
 /**
  * One box that finds anything and goes there.
@@ -127,7 +128,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const go = useCallback(
     (to: string) => {
       onClose();
-      navigate(to);
+      // Every target here is built from a fixed route table plus an
+      // encodeURIComponent'd id, so this cannot currently refuse anything. It
+      // is here because that is a property of today's callers, not of this
+      // function — and a navigate() that trusts its argument is one new caller
+      // away from being an open redirect.
+      const target = safeInternalPath(to);
+      if (target) navigate(target);
     },
     [navigate, onClose],
   );
