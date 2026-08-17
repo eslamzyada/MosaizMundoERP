@@ -92,3 +92,68 @@ describe('classifyLoadFailure', () => {
     expect(classifyLoadFailure(networkError()).canRetry).toBe(true);
   });
 });
+
+/**
+ * The reference.
+ *
+ * The API gives every request a correlation id and returns it. It is the one
+ * string that leads from "it broke around 8:40" to the exact line in the log,
+ * so the classifier has to carry it as far as the screen.
+ */
+describe('the correlation id', () => {
+  const withReference = (
+    status: number,
+    opts: { header?: string; body?: Record<string, unknown> } = {},
+  ) => {
+    const headers = new AxiosHeaders();
+    if (opts.header) headers.set('x-request-id', opts.header);
+    const config = { headers };
+    return new AxiosError('Request failed', 'ERR_BAD_RESPONSE', config, null, {
+      status,
+      statusText: '',
+      data: opts.body ?? {},
+      headers,
+      config,
+    });
+  };
+
+  it('is taken from the response header', () => {
+    const f = classifyLoadFailure(withReference(500, { header: 'abc-123' }));
+    expect(f.reference).toBe('abc-123');
+  });
+
+  it('prefers the header over the body, because the header is on EVERY response', () => {
+    // Only the centralized handler puts request_id in the body. The many 500s
+    // that controllers answer themselves have the header and nothing else, so
+    // the header is the one that always works.
+    const f = classifyLoadFailure(
+      withReference(500, { header: 'from-header', body: { request_id: 'from-body' } }),
+    );
+    expect(f.reference).toBe('from-header');
+  });
+
+  it('falls back to the body when the header did not survive', () => {
+    // A proxy that strips unknown headers, or a CORS configuration that forgot
+    // to expose it — the body is the second chance.
+    const f = classifyLoadFailure(withReference(500, { body: { request_id: 'from-body' } }));
+    expect(f.reference).toBe('from-body');
+  });
+
+  it('is absent when the request never reached the server', () => {
+    // Nothing answered, so there is nothing to correlate with. Claiming a
+    // reference here would send somebody looking for a line that does not exist.
+    const noResponse = new AxiosError(
+      'Network Error',
+      'ERR_NETWORK',
+      { headers: new AxiosHeaders() },
+      {},
+      undefined,
+    );
+    expect(classifyLoadFailure(noResponse).reference).toBeUndefined();
+  });
+
+  it('is absent when the response carried none', () => {
+    const f = classifyLoadFailure(withReference(500));
+    expect(f.reference).toBeUndefined();
+  });
+});

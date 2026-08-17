@@ -45,6 +45,20 @@ enum class PosDestination { MENU, CART, CHECKOUT, ORDERS, TABS, TILL }
  * it has to say which of those it is, because the person holding it can fix two
  * of the three.
  */
+/**
+ * The server's correlation id for a failed request, when it sent one.
+ *
+ * Read from the `x-request-id` RESPONSE HEADER rather than the body: the API
+ * sets the header on every response it sends, while only the centralized error
+ * handler puts `request_id` in the body — the many 500s that controllers answer
+ * themselves carry the header and nothing else.
+ *
+ * No CORS involvement here, unlike the admin app: this is a native client, and
+ * Access-Control-Expose-Headers is a browser rule.
+ */
+internal fun HttpException.correlationId(): String? =
+    response()?.headers()?.get("x-request-id")?.takeIf { it.isNotBlank() }
+
 sealed interface MenuState {
     data object Loading : MenuState
 
@@ -57,7 +71,20 @@ sealed interface MenuState {
      * [canRetry] separates "try again" from "somebody has to do something
      * first". Offering retry on an expired session would just fail again.
      */
-    data class Failed(val message: String, val canRetry: Boolean) : MenuState
+    /**
+     * [reference] is the server's correlation id for the request that failed.
+     *
+     * "(خطأ 500)" identifies nothing — every 500 in the system says 500 — while
+     * this string leads to the one line in the log that is this till's. It is
+     * carried only for a SERVER fault: an expired session or a missing role is
+     * not a bug, the cashier already knows what to do, and an id there would
+     * suggest there is something to report.
+     */
+    data class Failed(
+        val message: String,
+        val canRetry: Boolean,
+        val reference: String? = null,
+    ) : MenuState
 }
 
 /** Lifecycle of a checkout submission, observed by the CheckoutScreen. */
@@ -321,6 +348,7 @@ class PosViewModel(
                     else -> MenuState.Failed(
                         "تعذّر تحميل القائمة (خطأ ${e.code()}).",
                         canRetry = true,
+                        reference = e.correlationId(),
                     )
                 }
             } catch (e: Exception) {

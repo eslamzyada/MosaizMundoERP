@@ -150,6 +150,10 @@ private fun MenuGrid(
             // what this branch exists to close.
             is MenuState.Failed -> CentredNotice(
                 text = state.message,
+                // The reference, when the server gave one. Somebody is going to
+                // read this down a phone line mid-service, so it is shown as
+                // its own line rather than folded into the sentence.
+                detail = state.reference?.let { "رقم المرجع: $it" },
                 isError = true,
                 actionLabel = if (state.canRetry) "إعادة المحاولة" else "تسجيل الخروج",
                 onAction = if (state.canRetry) onRetry else onSignOut,
