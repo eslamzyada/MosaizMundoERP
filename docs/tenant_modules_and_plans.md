@@ -86,16 +86,19 @@ Mapped against what exists here:
 | Menu approval cycle | Built | `menu_approval` |
 | BI dashboard | Built | `insights` |
 | PDF / XLSX export | Built | `exports` |
-| **Labour: shifts, time clocks, scheduling** | **Absent** | — |
-| **Table reservations** | **Absent** | — |
-| **Customer-facing online ordering** | **Absent** | — |
+| Labour: shifts, time clocks, wages | Built (0038, 0042) | `labour` |
+| Table reservations, seating | Built (0039, 0043) | `reservations` |
+| Customer-facing online ordering | Built (0040) | `public_ordering` |
 
-The labour gap is the significant one. Every guide treats scheduling and time
-clocks as a third pillar beside sales and stock, because labour is the other
-half of a restaurant's controllable cost — and we already have the pieces that
-would make it valuable (roles, memberships, sale attribution per employee,
-appraisal criteria). A `labour` module is the strongest candidate for the next
-capability, ahead of anything cosmetic.
+All three of the gaps this section originally named have since been closed.
+Labour was called the significant one and was built first, for the reason given
+at the time: scheduling and time clocks are the third pillar beside sales and
+stock, because labour is the other half of a restaurant's controllable cost. It
+now carries effective-dated wages (0042), so the service report can cost a shift
+at the rate that applied *then* rather than the rate today.
+
+Nothing in the buyer's-guide core is outstanding. The next capability is a
+judgement about this product rather than a gap against the category.
 
 ---
 
@@ -127,6 +130,9 @@ tiers should gate capability while branch count drives price.
 | `insights` | — | — | ● | ● |
 | `exports` | — | — | ● | ● |
 | `performance` | — | — | ● | ● |
+| `labour` | — | ● | ● | ● |
+| `reservations` | — | ● | ● | ● |
+| `public_ordering` | — | — | ● | ● |
 | `menu_approval` | — | — | — | ● |
 
 `menu_approval` sits at the top on purpose: the two-person rule is a

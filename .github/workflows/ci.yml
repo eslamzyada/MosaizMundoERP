@@ -262,6 +262,19 @@ jobs:
           PGPASSWORD: postgres
         run: psql -v ON_ERROR_STOP=1 -f db/tests/internal_link_verification.sql
 
+      # The plan matrix in the docs is the closest thing this project has to a
+      # price list, and it went stale without anybody noticing: labour,
+      # reservations and public_ordering shipped, were given real min_plan
+      # values by 0044, and never appeared in the table.
+      #
+      # Runs against the freshly migrated database, so it compares the docs
+      # with what the migrations actually did rather than with each other.
+      - name: Plan matrix matches the modules table
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: node scripts/plan-matrix-check.mjs
+
       # Per-tenant modules (0037). Last, because it switches capabilities off
       # and on for the floor fixture's organization — every suite that depends
       # on those capabilities has already run.
