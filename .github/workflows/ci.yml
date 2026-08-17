@@ -257,6 +257,9 @@ jobs:
       # and not an RLS question: it must hold for every writer, which is the
       # reason the rule moved here from the admin app.
       - name: Internal-link verification — a notification cannot carry somebody off-site
+        env:
+          PGUSER: postgres
+          PGPASSWORD: postgres
         run: psql -v ON_ERROR_STOP=1 -f db/tests/internal_link_verification.sql
 
       # Per-tenant modules (0037). Last, because it switches capabilities off
