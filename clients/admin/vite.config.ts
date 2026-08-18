@@ -1,5 +1,11 @@
-/// <reference types="vitest" />
-import { defineConfig } from 'vite';
+// defineConfig comes from vitest/config, not from vite.
+//
+// Under vitest 4 the `test` block below is no longer part of vite's own
+// UserConfig type, so importing defineConfig from 'vite' fails the build with
+// "Object literal may only specify known properties, and 'test' does not
+// exist". vitest/config re-exports a defineConfig that knows about both, which
+// is why the triple-slash reference is no longer needed either.
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
