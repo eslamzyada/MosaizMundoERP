@@ -50,7 +50,15 @@ class HttpPosRepository(
 
     override fun failedSales(): Flow<List<FailedSale>> =
         dao.failedOrders().map { rows ->
-            rows.map { decodeQueuedSale(it.clientOfflineId, it.payloadJson, gson) }
+            rows.map {
+                decodeQueuedSale(
+                    clientOfflineId = it.clientOfflineId,
+                    payloadJson = it.payloadJson,
+                    gson = gson,
+                    failedReason = it.failedReason,
+                    queuedAt = it.queuedAt,
+                )
+            }
         }
 
     override suspend fun retryFailedSale(clientOfflineId: String) {
@@ -286,6 +294,10 @@ class HttpPosRepository(
             OfflineOrderEntity(
                 clientOfflineId = payload.client_offline_id,
                 payloadJson = gson.toJson(payload),
+                // Stamped when the sale was TAKEN, not when it was delivered.
+                // A cashier looking at a refused sale needs to know whether it
+                // is from this evening or has been stuck since Tuesday.
+                queuedAt = System.currentTimeMillis(),
             ),
         )
         enqueueSync()

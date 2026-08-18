@@ -43,7 +43,7 @@ class SyncOrdersWorker(
                 null
             }
             if (payload == null) {
-                dao.markOrderFailed(order.clientOfflineId)
+                dao.markOrderFailed(order.clientOfflineId, UNREADABLE_PAYLOAD)
                 continue
             }
 
@@ -67,7 +67,7 @@ class SyncOrdersWorker(
 
                 // The server will never accept it. Do NOT discard the sale —
                 // mark it FAILED so it stops retrying yet stays visible (F-03).
-                SyncOutcome.REJECTED -> dao.markOrderFailed(order.clientOfflineId)
+                SyncOutcome.REJECTED -> dao.markOrderFailed(order.clientOfflineId, response.code())
 
                 // Not now. Leave it PENDING and come back.
                 SyncOutcome.RETRY -> retryNeeded = true
@@ -75,5 +75,14 @@ class SyncOrdersWorker(
         }
 
         return if (retryNeeded) Result.retry() else Result.success()
+    }
+
+    companion object {
+        /**
+         * Recorded instead of an HTTP status when the stored payload could not
+         * be read at all — no server ever saw it, so no status exists. Distinct
+         * from every real code so the screen can say what it actually is.
+         */
+        const val UNREADABLE_PAYLOAD = -1
     }
 }

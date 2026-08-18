@@ -18,6 +18,23 @@ val localProperties = Properties().apply {
 fun localConfig(key: String, default: String): String =
     (localProperties.getProperty(key) ?: default).trim().removeSurrounding("\"")
 
+/**
+ * Where Room writes the schema of each database version.
+ *
+ * These files are COMMITTED. They are what makes an auto-migration possible:
+ * Room compares the exported schema of version N with version N+1 and generates
+ * the migration itself, rather than trusting hand-written ALTER statements that
+ * nothing in this project could test — there is no androidTest source set and
+ * no emulator in CI, and a migration Room rejects crashes the till on launch.
+ *
+ * With these in place the BUILD is the check: if Room cannot derive a migration
+ * between two versions, compilation fails on a developer's machine and in CI,
+ * long before a tablet in a restaurant tries to open the database.
+ */
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "com.mosaizmundo.pos"
     compileSdk = 34

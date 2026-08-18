@@ -140,6 +140,28 @@ private fun FailedSaleCard(sale: FailedSale, onRetry: () -> Unit) {
                     )
                 }
 
+                // Why it was refused, phrased as who can fix it. This is the
+                // difference between a list of stranded sales and a list of
+                // things somebody can act on.
+                Text(
+                    text = sale.reason.message,
+                    fontSize = 13.sp,
+                    color = if (sale.reason.retryLikelyToHelp) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+
+                if (sale.hasTakenAt) {
+                    Text(
+                        text = "وقت البيع: " + formatTakenAt(sale.queuedAt),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
                 // The idempotency key, which is also the reference somebody
                 // will read down a phone line. LTR so it is not reordered by
                 // the surrounding Arabic.
@@ -150,10 +172,22 @@ private fun FailedSaleCard(sale: FailedSale, onRetry: () -> Unit) {
                 )
             }
 
-            // Offered on every row, including the unreadable ones: the retry
-            // costs one idempotent request, and the alternative is asking a
-            // cashier to decide which sales are worth attempting.
+            // Offered on every row, including the ones where something has to
+            // change first: a retry costs one idempotent request, and being
+            // wrong about whether it will help must never strand a sale. The
+            // MESSAGE says whether it is worth pressing yet; the button does
+            // not refuse to be pressed.
             Button(onClick = onRetry) { Text("إعادة المحاولة") }
         }
     }
 }
+
+/**
+ * The time of sale, for somebody standing at a till.
+ *
+ * Date and time, because a queue can hold both this evening's sales and one
+ * that has been stuck since Tuesday, and "21:40" alone cannot tell them apart.
+ */
+private fun formatTakenAt(epochMillis: Long): String =
+    java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date(epochMillis))
