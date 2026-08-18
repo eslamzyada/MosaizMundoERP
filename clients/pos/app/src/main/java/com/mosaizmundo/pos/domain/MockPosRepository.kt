@@ -27,6 +27,10 @@ class MockPosRepository : PosRepository {
 
     override fun failedOrderCount(): Flow<Int> = flowOf(0)
 
+    override fun failedSales(): Flow<List<FailedSale>> = flowOf(emptyList())
+
+    override suspend fun retryFailedSale(clientOfflineId: String) = Unit
+
     // A completed order to void and an already-voided one, so the screen's two
     // states are exercised without a backend.
     private val orders = mutableListOf(

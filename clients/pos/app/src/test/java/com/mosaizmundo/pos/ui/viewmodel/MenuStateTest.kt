@@ -1,6 +1,7 @@
 package com.mosaizmundo.pos.ui.viewmodel
 
 import com.mosaizmundo.pos.domain.CartItem
+import com.mosaizmundo.pos.domain.FailedSale
 import com.mosaizmundo.pos.domain.FloorTable
 import com.mosaizmundo.pos.domain.TillSession
 import com.mosaizmundo.pos.domain.TillCount
@@ -87,6 +88,8 @@ class MenuStateTest {
         override suspend fun settleTab(orderId: String, tenders: List<Tender>): Double = 0.0
         override suspend fun printers(): List<ConfiguredPrinter> = emptyList()
         override fun failedOrderCount(): Flow<Int> = flowOf(0)
+        override fun failedSales(): Flow<List<FailedSale>> = flowOf(emptyList())
+        override suspend fun retryFailedSale(clientOfflineId: String) = Unit
     }
 
     private fun http(code: Int) = HttpException(

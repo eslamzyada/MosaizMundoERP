@@ -1,6 +1,7 @@
 package com.mosaizmundo.pos.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ fun MenuScreen(
     onOpenOrders: () -> Unit,
     onOpenTabs: () -> Unit,
     onOpenTill: () -> Unit,
+    onOpenFailedSales: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val menu by viewModel.menuState.collectAsState()
@@ -51,7 +53,7 @@ fun MenuScreen(
         // Alert the cashier when a queued sale was permanently rejected by the
         // server — those orders are held, not lost, and need attention (F-03).
         if (failedCount > 0) {
-            FailedSyncBanner(count = failedCount)
+            FailedSyncBanner(count = failedCount, onReview = onOpenFailedSales)
         }
 
         // Under a forced RTL layout direction, the first child sits at the start
@@ -79,18 +81,29 @@ fun MenuScreen(
 }
 
 @Composable
-private fun FailedSyncBanner(count: Int) {
+private fun FailedSyncBanner(count: Int, onReview: () -> Unit) {
+    // It said "please review" and could not be tapped. The instruction and the
+    // means to follow it now live in the same place.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.errorContainer)
+            .clickable(onClick = onReview)
             .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "⚠️  $count طلب لم تتم مزامنته مع الخادم — يرجى المراجعة",
+            text = "⚠️  $count طلب لم تتم مزامنته مع الخادم",
             color = MaterialTheme.colorScheme.onErrorContainer,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "مراجعة ›",
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
