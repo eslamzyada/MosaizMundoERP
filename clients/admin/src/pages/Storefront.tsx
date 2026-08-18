@@ -260,20 +260,82 @@ export default function Storefront() {
   );
 }
 
+/**
+ * Statuses that will never change again.
+ *
+ * Polling one of these is a request every 15 seconds, forever, from a page
+ * somebody left open on a counter.
+ */
+const SETTLED = new Set(['rejected', 'fulfilled', 'cancelled']);
+
+/** How often to ask, while there is still something to wait for. */
+const POLL_MS = 15_000;
+
 /** The other half of the link: what happened to my order. */
 export function TrackOrder() {
   const { token = '' } = useParams();
-  const [state, setState] = useState<{ status: string; total: number } | null>(null);
+  const [state, setState] = useState<{ status: string; total: number; placed_at?: string } | null>(
+    null,
+  );
   const [missing, setMissing] = useState(false);
 
+  /**
+   * This used to fetch ONCE.
+   *
+   * A tracking page whose whole purpose is to show a status that changes, and
+   * it asked the server exactly one time — so a customer watching it saw
+   * "بانتظار تأكيد المطعم" through acceptance, preparation and delivery, and
+   * had no way to know the page was not going to tell them anything. Nothing
+   * on it even suggested reloading.
+   */
   useEffect(() => {
     let alive = true;
-    fetch(`${API}/public/track/${encodeURIComponent(token)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((body) => alive && setState(body))
-      .catch(() => alive && setMissing(true));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Only the FIRST answer may decide the order does not exist. Once a real
+    // status has been shown, a failed poll is a network blip — replacing the
+    // customer's order with "we could not find this" over one dropped request
+    // would be alarming and wrong.
+    let everLoaded = false;
+
+    const stop = () => timer !== undefined && clearTimeout(timer);
+
+    const schedule = (status?: string) => {
+      stop();
+      // Settled orders stop asking. A phone in a pocket stops too, and picks
+      // up again on the visibility change below — which is the moment somebody
+      // actually looks at it.
+      if (!alive || (status && SETTLED.has(status)) || document.hidden) return;
+      timer = setTimeout(load, POLL_MS);
+    };
+
+    const load = () => {
+      fetch(`${API}/public/track/${encodeURIComponent(token)}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+        .then((body) => {
+          if (!alive) return;
+          everLoaded = true;
+          setState(body);
+          schedule(body?.status);
+        })
+        .catch(() => {
+          if (!alive) return;
+          if (!everLoaded) setMissing(true);
+          else schedule();
+        });
+    };
+
+    const onVisible = () => {
+      // Ask straight away rather than waiting out the interval: becoming
+      // visible IS the customer checking.
+      if (!document.hidden && alive) load();
+    };
+
+    load();
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       alive = false;
+      stop();
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [token]);
 
@@ -297,6 +359,19 @@ export function TrackOrder() {
           <p className="font-numerals mt-2 text-sm text-app-ink-muted">
             {money(state.total)} ج.م
           </p>
+          {/*
+            When it was ordered. The API has always returned this and the page
+            threw it away — so a customer with the link open could not tell
+            their order from five minutes ago from one placed yesterday.
+          */}
+          {state.placed_at && (
+            <p className="font-numerals mt-1 text-xs text-app-ink-muted">
+              {new Date(state.placed_at).toLocaleString('ar-EG', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+              })}
+            </p>
+          )}
         </div>
       )}
     </main>
