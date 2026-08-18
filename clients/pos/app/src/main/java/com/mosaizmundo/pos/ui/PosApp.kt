@@ -6,6 +6,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.mosaizmundo.pos.ui.screens.CartScreen
 import com.mosaizmundo.pos.ui.screens.CheckoutScreen
+import com.mosaizmundo.pos.ui.screens.FailedSalesScreen
 import com.mosaizmundo.pos.ui.screens.MenuScreen
 import com.mosaizmundo.pos.ui.screens.OrdersScreen
 import com.mosaizmundo.pos.ui.screens.TabsScreen
@@ -42,6 +43,7 @@ fun PosApp(viewModel: PosViewModel, onSignOut: () -> Unit) {
                 onOpenOrders = viewModel::openOrders,
                 onOpenTabs = viewModel::openTabs,
                 onOpenTill = viewModel::openTillScreen,
+                onOpenFailedSales = viewModel::openFailedSales,
                 onSignOut = onSignOut,
             )
         }
@@ -54,6 +56,16 @@ fun PosApp(viewModel: PosViewModel, onSignOut: () -> Unit) {
         PosDestination.TILL -> {
             BackHandler { viewModel.backToMenu() }
             TillScreen(viewModel = viewModel, onBack = viewModel::backToMenu)
+        }
+
+        PosDestination.FAILED_SALES -> {
+            BackHandler { viewModel.backToMenu() }
+            val failed by viewModel.failedSales.collectAsState()
+            FailedSalesScreen(
+                sales = failed,
+                onRetry = viewModel::retryFailedSale,
+                onBack = viewModel::backToMenu,
+            )
         }
 
         PosDestination.ORDERS -> {

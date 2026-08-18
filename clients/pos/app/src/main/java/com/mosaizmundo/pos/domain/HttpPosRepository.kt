@@ -8,6 +8,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import com.mosaizmundo.pos.api.AddItemsPayload
 import com.mosaizmundo.pos.api.CheckoutItemPayload
 import com.mosaizmundo.pos.api.CheckoutPayload
@@ -46,6 +47,19 @@ class HttpPosRepository(
     private val gson = Gson()
 
     override fun failedOrderCount(): Flow<Int> = dao.failedCount()
+
+    override fun failedSales(): Flow<List<FailedSale>> =
+        dao.failedOrders().map { rows ->
+            rows.map { decodeQueuedSale(it.clientOfflineId, it.payloadJson, gson) }
+        }
+
+    override suspend fun retryFailedSale(clientOfflineId: String) {
+        // FAILED -> PENDING, then wake the drain. The same unique work chain
+        // the offline path uses, so a cashier tapping retry on four sales in a
+        // row does not spawn four workers all re-POSTing the same queue.
+        dao.requeueOrder(clientOfflineId)
+        enqueueSync()
+    }
 
     override suspend fun getMenu(): List<SellableItem> =
         api.getMenu().map { item ->
@@ -274,6 +288,19 @@ class HttpPosRepository(
                 payloadJson = gson.toJson(payload),
             ),
         )
+        enqueueSync()
+    }
+
+    /**
+     * Schedules the drain. Extracted so the offline path and a cashier's retry
+     * cannot drift apart — both must use the same unique work chain.
+     *
+     * Unique work: a single named chain drains the WHOLE pending queue, so a
+     * burst of offline checkouts can't spawn a swarm of workers all re-POSTing
+     * the same orders (analysis F-10). APPEND_OR_REPLACE still guarantees a
+     * freshly-queued order triggers a drain.
+     */
+    private fun enqueueSync() {
         val request = OneTimeWorkRequestBuilder<SyncOrdersWorker>()
             .setConstraints(
                 Constraints.Builder()
@@ -281,10 +308,6 @@ class HttpPosRepository(
                     .build(),
             )
             .build()
-        // Unique work: a single named sync chain drains the WHOLE pending queue,
-        // so a burst of offline checkouts can't spawn a swarm of workers all
-        // re-POSTing the same orders (analysis F-10). APPEND_OR_REPLACE still
-        // guarantees a freshly-queued order triggers a drain.
         WorkManager.getInstance(context).enqueueUniqueWork(
             SYNC_WORK_NAME,
             ExistingWorkPolicy.APPEND_OR_REPLACE,

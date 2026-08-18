@@ -114,4 +114,22 @@ interface PosRepository {
      * attention rather than losing it silently.
      */
     fun failedOrderCount(): Flow<Int>
+
+    /**
+     * Those same sales, with enough of each to recognise it.
+     *
+     * The count on its own told a cashier that three sales had not reached the
+     * server and nothing whatsoever about them.
+     */
+    fun failedSales(): Flow<List<FailedSale>>
+
+    /**
+     * Puts one back in the queue and wakes the sync worker.
+     *
+     * Offered because retrying is safe rather than because it is likely to
+     * work: the sale keeps its original client_offline_id, and the backend is
+     * idempotent on it, so a sale the server DID record before answering with
+     * an error is a no-op on redelivery rather than a second charge.
+     */
+    suspend fun retryFailedSale(clientOfflineId: String)
 }

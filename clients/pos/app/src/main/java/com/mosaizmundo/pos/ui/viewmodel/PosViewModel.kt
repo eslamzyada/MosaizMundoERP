@@ -6,6 +6,7 @@ import com.mosaizmundo.pos.api.MANAGER_ROLES
 import com.mosaizmundo.pos.domain.TillSession
 import com.mosaizmundo.pos.domain.TillCount
 import com.mosaizmundo.pos.domain.CartItem
+import com.mosaizmundo.pos.domain.FailedSale
 import com.mosaizmundo.pos.domain.FloorTable
 import com.mosaizmundo.pos.domain.OpenTab
 import com.mosaizmundo.pos.domain.OrderState
@@ -33,7 +34,7 @@ import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 /** The screen currently shown in the authenticated POS flow. */
-enum class PosDestination { MENU, CART, CHECKOUT, ORDERS, TABS, TILL }
+enum class PosDestination { MENU, CART, CHECKOUT, ORDERS, TABS, TILL, FAILED_SALES }
 
 /**
  * Why the menu is not on screen.
@@ -309,6 +310,36 @@ class PosViewModel(
         repository.failedOrderCount()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    /**
+     * The failed sales themselves, for the screen behind the banner.
+     *
+     * Backed by the same table as the count, so the two cannot disagree — a
+     * list that says "nothing here" under a banner saying "3" is how somebody
+     * decides the warning is noise.
+     */
+    val failedSales: StateFlow<List<FailedSale>> =
+        repository.failedSales()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Puts one sale back in the queue.
+     *
+     * No confirmation and no optimistic removal: the row leaves the list when
+     * the DATABASE says it is no longer FAILED, which is the only thing that
+     * actually means it was requeued. Showing it gone before then would be a
+     * lie the cashier acts on.
+     */
+    fun retryFailedSale(clientOfflineId: String) {
+        viewModelScope.launch {
+            try {
+                repository.retryFailedSale(clientOfflineId)
+            } catch (e: Exception) {
+                // Nothing to roll back — the row is still FAILED and still
+                // listed, which is the honest state.
+            }
+        }
+    }
+
     init {
         loadMenu()
     }
@@ -364,6 +395,9 @@ class PosViewModel(
     fun openCheckout() { _destination.value = PosDestination.CHECKOUT }
 
     fun backToMenu() { _destination.value = PosDestination.MENU }
+
+    /** Reached from the banner, which is the only place a cashier learns of these. */
+    fun openFailedSales() { _destination.value = PosDestination.FAILED_SALES }
 
     fun backToCart() { _destination.value = PosDestination.CART }
 

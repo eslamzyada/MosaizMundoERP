@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
 import com.mosaizmundo.pos.api.CheckoutPayload
 import com.mosaizmundo.pos.api.PosApiProvider
 import com.mosaizmundo.pos.data.local.PosDatabase
@@ -28,7 +29,24 @@ class SyncOrdersWorker(
         var retryNeeded = false
 
         for (order in pending) {
-            val payload = gson.fromJson(order.payloadJson, CheckoutPayload::class.java)
+            // Parsed defensively, and BEFORE the request. This call used to sit
+            // outside the try below, so a row whose JSON could not be read threw
+            // out of doWork() and stopped the entire drain — every other queued
+            // sale with it. One bad row must cost only itself.
+            //
+            // An unreadable payload can never be delivered, so it takes the same
+            // path as a permanent refusal: kept, marked FAILED, and surfaced to
+            // the cashier rather than retried forever or silently dropped.
+            val payload = try {
+                gson.fromJson(order.payloadJson, CheckoutPayload::class.java)
+            } catch (e: JsonSyntaxException) {
+                null
+            }
+            if (payload == null) {
+                dao.markOrderFailed(order.clientOfflineId)
+                continue
+            }
+
             val response = try {
                 api.checkout(payload)
             } catch (e: IOException) {
