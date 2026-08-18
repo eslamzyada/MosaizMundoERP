@@ -33,7 +33,18 @@ data class FailedSale(
     val itemCount: Int?,
     /** "طاولة ٥", "تيك أواي" — whatever the cashier typed on the order. */
     val note: String?,
+    /** Why the server refused it, in terms of who can fix it. */
+    val reason: RefusalReason = RefusalReason.UNKNOWN,
+    /**
+     * When the sale was taken, epoch millis. 0 for rows queued before the
+     * column existed — shown as "unknown", never as 1970, because an obviously
+     * wrong date invites somebody to distrust the whole row.
+     */
+    val queuedAt: Long = 0,
 ) {
+    /** False for a legacy row, which has no stamp to show. */
+    val hasTakenAt: Boolean get() = queuedAt > 0
+
     /**
      * True when the payload could not be read at all.
      *
@@ -52,7 +63,13 @@ data class FailedSale(
  * unreadable row threw out of doWork() and stopped the whole drain — every
  * other queued sale with it. One bad row must cost only itself.
  */
-fun decodeQueuedSale(clientOfflineId: String, payloadJson: String?, gson: Gson = Gson()): FailedSale {
+fun decodeQueuedSale(
+    clientOfflineId: String,
+    payloadJson: String?,
+    gson: Gson = Gson(),
+    failedReason: Int? = null,
+    queuedAt: Long = 0,
+): FailedSale {
     val parsed = try {
         if (payloadJson.isNullOrBlank()) null
         else gson.fromJson(payloadJson, CheckoutPayload::class.java)
@@ -73,5 +90,13 @@ fun decodeQueuedSale(clientOfflineId: String, payloadJson: String?, gson: Gson =
         totalAmount = payload?.total_amount,
         itemCount = payload?.items?.size,
         note = payload?.note?.takeIf { it.isNotBlank() },
+        // An unreadable payload is its own explanation, whatever the row says:
+        // no server refused it, so no status code describes it.
+        reason = if (payload == null && parsed == null) {
+            RefusalReason.UNREADABLE
+        } else {
+            refusalReasonFor(failedReason)
+        },
+        queuedAt = queuedAt,
     )
 }

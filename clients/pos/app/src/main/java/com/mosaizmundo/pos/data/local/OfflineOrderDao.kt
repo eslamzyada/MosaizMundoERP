@@ -27,8 +27,8 @@ interface OfflineOrderDao {
      * no longer PENDING, so getPendingOrders() won't retry it in a loop, and it
      * surfaces to the cashier through [failedCount].
      */
-    @Query("UPDATE offline_orders SET status = 'FAILED' WHERE clientOfflineId = :clientOfflineId")
-    suspend fun markOrderFailed(clientOfflineId: String)
+    @Query("UPDATE offline_orders SET status = 'FAILED', failedReason = :reason WHERE clientOfflineId = :clientOfflineId")
+    suspend fun markOrderFailed(clientOfflineId: String, reason: Int?)
 
     /** Live count of orders that failed to sync, for the cashier-facing alert. */
     @Query("SELECT COUNT(*) FROM offline_orders WHERE status = 'FAILED'")
@@ -55,6 +55,6 @@ interface OfflineOrderDao {
      * all, rather than asking a cashier to judge whether it already went
      * through.
      */
-    @Query("UPDATE offline_orders SET status = 'PENDING' WHERE clientOfflineId = :clientOfflineId AND status = 'FAILED'")
+    @Query("UPDATE offline_orders SET status = 'PENDING', failedReason = NULL WHERE clientOfflineId = :clientOfflineId AND status = 'FAILED'")
     suspend fun requeueOrder(clientOfflineId: String)
 }
