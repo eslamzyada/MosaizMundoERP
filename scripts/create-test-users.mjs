@@ -150,10 +150,34 @@ function adminUrl() {
 
 const ADMIN_URL = adminUrl();
 
+/**
+ * The connection, as environment rather than as an argument.
+ *
+ * Passing the URL on the command line puts the database PASSWORD into argv,
+ * where it is visible in the process list to anyone else on the machine — and,
+ * worse, node prints spawnargs when a spawn fails, so a missing psql dumps
+ *
+ *     postgresql://postgres:<the real password>@localhost:5433/mosaiz_mundo
+ *
+ * straight to the terminal. That happened while testing this script. PG*
+ * variables are what psql reads anyway, and they stay out of both.
+ */
+const pgEnv = (() => {
+  const u = new URL(ADMIN_URL);
+  return {
+    PGHOST: u.hostname,
+    PGPORT: u.port || '5432',
+    PGUSER: decodeURIComponent(u.username),
+    PGPASSWORD: decodeURIComponent(u.password),
+    PGDATABASE: u.pathname.replace(/^\//, ''),
+  };
+})();
+
 const sql = (text) => {
   try {
-    return execFileSync(PSQL, [ADMIN_URL, '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', text], {
+    return execFileSync(PSQL, ['-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', text], {
       encoding: 'utf8',
+      env: { ...process.env, ...pgEnv },
     }).trim();
   } catch (err) {
     // The likeliest reason a run dies before creating anything: psql is not on
