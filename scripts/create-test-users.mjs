@@ -115,10 +115,26 @@ function adminUrl() {
 
 const ADMIN_URL = adminUrl();
 
-const sql = (text) =>
-  execFileSync(PSQL, [ADMIN_URL, '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', text], {
-    encoding: 'utf8',
-  }).trim();
+const sql = (text) => {
+  try {
+    return execFileSync(PSQL, [ADMIN_URL, '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', text], {
+      encoding: 'utf8',
+    }).trim();
+  } catch (err) {
+    // The likeliest reason a run dies before creating anything: psql is not on
+    // PATH on this machine, and the failure otherwise arrives as a bare ENOENT
+    // stack trace that says nothing about what to do next.
+    if (err.code === 'ENOENT') {
+      console.error(
+        `\n  Cannot run '${PSQL}' — psql is not on PATH here. Re-run with, for example:\n\n` +
+          '    PSQL="C:/Program Files/PostgreSQL/18/bin/psql.exe" \\\n' +
+          '      node scripts/create-test-users.mjs --password \'…\'\n',
+      );
+      process.exit(78);
+    }
+    throw err;
+  }
+};
 
 // ------------------------------------------------------------------- main
 const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_SERVICE_ROLE_KEY, {
@@ -184,6 +200,29 @@ for (const account of ACCOUNTS) {
 
 if (rl) rl.close();
 
+if (DRY) {
+  // The first version printed the member list and "Sign in with any of these"
+  // after a dry run too. A rehearsal therefore read exactly like a success, and
+  // the accounts appeared to exist when nothing at all had been created.
+  console.log('\n  DRY RUN — nothing was created. Re-run with --password to do it for real.\n');
+  process.exit(0);
+}
+
+/**
+ * Proof, not assertion.
+ *
+ * Counts what is actually in the database rather than trusting that the loop
+ * above did what it printed. A run that reports success while creating nothing
+ * is the exact failure this script has already had once.
+ */
+const expected = ACCOUNTS.length;
+const landed = Number(
+  sql(`
+    SELECT count(*) FROM public.organization_memberships m
+      JOIN public.users u ON u.id = m.user_id
+     WHERE m.organization_id = '${ORG}' AND u.email LIKE '${PREFIX}.%'`),
+);
+
 console.log('\nMembers of this organization now:\n');
 console.log(
   sql(`
@@ -191,4 +230,13 @@ console.log(
       FROM public.organization_memberships m JOIN public.users u ON u.id = m.user_id
      WHERE m.organization_id = '${ORG}' ORDER BY m.role, u.email`),
 );
-console.log('\nSign in at the admin app with any of these.\n');
+
+if (landed < expected) {
+  console.error(
+    `\n  FAILED: expected ${expected} accounts with the '${PREFIX}.' prefix, found ${landed}.\n` +
+      '  Nothing above is a guarantee — read the errors higher up.\n',
+  );
+  process.exit(1);
+}
+
+console.log(`\n  ${landed}/${expected} accounts ready. Sign in at the admin app with any of them.\n`);
