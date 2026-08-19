@@ -31,7 +31,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { stdin, stdout } from 'node:process';
 
 // ---------------------------------------------------------------- arguments
@@ -84,7 +84,42 @@ for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
 // The DB writes go through psql as the OWNER, because `users` is
 // identity-adjacent and deliberately has no INSERT policy — the application
 // role cannot write it, by design. Point PSQL at your psql if it is not on PATH.
-const PSQL = process.env.PSQL ?? 'psql';
+/**
+ * Find psql, rather than demanding the caller export a path to it.
+ *
+ * On Windows the PostgreSQL installer does not put psql on PATH, so the honest
+ * default fails on the machine this is most likely to be run on — and the
+ * remedy I first gave was `PSQL=... node ...`, which is bash syntax that
+ * PowerShell rejects outright. Two different papercuts for one missing lookup.
+ */
+function findPsql() {
+  if (process.env.PSQL) return process.env.PSQL;
+
+  const candidates = ['psql'];
+  for (const root of ['C:/Program Files/PostgreSQL', 'C:/Program Files (x86)/PostgreSQL']) {
+    try {
+      // Newest major version first: a machine with 15 and 18 installed should
+      // use 18, which is what this project runs.
+      for (const dir of readdirSync(root).sort((a, b) => Number(b) - Number(a))) {
+        candidates.push(`${root}/${dir}/bin/psql.exe`);
+      }
+    } catch {
+      // no PostgreSQL under this root
+    }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      execFileSync(candidate, ['--version'], { stdio: 'ignore' });
+      return candidate;
+    } catch {
+      // try the next one
+    }
+  }
+  return 'psql'; // let the caller see the ENOENT message below
+}
+
+const PSQL = findPsql();
 
 /**
  * The OWNER connection, not DATABASE_URL.
@@ -115,10 +150,50 @@ function adminUrl() {
 
 const ADMIN_URL = adminUrl();
 
-const sql = (text) =>
-  execFileSync(PSQL, [ADMIN_URL, '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', text], {
-    encoding: 'utf8',
-  }).trim();
+/**
+ * The connection, as environment rather than as an argument.
+ *
+ * Passing the URL on the command line puts the database PASSWORD into argv,
+ * where it is visible in the process list to anyone else on the machine — and,
+ * worse, node prints spawnargs when a spawn fails, so a missing psql dumps
+ *
+ *     postgresql://postgres:<the real password>@localhost:5433/mosaiz_mundo
+ *
+ * straight to the terminal. That happened while testing this script. PG*
+ * variables are what psql reads anyway, and they stay out of both.
+ */
+const pgEnv = (() => {
+  const u = new URL(ADMIN_URL);
+  return {
+    PGHOST: u.hostname,
+    PGPORT: u.port || '5432',
+    PGUSER: decodeURIComponent(u.username),
+    PGPASSWORD: decodeURIComponent(u.password),
+    PGDATABASE: u.pathname.replace(/^\//, ''),
+  };
+})();
+
+const sql = (text) => {
+  try {
+    return execFileSync(PSQL, ['-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', text], {
+      encoding: 'utf8',
+      env: { ...process.env, ...pgEnv },
+    }).trim();
+  } catch (err) {
+    // The likeliest reason a run dies before creating anything: psql is not on
+    // PATH on this machine, and the failure otherwise arrives as a bare ENOENT
+    // stack trace that says nothing about what to do next.
+    if (err.code === 'ENOENT') {
+      console.error(
+        `\n  Cannot run '${PSQL}' — psql is not on PATH here. Re-run with, for example:\n\n` +
+          '    PSQL="C:/Program Files/PostgreSQL/18/bin/psql.exe" \\\n' +
+          '      node scripts/create-test-users.mjs --password \'…\'\n',
+      );
+      process.exit(78);
+    }
+    throw err;
+  }
+};
 
 // ------------------------------------------------------------------- main
 const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_SERVICE_ROLE_KEY, {
@@ -184,6 +259,29 @@ for (const account of ACCOUNTS) {
 
 if (rl) rl.close();
 
+if (DRY) {
+  // The first version printed the member list and "Sign in with any of these"
+  // after a dry run too. A rehearsal therefore read exactly like a success, and
+  // the accounts appeared to exist when nothing at all had been created.
+  console.log('\n  DRY RUN — nothing was created. Re-run with --password to do it for real.\n');
+  process.exit(0);
+}
+
+/**
+ * Proof, not assertion.
+ *
+ * Counts what is actually in the database rather than trusting that the loop
+ * above did what it printed. A run that reports success while creating nothing
+ * is the exact failure this script has already had once.
+ */
+const expected = ACCOUNTS.length;
+const landed = Number(
+  sql(`
+    SELECT count(*) FROM public.organization_memberships m
+      JOIN public.users u ON u.id = m.user_id
+     WHERE m.organization_id = '${ORG}' AND u.email LIKE '${PREFIX}.%'`),
+);
+
 console.log('\nMembers of this organization now:\n');
 console.log(
   sql(`
@@ -191,4 +289,13 @@ console.log(
       FROM public.organization_memberships m JOIN public.users u ON u.id = m.user_id
      WHERE m.organization_id = '${ORG}' ORDER BY m.role, u.email`),
 );
-console.log('\nSign in at the admin app with any of these.\n');
+
+if (landed < expected) {
+  console.error(
+    `\n  FAILED: expected ${expected} accounts with the '${PREFIX}.' prefix, found ${landed}.\n` +
+      '  Nothing above is a guarantee — read the errors higher up.\n',
+  );
+  process.exit(1);
+}
+
+console.log(`\n  ${landed}/${expected} accounts ready. Sign in at the admin app with any of them.\n`);
