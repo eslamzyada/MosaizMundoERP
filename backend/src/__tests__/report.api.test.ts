@@ -329,3 +329,91 @@ describe('Profitability report', () => {
     expect(res.status).toBe(401);
   });
 });
+
+/**
+ * The dashboard's headline numbers.
+ *
+ * They used to be computed in the BROWSER, by summing GET /api/pos/orders —
+ * which returns the most recent 100 orders with no date filter — under a
+ * header that read "an overview of today's performance". The figure was
+ * neither today's nor complete, and wrong in both directions at once: on a
+ * quiet week the last hundred orders reach back days and were counted as
+ * today; on a busy day today was truncated to whichever hundred came back.
+ *
+ * The arithmetic belongs where the rows are. These assert that it now is.
+ */
+describe('the dashboard summary', () => {
+  const summary = async (who: string, query = '') => {
+    const res = await request(app)
+      .get(`/api/reports/summary${query}`)
+      .set('Authorization', `Bearer ${tokens[who]}`);
+    expect(res.status).toBe(200);
+    return res.body as {
+      revenue: number;
+      orders: number;
+      average_order: number | null;
+      previous: { revenue: number; orders: number; average_order: number | null };
+    };
+  };
+
+  it('counts today, and does NOT count older orders as today', async () => {
+    /**
+     * The bug, stated as a test.
+     *
+     * `days=30` was the obvious comparison and it is the WRONG one here: this
+     * fixture's only old order sits at sixty days, so a thirty-day window and
+     * a one-day window are legitimately identical, and the test failed while
+     * the code was right. The window has to be one that actually contains the
+     * older row.
+     */
+    const oneDay = await summary('owner', '?days=1');
+    const everything = await summary('owner', '?days=3650');
+
+    expect(oneDay.revenue).toBeGreaterThan(0);
+    expect(everything.revenue).toBeGreaterThan(oneDay.revenue);
+  });
+
+  it('a window in the past holds the past, and none of today', async () => {
+    // The other direction, and the one the old client-side sum could never
+    // have got right: asking for a day two months ago must return that day.
+    const then = new Date();
+    then.setDate(then.getDate() - 60);
+    const day = then.toISOString().slice(0, 10);
+
+    const past = await summary('owner', `?from=${day}&to=${day}`);
+    const today = await summary('owner', '?days=1');
+
+    expect(past.orders).toBeGreaterThan(0);
+    expect(past.revenue).toBeLessThan(today.revenue);
+  });
+
+  it('excludes a voided sale, because a voided sale is not revenue', async () => {
+    // The same rule profitability applies. Two screens disagreeing about the
+    // same day is worse than either being wrong alone.
+    const all = await summary('owner', '?days=3650');
+    const voidedTotal = 999_999;
+    expect(all.revenue).toBeLessThan(voidedTotal);
+  });
+
+  it('carries the previous window, so a number has something to be measured against', async () => {
+    const body = await summary('owner', '?days=7');
+    expect(body.previous).toBeDefined();
+    expect(typeof body.previous.revenue).toBe('number');
+    expect(typeof body.previous.orders).toBe('number');
+  });
+
+  it('reports no average rather than an average of zero', async () => {
+    // A window with no orders has no average order value. Answering 0.00 reads
+    // as a catastrophic day rather than a quiet one.
+    const body = await summary('owner', '?from=2000-01-01&to=2000-01-02');
+    expect(body.orders).toBe(0);
+    expect(body.average_order).toBeNull();
+  });
+
+  it('is refused to a cashier, like every other revenue figure here', async () => {
+    const res = await request(app)
+      .get('/api/reports/summary')
+      .set('Authorization', `Bearer ${tokens.cashier}`);
+    expect(res.status).toBe(403);
+  });
+});

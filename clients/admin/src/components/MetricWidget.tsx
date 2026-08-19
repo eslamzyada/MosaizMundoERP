@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 type Accent = 'sunset' | 'twilight' | 'amber';
 
@@ -11,6 +12,25 @@ const ACCENT: Record<Accent, { bar: string; icon: string }> = {
 interface MetricWidgetProps {
   label: string;
   value: string;
+  /**
+   * Where this number is explained.
+   *
+   * Every metric was a dead end: "نواقص المخزون: 3" and no way to reach the
+   * three. A figure on a dashboard is a question — the page that answers it
+   * should be one tap away, not a hunt through the sidebar.
+   *
+   * Optional, and the caller is expected to pass it only when the ROLE may
+   * open that page: a link that bounces off the route guard is worse than no
+   * link, because it looks like the app is broken rather than like the page
+   * is not theirs.
+   */
+  to?: string;
+  /**
+   * Change against the previous window of the same length, as a fraction
+   * (0.12 = twelve per cent up). Null when there is nothing to compare with —
+   * a first day, or a window with no orders before it.
+   */
+  delta?: number | null;
   /** Optional unit shown after the value (e.g. a currency), in Cairo. */
   suffix?: string;
   accent: Accent;
@@ -25,10 +45,13 @@ export default function MetricWidget({
   accent,
   icon,
   loading = false,
+  to,
+  delta,
 }: MetricWidgetProps) {
   const a = ACCENT[accent];
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
+
+  const body = (
+    <>
       <span className={`absolute inset-y-0 end-0 w-1 ${a.bar}`} aria-hidden />
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -48,6 +71,57 @@ export default function MetricWidget({
           {icon}
         </span>
       </div>
+    </>
+  );
+
+  const card =
+    'relative block overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm';
+
+  const inner = (
+    <>
+      <span className={`absolute inset-y-0 end-0 w-1 ${a.bar}`} aria-hidden />
+      {body}
+      {!loading && delta !== undefined && delta !== null ? <Delta value={delta} /> : null}
+    </>
+  );
+
+  // A link when there is somewhere to go, a plain card otherwise — rather than
+  // a card with a click handler, so it is reachable by keyboard and announces
+  // itself as a link without any extra wiring.
+  return to ? (
+    <Link
+      to={to}
+      className={`${card} transition-colors hover:bg-app-surface-alt focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500`}
+    >
+      {inner}
+    </Link>
+  ) : (
+    <div className={card}>{inner}</div>
+  );
+}
+
+/**
+ * The change against the previous window.
+ *
+ * Shown as a percentage AND with a direction word, never by colour alone:
+ * red-is-bad is invisible to a colourblind manager and meaningless on a metric
+ * where up is bad — stock shortages rising is not good news in green.
+ */
+function Delta({ value }: { value: number }) {
+  const pct = Math.abs(value * 100);
+  const up = value > 0;
+  const flat = Math.abs(value) < 0.005;
+
+  return (
+    <div className="mt-3 text-xs font-semibold text-app-ink-muted">
+      {flat ? (
+        'كما في الفترة السابقة'
+      ) : (
+        <span className="font-numerals">
+          {up ? '▲' : '▼'} {pct.toFixed(pct < 10 ? 1 : 0)}%{' '}
+          <span className="font-sans font-medium">عن الفترة السابقة</span>
+        </span>
+      )}
     </div>
   );
 }
