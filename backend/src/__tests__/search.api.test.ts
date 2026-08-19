@@ -38,11 +38,13 @@ const admin = new PrismaClient({ datasourceUrl: ADMIN_URL });
 const orgId = randomUUID();
 const otherOrgId = randomUUID();
 const managerId = randomUUID();
+const waiterId = randomUUID();
 const cashierId = randomUUID();
 const foreignUserId = randomUUID();
 
 let managerToken = '';
 let cashierToken = '';
+let waiterToken = '';
 
 /** A tag no other fixture in the suite uses, so a search for it is ours alone. */
 const TAG = `zsrch${randomUUID().slice(0, 6)}`;
@@ -59,6 +61,10 @@ const ORDER_B = 'bbbb8888-9999-4aaa-8bbb-ccccddddeeee';
 
 const asManager = () => ({ Authorization: `Bearer ${managerToken}` });
 const asCashier = () => ({ Authorization: `Bearer ${cashierToken}` });
+const asWaiter = () => ({ Authorization: `Bearer ${waiterToken}` });
+
+/** Matches the seeded member emails (srch-mgr-…@dev.local), which TAG does not. */
+const EMAIL_TERM = 'srch-';
 
 interface Hit {
   kind: string;
@@ -88,6 +94,7 @@ beforeAll(async () => {
   for (const [id, prefix, role, org] of [
     [managerId, 'srch-mgr', 'branch_manager', orgId],
     [cashierId, 'srch-csh', 'cashier', orgId],
+    [waiterId, 'srch-wtr', 'waiter', orgId],
     [foreignUserId, 'srch-alien', 'owner', otherOrgId],
   ] as const) {
     await admin.$executeRaw`INSERT INTO public.users (id, email) VALUES (${id}::uuid, ${`${prefix}-${id.slice(0, 8)}@dev.local`})`;
@@ -101,6 +108,7 @@ beforeAll(async () => {
     });
   managerToken = sign(managerId);
   cashierToken = sign(cashierId);
+  waiterToken = sign(waiterId);
 
   // --- one of each kind, all carrying TAG ---------------------------------
   await admin.$executeRaw`
@@ -215,9 +223,14 @@ describe('finding things', () => {
     expect(hits[0].id).toBe(supplierId);
   });
 
-  it('answers a cashier too — this is navigation, not a privilege', async () => {
+  it('answers a cashier with nothing, because a cashier has one page', async () => {
+    // This test used to read "answers a cashier too — this is navigation, not
+    // a privilege", and asserted hits.length > 0. That premise is what made
+    // the search box a way around the roles: it returned records from pages
+    // the caller could not open, including colleagues' emails. Navigation to
+    // somewhere you may not go is not navigation.
     const hits = await search(TAG, asCashier());
-    expect(hits.length).toBeGreaterThan(0);
+    expect(hits).toEqual([]);
   });
 
   it('carries no money, for any role', async () => {
@@ -347,5 +360,86 @@ describe('what the box does before there is a question', () => {
 
   it('requires authentication', async () => {
     expect((await request(app).get(`/api/search?q=${TAG}`)).status).toBe(401);
+  });
+});
+
+/**
+ * The search box was the way around the roles.
+ *
+ * Every admin route was reachable by any signed-in user — only the SIDEBAR
+ * differed — and /api/search had no role gate at all, on the argument that
+ * "search is navigation" and returns no money. Money was never the only thing
+ * worth protecting. A waiter typing three letters could retrieve every
+ * colleague's email address and role, the restaurant's suppliers, the purchase
+ * orders placed with them, and printers by host:port — addresses on the
+ * restaurant's own network.
+ *
+ * None of those pages are in a waiter's sidebar. The gate is now the role, on
+ * the server, from the caller's membership.
+ */
+describe('search is scoped to what the role may open', () => {
+  it('a waiter finds the menu and their orders', async () => {
+    // The positive half FIRST. Without it, every "must not contain" below is
+    // satisfied by a search that returns nothing at all, and the whole block
+    // would pass while the feature was broken.
+    const hits = await search(TAG, asWaiter());
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.map((h) => h.kind)).toContain('menu_item');
+  });
+
+  it('a waiter cannot retrieve colleagues, suppliers, purchase orders or printers', async () => {
+    const hits = await search(TAG, asWaiter());
+    const kinds = new Set(hits.map((h) => h.kind));
+
+    expect(kinds.has('member')).toBe(false);
+    expect(kinds.has('supplier')).toBe(false);
+    expect(kinds.has('purchase_order')).toBe(false);
+    expect(kinds.has('printer')).toBe(false);
+  });
+
+  it('a waiter cannot look colleagues up by email', async () => {
+    /**
+     * Searched by an EMAIL FRAGMENT, not by TAG.
+     *
+     * The first version searched TAG and asserted no '@dev.local' came back —
+     * and passed instantly, because the fixture's member emails do not contain
+     * TAG at all. It proved that a search which never returns members returns
+     * no members. The manager half is what exposed it: the same term produced
+     * no `member` kind for a manager either.
+     */
+    const managerHits = await search(EMAIL_TERM, asManager(), '&limit=50');
+    expect(managerHits.some((h) => h.kind === 'member')).toBe(true);
+
+    const res = await request(app)
+      .get(`/api/search?q=${EMAIL_TERM}&limit=50`)
+      .set(asWaiter());
+    expect((res.body.results as Hit[]).some((h) => h.kind === 'member')).toBe(false);
+    // Not just "no member rows" — no address anywhere in the response, which
+    // also catches one arriving as another kind's detail line.
+    expect(JSON.stringify(res.body)).not.toContain('@dev.local');
+  });
+
+  it('a manager still finds what a waiter may not', async () => {
+    // The gate must not be a wall: if this fails, the fix broke the feature for
+    // the people whose job it is.
+    //
+    // limit=50 deliberately — the default is 20, and with seven kinds of up to
+    // eight rows each, ordered with printers last, a manager's results are
+    // truncated long before printers appear. On the default this would be a
+    // test of the page size wearing the costume of a permissions test.
+    //
+    // Asserted on the three kinds the fixture actually produces for TAG.
+    // Including `member` here was the mistake that exposed the vacuous test
+    // above: no member email contains TAG, so nobody finds one, gate or no gate.
+    const kinds = new Set((await search(TAG, asManager(), '&limit=50')).map((h) => h.kind));
+    for (const kind of ['supplier', 'purchase_order', 'printer']) {
+      expect(kinds.has(kind)).toBe(true);
+    }
+  });
+
+  it('a cashier finds nothing, because a cashier has one page and it is the till', async () => {
+    const res = await request(app).get(`/api/search?q=${TAG}`).set(asCashier());
+    expect(res.status).toBe(200);
+    expect(res.body.results).toEqual([]);
   });
 });

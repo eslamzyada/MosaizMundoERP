@@ -7,6 +7,8 @@ import {
   normalizeSearchTerm,
   withoutHash,
 } from '../lib/searchTerm';
+import { searchKindsFor } from '../lib/searchScope';
+import { resolveMembership } from '../middleware/requireRole';
 
 /**
  * One search box over the whole system.
@@ -116,6 +118,21 @@ export async function globalSearch(req: Request, res: Response): Promise<void> {
   const idPrefix = likePrefix(withoutHash(term));
 
   try {
+    /**
+     * What this caller is allowed to find, decided here rather than by the
+     * request. A membership that cannot be resolved gets an EMPTY scope, so a
+     * caller with no role finds nothing instead of everything.
+     */
+    const membership = await resolveMembership(req);
+    const allowedKinds = searchKindsFor(membership?.role);
+
+    if (allowedKinds.length === 0) {
+      // A cashier has one page and it is the till. Answering with an empty
+      // list is the honest result, and it costs no query at all.
+      res.status(200).json({ results: [] });
+      return;
+    }
+
     const rows = await req.tx.$queryRaw<RawHit[]>`
       WITH hits AS (
         (SELECT 'menu_item'::text AS kind,
@@ -216,6 +233,12 @@ export async function globalSearch(req: Request, res: Response): Promise<void> {
                   WHEN label ILIKE ${startsWith} THEN 1
                   ELSE 2 END AS match_rank
         FROM hits
+       -- The role gate. Computed on the server from this caller's membership,
+       -- never from anything the request supplied. A waiter searching three
+       -- letters used to get colleagues' emails and roles, supplier names,
+       -- purchase orders and printer host:port — none of which is on a page
+       -- they can open.
+       WHERE kind = ANY(${allowedKinds})
        ORDER BY match_rank, kind_order, seq
        LIMIT ${limit}
     `;
