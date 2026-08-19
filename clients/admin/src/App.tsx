@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import Layout from './components/Layout';
+import RequireRoute from './components/RequireRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Orders from './pages/Orders';
@@ -91,6 +92,10 @@ function AuthenticatedApp() {
     <PreferencesProvider>
       <SessionProvider>
         <Routes>
+          {/* Every page below is guarded by the role, from the same list that
+              builds the sidebar. Before this, only the sidebar differed and
+              every route was mounted for everybody. */}
+          <Route element={<RequireRoute />}>
           <Route element={<Layout />}>
             {/* The index is a REDIRECT, not a page: where "home" is depends on
                 the role, and sending a waiter to a management dashboard is the
@@ -116,6 +121,7 @@ function AuthenticatedApp() {
             <Route path="printers" element={<Printers />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
           </Route>
         </Routes>
       </SessionProvider>
