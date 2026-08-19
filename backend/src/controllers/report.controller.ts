@@ -993,3 +993,106 @@ export async function getEmployeePerformance(req: Request, res: Response): Promi
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+/**
+ * GET /api/reports/summary?from=&to=  (or ?days=1)
+ *
+ * What the dashboard's headline numbers are, and what they were over the
+ * window immediately before.
+ *
+ * WHY THIS EXISTS.
+ *
+ * The dashboard used to compute these in the BROWSER, by summing
+ * GET /api/pos/orders — which returns the most recent 100 orders (200 at most)
+ * with no date filter at all — under a header reading "نظرة عامة على أداء
+ * اليوم", an overview of TODAY.
+ *
+ * That number was neither today's nor complete, and it was wrong in both
+ * directions at once:
+ *
+ *   * a quiet week: the last 100 orders reach back days, so "today" silently
+ *     included them;
+ *   * a busy day: more than 100 orders, so "today" was truncated to whichever
+ *     hundred came back.
+ *
+ * A manager reads a figure like that once and makes a decision on it. Summing
+ * a paginated list on the client cannot be made correct by paging harder — the
+ * arithmetic belongs where the rows are.
+ *
+ * The PREVIOUS window is returned with it, because a number with no baseline
+ * is not information: 4,500 is a good day or a bad one depending on what
+ * yesterday was, and the dashboard could not say.
+ */
+export async function getSummary(req: Request, res: Response): Promise<void> {
+  if (!req.tx) {
+    res.status(500).json({ error: 'No database transaction on request' });
+    return;
+  }
+
+  let range;
+  try {
+    range = parseDateRange(req);
+  } catch (err) {
+    if (err instanceof DateRangeError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+
+  try {
+    // The window immediately before this one, of the SAME length — so "vs the
+    // previous period" compares like with like whatever window was asked for.
+    const spanMs = range.until.getTime() - range.from.getTime();
+    const prevFrom = new Date(range.from.getTime() - spanMs);
+
+    const [row] = await req.tx.$queryRaw<
+      Array<{
+        revenue: number;
+        orders: bigint;
+        prev_revenue: number;
+        prev_orders: bigint;
+      }>
+    >`
+      SELECT
+        -- Voided orders are not revenue. Excluded here exactly as they are in
+        -- profitability, so two screens cannot disagree about the same day.
+        COALESCE(SUM(o.total_amount) FILTER (
+          WHERE o.created_at >= ${range.from} AND o.created_at < ${range.until}), 0)::float8 AS revenue,
+        COUNT(*) FILTER (
+          WHERE o.created_at >= ${range.from} AND o.created_at < ${range.until})          AS orders,
+        COALESCE(SUM(o.total_amount) FILTER (
+          WHERE o.created_at >= ${prevFrom} AND o.created_at < ${range.from}), 0)::float8 AS prev_revenue,
+        COUNT(*) FILTER (
+          WHERE o.created_at >= ${prevFrom} AND o.created_at < ${range.from})             AS prev_orders
+      FROM public.orders o
+      WHERE o.created_at >= ${prevFrom}
+        AND o.created_at <  ${range.until}
+        AND o.status = 'completed'`;
+
+    const revenue = Number(row?.revenue ?? 0);
+    const orders = Number(row?.orders ?? 0);
+    const prevRevenue = Number(row?.prev_revenue ?? 0);
+    const prevOrders = Number(row?.prev_orders ?? 0);
+
+    res.status(200).json({
+      range: range.label,
+      revenue,
+      orders,
+      // Null rather than 0 for no orders: an average of nothing is not zero,
+      // and "0.00 ج.م average" reads as a catastrophe rather than a quiet day.
+      average_order: orders > 0 ? revenue / orders : null,
+      previous: {
+        revenue: prevRevenue,
+        orders: prevOrders,
+        average_order: prevOrders > 0 ? prevRevenue / prevOrders : null,
+      },
+    });
+  } catch (err) {
+    logger.error('reports.summary failed', err, {
+      request_id: req.requestId,
+      user_id: req.userId,
+    });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}

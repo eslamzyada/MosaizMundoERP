@@ -5,6 +5,7 @@ import {
   getEmployeePerformance,
   getInventoryAssets,
   getProfitability,
+  getSummary,
   getVoids,
   getWaste,
 } from '../controllers/report.controller';
@@ -23,6 +24,12 @@ router.use(authMiddleware);
 // policies deliberately leave SELECT ungated, so the database will happily show
 // order_items to any member of the organization — a cashier reaching this
 // endpoint would see the restaurant's margins. Do not mount it unguarded.
+/**
+ * The dashboard's headline figures. Same finance roles as the rest of this
+ * router: it reports revenue, and revenue is what those roles are gated for.
+ */
+router.get('/summary', requireRole(...FINANCE_ROLES), getSummary);
+
 router.get('/profitability', requireRole(...FINANCE_ROLES), getProfitability);
 
 // Voids by cause (0022). Same gate and the same reason: it reports lost revenue

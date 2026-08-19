@@ -7,11 +7,18 @@ import MetricWidget from '../components/MetricWidget';
 import Badge from '../components/ui/Badge';
 import { HttpOrderRepository } from '../api/HttpOrderRepository';
 import { HttpInventoryRepository } from '../api/HttpInventoryRepository';
+import { HttpSummaryRepository } from '../api/HttpSummaryRepository';
+import type { DashboardSummary } from '../api/HttpSummaryRepository';
+import { DEFAULT_PERIOD, PERIODS, changeFrom } from '../lib/dashboardPeriod';
+import type { Period } from '../lib/dashboardPeriod';
+import { useSession } from '../session/SessionProvider';
+import { navFor } from '../lib/roleHome';
 import { orderStatusMeta } from '../lib/orderStatus';
 import type { InventoryDeficit, InventoryStock, Order } from '../types';
 
 const orderRepository = new HttpOrderRepository();
 const inventoryRepository = new HttpInventoryRepository();
+const summaryRepository = new HttpSummaryRepository();
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -22,6 +29,21 @@ export default function Dashboard() {
   /** When these figures were actually read. A dashboard that cannot say how old
    *  it is invites you to trust a number from an hour ago. */
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const { me } = useSession();
+
+  /**
+   * Only link a figure to a page this role may actually open.
+   *
+   * The routes are guarded from this same list, so an ungated link would send
+   * somebody to a redirect — and a tile that bounces reads as a broken app
+   * rather than as a page that is not theirs.
+   */
+  const canOpen = useMemo(() => {
+    const allowed = navFor(me?.role, me?.modules);
+    return (path: string) => (allowed.includes(path) ? path : undefined);
+  }, [me]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -34,13 +56,23 @@ export default function Dashboard() {
       setOrders(orderData);
       setDeficits(deficitData);
       setStock(stockData);
+
+      // Asked for separately, and allowed to fail on its own: the stock tiles
+      // are still true if the revenue window cannot be read, and blanking the
+      // whole page over one figure would be a worse dashboard than a partial
+      // one that says which part is missing.
+      try {
+        setSummary(await summaryRepository.getSummary(period.days));
+      } catch {
+        setSummary(null);
+      }
       setFetchedAt(new Date());
     } catch (e) {
       setError(classifyLoadFailure(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [period]);
 
   useEffect(() => {
     void load();
@@ -78,11 +110,6 @@ export default function Dashboard() {
     [stock],
   );
 
-  const completed = useMemo(() => orders.filter((o) => o.status === 'completed'), [orders]);
-  const totalSales = useMemo(
-    () => completed.reduce((sum, o) => sum + o.total_amount, 0),
-    [completed],
-  );
   const recentOrders = useMemo(
     () =>
       [...orders]
@@ -97,7 +124,9 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-app-ink">لوحة التحكم</h1>
           <p className="mt-1 text-sm text-app-ink-muted">
-            نظرة عامة على أداء اليوم.
+            {/* The window, stated. It used to read "أداء اليوم" above numbers
+                that covered the last hundred orders whenever they happened. */}
+            {period.caption}.
             {fetchedAt && (
               <span className="ms-2 text-xs text-app-ink-muted">
                 آخر تحديث{' '}
@@ -111,6 +140,28 @@ export default function Dashboard() {
             )}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <div
+            role="group"
+            aria-label="الفترة"
+            className="flex overflow-hidden rounded-lg border border-app-border"
+          >
+            {PERIODS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                aria-pressed={p.key === period.key}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-twilight-500 ${
+                  p.key === period.key
+                    ? 'bg-twilight-500 text-white'
+                    : 'bg-app-surface text-app-ink-muted hover:bg-app-surface-alt'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         <button
           type="button"
           onClick={() => void load()}
@@ -118,26 +169,55 @@ export default function Dashboard() {
         >
           تحديث
         </button>
+        </div>
       </header>
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Revenue and order count come from the SERVER now, bounded by the
+            chosen window. They used to be summed here from a page of the most
+            recent hundred orders — neither today's nor complete. */}
         <MetricWidget
           label="إجمالي المبيعات"
-          value={totalSales.toLocaleString('en-US', {
+          value={(summary?.revenue ?? 0).toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
           suffix="ج.م"
           accent="sunset"
-          loading={loading || error !== null}
+          loading={loading || summary === null}
           icon={<TrendingUpIcon />}
+          to={canOpen('/reports')}
+          delta={summary ? changeFrom(summary.previous.revenue, summary.revenue) : null}
         />
         <MetricWidget
           label="عدد الطلبات"
-          value={completed.length.toLocaleString('en-US')}
+          value={(summary?.orders ?? 0).toLocaleString('en-US')}
           accent="twilight"
-          loading={loading || error !== null}
+          loading={loading || summary === null}
           icon={<BagIcon />}
+          to={canOpen('/orders')}
+          delta={summary ? changeFrom(summary.previous.orders, summary.orders) : null}
+        />
+        <MetricWidget
+          label="متوسط الطلب"
+          value={
+            summary?.average_order === null || summary === undefined
+              ? '—'
+              : (summary?.average_order ?? 0).toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+          }
+          suffix="ج.م"
+          accent="twilight"
+          loading={loading || summary === null}
+          icon={<BagIcon />}
+          to={canOpen('/orders')}
+          delta={
+            summary && summary.previous.average_order !== null && summary.average_order !== null
+              ? changeFrom(summary.previous.average_order, summary.average_order)
+              : null
+          }
         />
         <MetricWidget
           label="نواقص المخزون"
@@ -145,6 +225,7 @@ export default function Dashboard() {
           accent="amber"
           loading={loading || error !== null}
           icon={<AlertIcon />}
+          to={canOpen('/inventory')}
         />
         {/* Inventory had no presence here at all, which is why changing it
             appeared to leave the dashboard untouched — there was nothing on the
@@ -159,6 +240,7 @@ export default function Dashboard() {
           accent="twilight"
           loading={loading || error !== null}
           icon={<BoxIcon />}
+          to={canOpen('/inventory')}
         />
         <MetricWidget
           label="تحت الحد الأدنى"
@@ -166,6 +248,7 @@ export default function Dashboard() {
           accent="amber"
           loading={loading || error !== null}
           icon={<AlertIcon />}
+          to={canOpen('/inventory')}
         />
       </div>
 
