@@ -60,6 +60,12 @@ const ACCOUNTS = [
   { key: 'manager', role: 'branch_manager', note: 'rota, approvals, reports' },
   { key: 'kitchen', role: 'kitchen', note: 'the kitchen queue' },
   { key: 'accounts', role: 'accountant', note: 'ledger, purchasing, exports' },
+  // The floor. Added after the first round, because waiter@mosaizmundo.com
+  // turned out to have a database row and a membership and NO identity — so
+  // there was nothing to sign in as, and the floor was the one panel nobody
+  // could reach. Its membership is also 'staff' rather than 'waiter'; both
+  // land on /floor, but they are different roles to RBAC.
+  { key: 'waiter', role: 'waiter', note: 'the floor, and the tables they own' },
 ];
 
 // ------------------------------------------------------------------ config
