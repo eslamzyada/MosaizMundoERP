@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -216,5 +216,120 @@ describe('tapping + quickly', () => {
 
     // Back to nothing, and the form is gone with it — not stuck at -1.
     await waitFor(() => expect(screen.queryByTestId('place-order')).not.toBeInTheDocument());
+  });
+});
+
+/**
+ * A tracking page has to keep asking.
+ *
+ * It fetched once. The status it exists to display is exactly the thing that
+ * changes after the page loads — so a customer watching it saw "awaiting the
+ * restaurant" through acceptance, preparation and delivery, with nothing on
+ * screen even hinting they should reload.
+ */
+describe('TrackOrder keeps asking', () => {
+  const token = 'c0ffee00-0000-4000-8000-000000000001';
+
+  const renderTrack = () =>
+    render(
+      <MemoryRouter initialEntries={[`/order/track/${token}`]}>
+        <Routes>
+          <Route path="/order/track/:token" element={<TrackOrder />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('asks again while the order is still pending', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending', total: 90 }) })
+      .mockResolvedValue({ ok: true, json: async () => ({ status: 'accepted', total: 90 }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderTrack();
+    expect(await screen.findByText('بانتظار تأكيد المطعم')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+
+    // The whole point: the customer sees the change without touching anything.
+    expect(await screen.findByText('تم قبول طلبك')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('stops asking once the order is settled', async () => {
+    // Polling a delivered order is a request every 15 seconds, forever, from a
+    // page somebody left open on a counter.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ status: 'fulfilled', total: 90 }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderTrack();
+    expect(await screen.findByText('تم التسليم')).toBeInTheDocument();
+    const afterFirst = fetchMock.mock.calls.length;
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(fetchMock.mock.calls.length).toBe(afterFirst);
+  });
+
+  it('a failed poll does NOT tell the customer their order is gone', async () => {
+    // The bug polling would have introduced. One dropped request must not
+    // replace a real order with "we could not find this".
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending', total: 90 }) })
+      .mockRejectedValue(new Error('network blip'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderTrack();
+    expect(await screen.findByText('بانتظار تأكيد المطعم')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+
+    expect(screen.queryByText('لم نجد هذا الطلب.')).not.toBeInTheDocument();
+    expect(screen.getByText('بانتظار تأكيد المطعم')).toBeInTheDocument();
+  });
+
+  it('still reports a token that never resolved', async () => {
+    // The first answer, and only the first, may decide the order is not there.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('no such order')));
+    renderTrack();
+    expect(await screen.findByText('لم نجد هذا الطلب.')).toBeInTheDocument();
+  });
+
+  it('shows when the order was placed', async () => {
+    // The API always returned placed_at and the page threw it away, so a
+    // customer could not tell this order from one placed yesterday.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: 'pending',
+          total: 90,
+          placed_at: '2026-08-18T22:13:53.528Z',
+        }),
+      }),
+    );
+
+    renderTrack();
+    await screen.findByText('بانتظار تأكيد المطعم');
+    expect(screen.getByTestId('track').textContent).toMatch(/\d/);
   });
 });
