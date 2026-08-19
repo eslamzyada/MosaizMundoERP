@@ -31,7 +31,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { stdin, stdout } from 'node:process';
 
 // ---------------------------------------------------------------- arguments
@@ -84,7 +84,42 @@ for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
 // The DB writes go through psql as the OWNER, because `users` is
 // identity-adjacent and deliberately has no INSERT policy — the application
 // role cannot write it, by design. Point PSQL at your psql if it is not on PATH.
-const PSQL = process.env.PSQL ?? 'psql';
+/**
+ * Find psql, rather than demanding the caller export a path to it.
+ *
+ * On Windows the PostgreSQL installer does not put psql on PATH, so the honest
+ * default fails on the machine this is most likely to be run on — and the
+ * remedy I first gave was `PSQL=... node ...`, which is bash syntax that
+ * PowerShell rejects outright. Two different papercuts for one missing lookup.
+ */
+function findPsql() {
+  if (process.env.PSQL) return process.env.PSQL;
+
+  const candidates = ['psql'];
+  for (const root of ['C:/Program Files/PostgreSQL', 'C:/Program Files (x86)/PostgreSQL']) {
+    try {
+      // Newest major version first: a machine with 15 and 18 installed should
+      // use 18, which is what this project runs.
+      for (const dir of readdirSync(root).sort((a, b) => Number(b) - Number(a))) {
+        candidates.push(`${root}/${dir}/bin/psql.exe`);
+      }
+    } catch {
+      // no PostgreSQL under this root
+    }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      execFileSync(candidate, ['--version'], { stdio: 'ignore' });
+      return candidate;
+    } catch {
+      // try the next one
+    }
+  }
+  return 'psql'; // let the caller see the ENOENT message below
+}
+
+const PSQL = findPsql();
 
 /**
  * The OWNER connection, not DATABASE_URL.
