@@ -417,3 +417,55 @@ describe('the dashboard summary', () => {
     expect(res.status).toBe(403);
   });
 });
+
+/**
+ * Menu engineering, over the real report.
+ *
+ * The unit tests cover the classification itself; this asserts it survives the
+ * journey through SQL, the HTTP layer and the same role gate as the rest of the
+ * finance reports — and, most importantly, that an item the fixture leaves
+ * partly uncosted is not quietly promoted to a star.
+ */
+describe('menu engineering on the profitability report', () => {
+  it('classifies every item that was sold', async () => {
+    const report = await fetchReport('owner', 3650);
+    const me = (report as unknown as { menu_engineering: {
+      items: Array<{ id: string; quadrant: string }>;
+      thresholds: { popularity: number; unit_margin: number };
+      counts: Record<string, number>;
+    } }).menu_engineering;
+
+    expect(me).toBeDefined();
+    expect(me.items.length).toBe(report.by_item.length);
+    // Not vacuous: the fixture really does sell things.
+    expect(me.items.length).toBeGreaterThan(0);
+  });
+
+  it('states the thresholds it judged by', async () => {
+    // A verdict without its threshold cannot be argued with, and the first
+    // question anybody asks of "this is a dog" is "compared with what?".
+    const report = await fetchReport('owner', 3650);
+    const me = (report as unknown as { menu_engineering: {
+      thresholds: { popularity: number; unit_margin: number };
+    } }).menu_engineering;
+
+    expect(me.thresholds.popularity).toBeGreaterThan(0);
+    expect(typeof me.thresholds.unit_margin).toBe('number');
+  });
+
+  it('never calls an uncosted dish a star', async () => {
+    // This fixture deliberately contains a line whose cost is incomplete. That
+    // item must come back `unknown` — folded in at cost zero it would top the
+    // menu, and it is the one a manager would then push.
+    const report = await fetchReport('owner', 3650);
+    const me = (report as unknown as { menu_engineering: {
+      items: Array<{ id: string; quadrant: string }>;
+    } }).menu_engineering;
+
+    const uncosted = report.by_item.filter((i) => i.costed_revenue < i.revenue);
+    for (const item of uncosted) {
+      const verdict = me.items.find((v) => v.id === item.id);
+      expect(verdict?.quadrant).toBe('unknown');
+    }
+  });
+});

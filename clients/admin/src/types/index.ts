@@ -606,10 +606,41 @@ export interface CoverageGap {
   reason: 'no_recipe' | 'unstocked_ingredients' | 'already_resolved';
 }
 
+/**
+ * Which dishes to keep, reprice, promote or drop — the Kasavana-Smith matrix.
+ *
+ * `unknown` is not a fifth corner of the grid: it is an item whose cost is not
+ * fully known, so its margin is not either. Costed at zero it would top the
+ * menu, which is the one dish somebody would then go and promote.
+ */
+export type MenuQuadrant = 'star' | 'plowhorse' | 'puzzle' | 'dog' | 'unknown';
+
+export interface MenuVerdict {
+  id: string;
+  name: string;
+  units_sold: number;
+  revenue: number;
+  cost: number;
+  cost_is_complete: boolean;
+  quadrant: MenuQuadrant;
+  /** Cash contribution per plate. Null when the cost is not fully known. */
+  unit_margin: number | null;
+  /** Share of all plates sold in the window, 0..1. */
+  popularity: number;
+}
+
+export interface MenuEngineering {
+  items: MenuVerdict[];
+  /** Stated, so a screen can say WHY an item landed where it did. */
+  thresholds: { popularity: number; unit_margin: number };
+  counts: Record<MenuQuadrant, number>;
+}
+
 export interface ProfitabilityReport extends ReportPeriod {
   summary: ProfitBucket;
   by_day: ProfitDay[];
   by_item: ProfitItem[];
+  menu_engineering: MenuEngineering;
   coverage_gaps: CoverageGap[];
 }
 
