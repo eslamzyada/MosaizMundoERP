@@ -1,6 +1,7 @@
 import { logger } from '../lib/logger';
 import { Request, Response } from 'express';
 import { DateRangeError, parseDateRange } from '../lib/dateRange';
+import { classifyMenu } from '../lib/menuEngineering';
 
 /**
  * Profitability reporting, read from the cost captured at each sale (0015)
@@ -223,6 +224,28 @@ export async function getProfitability(req: Request, res: Response): Promise<voi
         units_sold: i.units_sold,
         ...summarise(i),
       })),
+      /**
+       * Which dishes to keep, reprice, promote or drop.
+       *
+       * The inputs were already here — units sold, revenue and cost per item —
+       * and nothing used them for the question a menu actually poses. Ranking by
+       * revenue says which dish earns the most; this says which is worth its
+       * place.
+       *
+       * An item with any uncosted line is classified `unknown` and kept out of
+       * the averages: costed at zero it would be the most profitable thing on
+       * the menu, which is exactly the dish somebody would then promote.
+       */
+      menu_engineering: classifyMenu(
+        byItem.map((i) => ({
+          id: i.id,
+          name: i.name,
+          units_sold: num(i.units_sold),
+          revenue: num(i.revenue),
+          cost: num(i.cogs),
+          cost_is_complete: num(i.uncosted_lines) === 0,
+        })),
+      ),
       coverage_gaps: gaps.map((g) => {
         const blocking = Array.isArray(g.blocking)
           ? (g.blocking as Array<{ id: string; name: string; unit_of_measure: string }>)

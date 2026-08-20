@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import LoadError from '../components/LoadError';
+import MenuEngineeringPanel from '../components/MenuEngineeringPanel';
 import ExportMenu from '../components/ExportMenu';
 import CriterionScoreSheet from '../components/CriterionScoreSheet';
 import { classifyLoadFailure } from '../lib/loadFailure';
@@ -256,6 +257,11 @@ export default function Reports() {
 
           <CoverageGaps gaps={report.coverage_gaps} />
 
+          {/* Which dishes are worth their place — a different question from
+              which dish earned the most, and the one a menu actually poses. */}
+          {report.menu_engineering && (
+            <MenuEngineeringPanel data={report.menu_engineering} />
+          )}
           <ItemTable report={report} period={window} />
         </>
       )}
